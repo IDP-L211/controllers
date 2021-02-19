@@ -1,0 +1,1 @@
+This repository contains code for the robot controller, it should be added as a submodule to the main webots repository.
