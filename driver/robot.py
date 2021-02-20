@@ -107,14 +107,15 @@ class IDPRobot(Robot):
             float: Angle measured clockwise from direction bot is facing, [-pi, pi]
         """
         target_bearing = get_target_bearing(self.position, self.target_pos)
+        angle = target_bearing - self.bearing
 
         # Need to adjust if outside [-pi,pi]
-        if target_bearing > np.pi:
-            target_bearing -= 2 * np.pi
-        elif target_bearing < -np.pi:
-            target_bearing += 2 * np.pi
+        if angle > np.pi:
+            angle -= 2 * np.pi
+        elif angle < -np.pi:
+            angle += 2 * np.pi
 
-        return target_bearing - self.bearing
+        return angle
 
     def get_bot_vertices(self):
         """Get the coordinates of vertices of the bot in world frame (i.e. in meters)
