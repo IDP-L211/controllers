@@ -104,9 +104,16 @@ class IDPRobot(Robot):
         """The clockwise angle from the direction our bot is facing to the target in radians
 
         Returns:
-            float: Angle measure clockwise from direction bot is facing, [-pi, pi]
+            float: Angle measured clockwise from direction bot is facing, [-pi, pi]
         """
         target_bearing = get_target_bearing(self.position, self.target_pos)
+
+        # Need to adjust if outside [-pi,pi]
+        if target_bearing > np.pi:
+            target_bearing -= 2 * np.pi
+        elif target_bearing < -np.pi:
+            target_bearing += 2 * np.pi
+
         return target_bearing - self.bearing
 
     def get_bot_vertices(self):
