@@ -100,8 +100,14 @@ class IDPRobot(Robot):
         return rad + 2 * pi if rad < 0 else rad
 
     @property
-    def target_bearing(self) -> float:
-        return get_target_bearing(self.position, self.target_pos)
+    def target_angle(self) -> float:
+        """The clockwise angle from the direction our bot is facing to the target in radians
+
+        Returns:
+            float: Angle measure clockwise from direction bot is facing, [-pi, pi]
+        """
+        target_bearing = get_target_bearing(self.position, self.target_pos)
+        return target_bearing - self.bearing
 
     def get_bot_vertices(self):
         """Get the coordinates of vertices of the bot in world frame (i.e. in meters)
