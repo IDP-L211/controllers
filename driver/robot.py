@@ -183,7 +183,7 @@ class IDPRobot(Robot):
         # This might be above our motor maximums so we'll use sigmoid to normalise our speeds to this range
         # Sigmoid bounds -inf -> inf to 0 -> 1 so we'll need to do some correcting
         max_motor_speed = 1
-        speeds = 1/(1 + np.exp(-speeds))
+        speeds = (1/(1 + np.exp(-speeds))) * max_motor_speed
         speeds = (speeds * 2) - 1
         return list(speeds)
 
