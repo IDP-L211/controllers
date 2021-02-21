@@ -1,0 +1,386 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  
+  <title>robot module &mdash; IDP Software  documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+
+  
+  
+
+  
+  
+
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="utils module" href="utils.html" />
+    <link rel="prev" title="mapping module" href="mapping.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="index.html" class="icon icon-home"> IDP Software
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">driver</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="mapping.html">mapping module</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">robot module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="utils.html">utils module</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">IDP Software</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="modules.html">driver</a> &raquo;</li>
+        
+      <li>robot module</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+          
+            <a href="_sources/robot.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="module-robot">
+<span id="robot-module"></span><h1>robot module<a class="headerlink" href="#module-robot" title="Permalink to this headline">¶</a></h1>
+<p>This module contains classes representing the robot.</p>
+<dl class="py class">
+<dt id="robot.IDPCompass">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">robot.</span></code><code class="sig-name descname"><span class="pre">IDPCompass</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sampling_rate</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#robot.IDPCompass" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">controller.Compass</span></code></p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="robot.IDPDistanceSensor">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">robot.</span></code><code class="sig-name descname"><span class="pre">IDPDistanceSensor</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sampling_rate</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#robot.IDPDistanceSensor" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">controller.DistanceSensor</span></code></p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="robot.IDPGPS">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">robot.</span></code><code class="sig-name descname"><span class="pre">IDPGPS</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sampling_rate</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#robot.IDPGPS" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">controller.GPS</span></code></p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="robot.IDPMotor">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">robot.</span></code><code class="sig-name descname"><span class="pre">IDPMotor</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#robot.IDPMotor" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">controller.Motor</span></code></p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="robot.IDPRobot">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">robot.</span></code><code class="sig-name descname"><span class="pre">IDPRobot</span></code><a class="headerlink" href="#robot.IDPRobot" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">controller.Robot</span></code></p>
+<dl class="py method">
+<dt id="robot.IDPRobot.bearing">
+<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">bearing</span></code><a class="headerlink" href="#robot.IDPRobot.bearing" title="Permalink to this definition">¶</a></dt>
+<dd><p>The current bearing of the robot in radians</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>Bearing measured clockwise from North, [0, 2pi]</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="robot.IDPRobot.coordtransform_bot_to_world">
+<code class="sig-name descname"><span class="pre">coordtransform_bot_to_world</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vec</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">numpy.ndarray</span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">numpy.ndarray</span><a class="headerlink" href="#robot.IDPRobot.coordtransform_bot_to_world" title="Permalink to this definition">¶</a></dt>
+<dd><p>Transform a position vector of a point in the robot frame (relative to the robot center)
+to the absolute position vector of that point in the world frame</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>vec</strong> (<em>np.ndarray</em>) – A vector relative to the centre of the robot</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>The absolute position vector of the point in the world frame</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="robot.IDPRobot.createCompass">
+<code class="sig-name descname"><span class="pre">createCompass</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#robot.IDPCompass" title="robot.IDPCompass"><span class="pre">robot.IDPCompass</span></a><a class="headerlink" href="#robot.IDPRobot.createCompass" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="robot.IDPRobot.createDistanceSensor">
+<code class="sig-name descname"><span class="pre">createDistanceSensor</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#robot.IDPDistanceSensor" title="robot.IDPDistanceSensor"><span class="pre">robot.IDPDistanceSensor</span></a><a class="headerlink" href="#robot.IDPRobot.createDistanceSensor" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="robot.IDPRobot.createGPS">
+<code class="sig-name descname"><span class="pre">createGPS</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#robot.IDPGPS" title="robot.IDPGPS"><span class="pre">robot.IDPGPS</span></a><a class="headerlink" href="#robot.IDPRobot.createGPS" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="robot.IDPRobot.createMotor">
+<code class="sig-name descname"><span class="pre">createMotor</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="#robot.IDPMotor" title="robot.IDPMotor"><span class="pre">robot.IDPMotor</span></a><a class="headerlink" href="#robot.IDPRobot.createMotor" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="robot.IDPRobot.drive_to_position">
+<code class="sig-name descname"><span class="pre">drive_to_position</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#robot.IDPRobot.drive_to_position" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="robot.IDPRobot.get_bot_front">
+<code class="sig-name descname"><span class="pre">get_bot_front</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">distance</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">numpy.ndarray</span><a class="headerlink" href="#robot.IDPRobot.get_bot_front" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the coordinates of a point a certain distance in front of the center of the robot</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>distance</strong> (<em>float</em>) – Distance in front of the center</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>The coordinate</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="robot.IDPRobot.get_bot_vertices">
+<code class="sig-name descname"><span class="pre">get_bot_vertices</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; <span class="pre">list</span><a class="headerlink" href="#robot.IDPRobot.get_bot_vertices" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the coordinates of vertices of the bot in world frame (i.e. in meters)</p>
+<p>The robot is assumed to be a rectangle.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>List of coordinates</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>[np.ndarray]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="robot.IDPRobot.get_map">
+<code class="sig-name descname"><span class="pre">get_map</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">arena_length</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">'map'</span></span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="mapping.html#mapping.Map" title="mapping.Map"><span class="pre">mapping.Map</span></a><a class="headerlink" href="#robot.IDPRobot.get_map" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get a map of the arena, on which the current position and bounding box of the robot
+will be displayed.</p>
+<p>This requires the robot to have a Display child node with name ‘map’.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>arena_length</strong> (<em>float</em>) – Side length of the arena, which is assumed to be a square</p></li>
+<li><p><strong>name</strong> (<em>str</em>) – Name of the Display node, default to ‘map’</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>The map</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p><a class="reference internal" href="mapping.html#mapping.Map" title="mapping.Map">Map</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="robot.IDPRobot.position">
+<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">position</span></code><a class="headerlink" href="#robot.IDPRobot.position" title="Permalink to this definition">¶</a></dt>
+<dd><p>The current position of the robot</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>Position (East, North) in meters</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>[float, float]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="robot.IDPRobot.speed">
+<em class="property"><span class="pre">property</span> </em><code class="sig-name descname"><span class="pre">speed</span></code><a class="headerlink" href="#robot.IDPRobot.speed" title="Permalink to this definition">¶</a></dt>
+<dd><p>The current speed of the robot measured by the GPS</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>Current speed (ms^-1)</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+        <a href="utils.html" class="btn btn-neutral float-right" title="utils module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="mapping.html" class="btn btn-neutral float-left" title="mapping module" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &#169; Copyright 2021, L211.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
