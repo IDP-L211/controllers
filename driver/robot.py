@@ -62,6 +62,7 @@ class IDPRobot(Robot):
         # If we need to point bot in a specific direction, otherwise it points at target if this is None
         # This would be interpreted as a bearing from north
         self.target_bearing_override = None
+        self.target_bearing_override_threshold = np.pi / 50
 
         # Distance threshold for 'completing' moving to a position, in metres
         self.target_distance_threshold = 0.2
@@ -152,8 +153,10 @@ class IDPRobot(Robot):
         speed = self.target_angle * k_p
 
         # If we are within the threshold we should stop turning to face target, unless we have override
-        need_to_turn = not(self.target_distance <= self.target_distance_threshold and self.target_bearing_override is None)
-        speed = speed if need_to_turn else 0
+        if self.target_bearing_override is None:
+            speed = 0 if self.reached_target else speed
+        else:
+            speed = 0 if self.reached_override_angle else speed
 
         return [speed, -speed]
 
@@ -173,7 +176,7 @@ class IDPRobot(Robot):
         speed = self.target_distance * k_p
 
         # If we are within the threshold we no longer need to move forward
-        speed = speed if self.target_distance > self.target_distance_threshold else 0
+        speed = 0 if self.reached_target else speed
 
         # We need to attenuate based on angle so we don't drive away from target
         # Will also reverse robot if it's facing backwards
@@ -198,6 +201,24 @@ class IDPRobot(Robot):
         speeds *= self.max_motor_speed
 
         return list(speeds)
+
+    @property
+    def reached_target(self) -> bool:
+        """Whether we are at our target
+
+         Returns:
+             bool: If we are within the threshold for our target
+        """
+        return self.target_distance <= self.target_distance_threshold
+
+    @property
+    def reached_override_angle(self) -> bool:
+        """If we provide a bearing override, whether we are within tolerance
+
+         Returns:
+             bool: If we are within the threshold for our bearing
+        """
+        return self.target_bearing_override <= self.target_bearing_override_threshold
 
     def set_motor_velocities(self):
         """Set the velocities for each motor according to wheel_speeds"""
@@ -266,3 +287,4 @@ class IDPRobot(Robot):
         self.target_pos = target_pos
         self.target_bearing_override = target_bearing_override
         self.set_motor_velocities()
+        return self.reached_target
