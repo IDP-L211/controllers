@@ -64,7 +64,7 @@ class IDPRobot(Robot):
         self.target_bearing_override = None
 
         # Distance threshold for 'completing' moving to a position, in metres
-        self.target_distance_threshold = 1
+        self.target_distance_threshold = 0.2
 
     # .getDevice() will call createXXX if the tag name is not in __devices[]
     def createCompass(self, name: str) -> IDPCompass:  # override method to use the custom Compass class
@@ -147,8 +147,14 @@ class IDPRobot(Robot):
         Returns:
             [float, float]: The speed for the left and right motors respectively to correct angle error
         """
+        # Control
         k_p = 1
         speed = self.target_angle * k_p
+
+        # If we are within the threshold we should stop turning to face target, unless we have override
+        need_to_turn = not(self.target_distance <= self.target_distance_threshold and self.target_bearing_override is None)
+        speed = speed if need_to_turn else 0
+
         return [speed, -speed]
 
     @property
@@ -187,8 +193,10 @@ class IDPRobot(Robot):
 
         # This might be above our motor maximums so we'll use sigmoid to normalise our speeds to this range
         # Sigmoid bounds -inf -> inf to 0 -> 1 so we'll need to do some correcting
-        speeds = (1/(1 + np.exp(-speeds))) * self.max_motor_speed
+        speeds = (1/(1 + np.exp(-speeds)))
         speeds = (speeds * 2) - 1
+        speeds *= self.max_motor_speed
+
         return list(speeds)
 
     def set_motor_velocities(self):
