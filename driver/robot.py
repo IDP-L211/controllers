@@ -50,7 +50,7 @@ class IDPRobot(Robot):
         # Motors
         self.left_motor = self.getDevice('wheel1')
         self.right_motor = self.getDevice('wheel2')
-        self.max_motor_speed = 1
+        self.max_motor_speed = min(self.left_motor.getMaxVelocity(), self.right_motor.getMaxVelocity())
 
         # Sensors
         self.gps = self.getDevice('gps')  # or use createGPS() directly
@@ -58,14 +58,12 @@ class IDPRobot(Robot):
 
         # Where the bot is trying to path to
         self.target_pos = [None, None]
+        self.target_distance_threshold = 0.1
 
         # If we need to point bot in a specific direction, otherwise it points at target if this is None
         # This would be interpreted as a bearing from north
-        self.target_bearing_override = None
-        self.target_bearing_override_threshold = np.pi / 50
-
-        # Distance threshold for 'completing' moving to a position, in metres
-        self.target_distance_threshold = 0.2
+        self.target_bearing = None
+        self.target_bearing_threshold = np.pi / 50
 
     # .getDevice() will call createXXX if the tag name is not in __devices[]
     def createCompass(self, name: str) -> IDPCompass:  # override method to use the custom Compass class
@@ -115,8 +113,8 @@ class IDPRobot(Robot):
         Returns:
             float: Angle measured clockwise from direction bot is facing, [-pi, pi]
         """
-        target_bearing = get_target_bearing(self.position, self.target_pos) if self.target_bearing_override is None \
-            else self.target_bearing_override
+        target_bearing = get_target_bearing(self.position, self.target_pos) if self.target_bearing is None \
+            else self.target_bearing
         angle = target_bearing - self.bearing
 
         # Need to adjust if outside [-pi,pi]
@@ -134,6 +132,9 @@ class IDPRobot(Robot):
         Returns:
             float: Distance between bot and target in metres
         """
+        if None in self.target_pos:
+            return 0
+
         distance_vector = np.array(self.target_pos) - np.array(self.position)
         distance = np.sqrt(sum(x**2 for x in distance_vector))
         return distance
@@ -153,10 +154,10 @@ class IDPRobot(Robot):
         speed = self.target_angle * k_p
 
         # If we are within the threshold we should stop turning to face target, unless we have override
-        if self.target_bearing_override is None:
+        if self.target_bearing is None:
             speed = 0 if self.reached_target else speed
         else:
-            speed = 0 if self.reached_override_angle else speed
+            speed = 0 if self.reached_bearing else speed
 
         return [speed, -speed]
 
@@ -212,13 +213,17 @@ class IDPRobot(Robot):
         return self.target_distance <= self.target_distance_threshold
 
     @property
-    def reached_override_angle(self) -> bool:
+    def reached_bearing(self) -> bool:
         """If we provide a bearing override, whether we are within tolerance
 
          Returns:
              bool: If we are within the threshold for our bearing
         """
-        return self.target_bearing_override <= self.target_bearing_override_threshold
+        if self.target_bearing is None:
+            reached_angle = None
+        else:
+            reached_angle = abs(self.target_angle) <= self.target_bearing_threshold
+        return reached_angle
 
     def set_motor_velocities(self):
         """Set the velocities for each motor according to wheel_speeds"""
@@ -277,14 +282,31 @@ class IDPRobot(Robot):
         """
         return Map(self, arena_length, name)
 
-    def drive_to_position(self, target_pos: list, target_bearing_override=None):
+    def drive_to_position(self, target_pos: list) -> bool:
         """For this time step go to this position
 
         Args:
             target_pos: [float, float]: The East-North co-ords of the target position
-            target_bearing_override: float: Override for desired bearing of our robot
+        Returns:
+            bool: If we are at our target
         """
         self.target_pos = target_pos
-        self.target_bearing_override = target_bearing_override
         self.set_motor_velocities()
+
         return self.reached_target
+
+    def face_bearing(self, target_bearing: float) -> bool:
+        """For this time step go to this position
+
+        Args:
+            target_bearing: float: Desired bearing of our robot
+        Returns:
+            bool: If we are at our target
+        """
+        self.target_bearing = target_bearing
+        self.set_motor_velocities()
+
+        # Clear target_bearing so if we drive_to_position our target_angle is not overwritten
+        self.target_bearing = None
+
+        return self.reached_bearing
