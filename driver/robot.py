@@ -21,6 +21,7 @@ class IDPDistanceSensor(DistanceSensor):
     def __init__(self, name, sampling_rate):
         super().__init__(name)
         self.enable(sampling_rate)
+        self.max_range = self.getLookupTable()[-3]
 
 
 class IDPGPS(GPS):
