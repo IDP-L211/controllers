@@ -50,6 +50,7 @@ class IDPRobot(Robot):
         # Motors
         self.left_motor = self.getDevice('wheel1')
         self.right_motor = self.getDevice('wheel2')
+        self.max_motor_speed = 1
 
         # Sensors
         self.gps = self.getDevice('gps')  # or use createGPS() directly
@@ -57,6 +58,10 @@ class IDPRobot(Robot):
 
         # Where the bot is trying to path to
         self.target_pos = [None, None]
+
+        # If we need to point bot in a specific direction, otherwise it points at target if this is None
+        # This would be interpreted as a bearing from north
+        self.target_bearing_override = None
 
         # Distance threshold for 'completing' moving to a position, in metres
         self.target_distance_threshold = 1
@@ -109,7 +114,8 @@ class IDPRobot(Robot):
         Returns:
             float: Angle measured clockwise from direction bot is facing, [-pi, pi]
         """
-        target_bearing = get_target_bearing(self.position, self.target_pos)
+        target_bearing = get_target_bearing(self.position, self.target_pos) if self.target_bearing_override is None \
+            else self.target_bearing_override
         angle = target_bearing - self.bearing
 
         # Need to adjust if outside [-pi,pi]
@@ -164,9 +170,8 @@ class IDPRobot(Robot):
         speed = speed if self.target_distance > self.target_distance_threshold else 0
 
         # We need to attenuate based on angle so we don't drive away from target
-        # For now, implemented as a linear decay from 1 -> -1 as absolute angle varies from 0 -> pi
         # Will also reverse robot if it's facing backwards
-        speed *= (abs(self.target_angle) * (-2 / np.pi)) + 1
+        speed *= np.cos(self.target_angle)
         return [speed, speed]
 
     @property
@@ -182,10 +187,16 @@ class IDPRobot(Robot):
 
         # This might be above our motor maximums so we'll use sigmoid to normalise our speeds to this range
         # Sigmoid bounds -inf -> inf to 0 -> 1 so we'll need to do some correcting
-        max_motor_speed = 1
-        speeds = (1/(1 + np.exp(-speeds))) * max_motor_speed
+        speeds = (1/(1 + np.exp(-speeds))) * self.max_motor_speed
         speeds = (speeds * 2) - 1
         return list(speeds)
+
+    def set_motor_velocities(self):
+        """Set the velocities for each motor according to wheel_speeds"""
+        self.left_motor.setPosition(float('inf'))
+        self.right_motor.setPosition(float('inf'))
+        self.left_motor.setVelocity(self.wheel_speeds[0])
+        self.right_motor.setVelocity(self.wheel_speeds[1])
 
     def get_bot_vertices(self):
         """Get the coordinates of vertices of the bot in world frame (i.e. in meters)
@@ -237,5 +248,13 @@ class IDPRobot(Robot):
         """
         return Map(self, arena_length, name)
 
-    def drive_to_position(self, target):
-        pass
+    def drive_to_position(self, target_pos: list, target_bearing_override=None):
+        """For this time step go to this position
+
+        Args:
+            target_pos: [float, float]: The East-North co-ords of the target position
+            target_bearing_override: float: Override for desired bearing of our robot
+        """
+        self.target_pos = target_pos
+        self.target_bearing_override = target_bearing_override
+        self.set_motor_velocities()
