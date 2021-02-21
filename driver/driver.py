@@ -22,7 +22,9 @@ while robot.step(timestep) != -1:
     robot.left_motor.setVelocity(2.0)
     robot.right_motor.setVelocity(1.0)
 
-    print(robot.position, robot.speed, robot.bearing)
+    print(f"[{robot.position[0]:4.2f} {robot.position[1]:4.2f} ] "  + \
+          f"{robot.speed:4.2f} {robot.bearing:4.2f} " + \
+          f"{robot.ultrasonic.getValue():4.2f}")
 
     # print(camera.getImageArray())
 
