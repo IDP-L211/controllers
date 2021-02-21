@@ -4,8 +4,6 @@ from robot import IDPRobot
 
 # create the Robot instance.
 robot = IDPRobot()
-robot.max_motor_speed = 5
-robot.target_distance_threshold = 0.2
 
 # get the time step of the current world.
 timestep = int(robot.getBasicTimeStep())

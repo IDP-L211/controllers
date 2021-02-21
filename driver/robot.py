@@ -50,7 +50,7 @@ class IDPRobot(Robot):
         # Motors
         self.left_motor = self.getDevice('wheel1')
         self.right_motor = self.getDevice('wheel2')
-        self.max_motor_speed = 1
+        self.max_motor_speed = 10
 
         # Sensors
         self.gps = self.getDevice('gps')  # or use createGPS() directly
@@ -58,7 +58,7 @@ class IDPRobot(Robot):
 
         # Where the bot is trying to path to
         self.target_pos = [None, None]
-        self.target_distance_threshold = 0.2
+        self.target_distance_threshold = 0.1
 
         # If we need to point bot in a specific direction, otherwise it points at target if this is None
         # This would be interpreted as a bearing from north
@@ -286,8 +286,10 @@ class IDPRobot(Robot):
             target_pos: [float, float]: The East-North co-ords of the target position
         Returns:
             bool: If we are at our target"""
+
         self.target_pos = target_pos
         self.set_motor_velocities()
+
         return self.reached_target
 
     def face_bearing(self, target_bearing: float) -> bool:
@@ -297,6 +299,11 @@ class IDPRobot(Robot):
             target_bearing: float: Desired bearing of our robot
         Returns:
             bool: If we are at our target"""
+
         self.target_bearing = target_bearing
         self.set_motor_velocities()
+
+        # Clear target_bearing so if we drive_to_position our target_angle is not overwritten
+        self.target_bearing = None
+
         return self.reached_bearing
