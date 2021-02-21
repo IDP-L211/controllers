@@ -4,8 +4,6 @@
 """This module contains classes representing the robot.
 """
 
-from math import atan2, pi
-
 from controller import Robot, GPS, Compass, Motor, DistanceSensor
 import numpy as np
 
@@ -62,7 +60,7 @@ class IDPRobot(Robot):
         self.compass = self.getDevice('compass')
         self.ultrasonic = self.getDevice('ultrasonic')
 
-    # .getDevice() will call createXXX if the tag name is not in __devices[]
+    # .getDevice() will call createFoo if the tag name is not in __devices[]
     def createCompass(self, name: str) -> IDPCompass:  # override method to use the custom Compass class
         return IDPCompass(name, self.timestep)
 
@@ -103,10 +101,25 @@ class IDPRobot(Robot):
             float: Bearing measured clockwise from North, [0, 2pi]
         """
         north = self.compass.getValues()
-        rad = atan2(north[0], north[2])  # [-pi, pi]
-        return rad + 2 * pi if rad < 0 else rad
+        if np.isnan([north[0], north[2]]).any():
+            raise RuntimeError('No data from Compass, make sure "xAxis" and "yAxis" are set to TRUE')
+        rad = np.arctan2(north[0], north[2])  # [-pi, pi]
+        return rad + 2 * np.pi if rad < 0 else rad
 
-    def get_bot_vertices(self):
+    def coordtransform_bot_to_world(self, vec: np.ndarray) -> np.ndarray:
+        """Transform a position vector of a point in the robot frame (relative to the robot center)
+        to the absolute position vector of that point in the world frame
+
+        Args:
+            vec(np.ndarray): A vector relative to the centre of the robot
+
+        Returns:
+            np.ndarray: The absolute position vector of the point in the world frame
+        """
+        # bearing is positive if clockwise while for rotation anticlockwise is positive
+        return np.array(self.position) + rotate_vector(vec, -self.bearing)
+
+    def get_bot_vertices(self) -> list:
         """Get the coordinates of vertices of the bot in world frame (i.e. in meters)
 
         The robot is assumed to be a rectangle.
@@ -114,8 +127,7 @@ class IDPRobot(Robot):
         Returns:
             [np.ndarray]: List of coordinates
         """
-        center = np.array(self.position)
-        angle = -self.bearing  # bearing is positive if clockwise while for rotation anticlockwise is positive
+
         center_to_corner = np.array([self.width, self.length]) / 2
 
         center_to_topleft = center_to_corner * np.array([-1, 1])
@@ -126,10 +138,9 @@ class IDPRobot(Robot):
         center_to_corners = [center_to_topleft, center_to_topright,
                              center_to_bottomright, center_to_bottomleft]
 
-        vertices = [center + rotate_vector(v, angle) for v in center_to_corners]
-        return vertices
+        return list(map(self.coordtransform_bot_to_world, center_to_corners))
 
-    def get_bot_front(self, distance: float):
+    def get_bot_front(self, distance: float) -> np.ndarray:
         """Get the coordinates of a point a certain distance in front of the center of the robot
 
         Args:
@@ -139,7 +150,7 @@ class IDPRobot(Robot):
             np.ndarray: The coordinate
         """
 
-        return np.array(self.position) + rotate_vector(np.array([0, distance]), -self.bearing)
+        return self.coordtransform_bot_to_world(np.array([0, distance]))
 
     def get_map(self, arena_length: float, name: str = 'map') -> Map:
         """Get a map of the arena, on which the current position and bounding box of the robot
