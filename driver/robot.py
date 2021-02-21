@@ -58,6 +58,9 @@ class IDPRobot(Robot):
         # Where the bot is trying to path to
         self.target_pos = [None, None]
 
+        # Distance threshold for 'completing' moving to a position
+        self.target_distance_threshold = 1
+
     # .getDevice() will call createXXX if the tag name is not in __devices[]
     def createCompass(self, name: str) -> IDPCompass:  # override method to use the custom Compass class
         return IDPCompass(name, self.timestep)
@@ -116,6 +119,17 @@ class IDPRobot(Robot):
             angle += 2 * np.pi
 
         return angle
+
+    @propert
+    def target_distance(self) -> float:
+        """The Euclidean distance between the bot and its target
+
+        Returns:
+            float: Distance between bot and target in metres
+        """
+        distance_vector = self.target_pos - self.position
+        distance = np.sqrt(sum(x**2 for x in distance_vector))
+        return distance
 
     def get_bot_vertices(self):
         """Get the coordinates of vertices of the bot in world frame (i.e. in meters)
