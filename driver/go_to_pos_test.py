@@ -17,7 +17,10 @@ at_target = False
 # Main loop:
 # - perform simulation steps until Webots is stopping the controller
 while robot.step(timestep) != -1:
-    bearing_override = bearing if at_target else None
-    at_target = robot.drive_to_position(target_pos=target_pos, target_bearing_override=bearing_override)
-    print(at_target)
+
+    if not at_target:
+        at_target = robot.drive_to_position(target_pos=target_pos)
+    else:
+        robot.face_bearing(bearing)
+
     print(robot.position, robot.speed, robot.bearing)
