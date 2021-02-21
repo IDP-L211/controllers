@@ -6,7 +6,7 @@
 
 from math import atan2, pi
 
-from controller import Robot, GPS, Compass, Motor
+from controller import Robot, GPS, Compass, Motor, DistanceSensor
 import numpy as np
 
 from utils import rotate_vector
@@ -14,6 +14,12 @@ from mapping import Map
 
 
 class IDPCompass(Compass):
+    def __init__(self, name, sampling_rate):
+        super().__init__(name)
+        self.enable(sampling_rate)
+
+
+class IDPDistanceSensor(DistanceSensor):
     def __init__(self, name, sampling_rate):
         super().__init__(name)
         self.enable(sampling_rate)
@@ -54,10 +60,14 @@ class IDPRobot(Robot):
         # Sensors
         self.gps = self.getDevice('gps')  # or use createGPS() directly
         self.compass = self.getDevice('compass')
+        self.ultrasonic = self.getDevice('ultrasonic')
 
     # .getDevice() will call createXXX if the tag name is not in __devices[]
     def createCompass(self, name: str) -> IDPCompass:  # override method to use the custom Compass class
         return IDPCompass(name, self.timestep)
+
+    def createDistanceSensor(self, name: str) -> IDPDistanceSensor:
+        return IDPDistanceSensor(name, self.timestep)
 
     def createGPS(self, name: str) -> IDPGPS:
         return IDPGPS(name, self.timestep)
