@@ -15,7 +15,9 @@ class Map(Display):
         super().__init__(name)
         self.robot = robot
         self.arena_length = arena_length
-        self.map_length = min(self.getWidth(), self.getHeight())
+        self.width = self.getWidth()
+        self.height = self.getHeight()
+        self.map_length = min(self.width, self.height)
 
     @staticmethod
     def coord_to_xylists(list_of_arrays: list) -> list:
@@ -36,19 +38,19 @@ class Map(Display):
         return vec / arena_length * map_length
 
     @staticmethod
-    def coordtransform_vector(vec: np.ndarray, arena_length, map_length) -> np.ndarray:
+    def coordtransform_world_to_map(vec: np.ndarray, arena_length: float, map_length: float) -> np.ndarray:
         """Transfer the world coordinate (East, North) to image coordinate
 
         The image coordinate has (0,0) at the top left corner and (width-1,height-1) at
         the bottom right corner. Therefore, the North coordinate needs to be reversed.
         The origin also need to be shifted to the center.
         """
-        return Map.convert_unit(vec, arena_length, map_length)[::-1] * np.array([1, -1]) \
-               + np.array([map_length] * 2) / 2
+        return (Map.convert_unit(vec, arena_length, map_length) * np.array([1, -1])
+                + np.array([map_length] * 2) / 2).astype(int)
 
     def get_map_bot_vertices(self) -> list:
         vertices = self.robot.get_bot_vertices()
-        vertices_trans = [Map.coordtransform_vector(v, self.arena_length, self.map_length) for v in vertices]
+        vertices_trans = [Map.coordtransform_world_to_map(v, self.arena_length, self.map_length) for v in vertices]
 
         return Map.coord_to_xylists(vertices_trans)
 
@@ -56,12 +58,17 @@ class Map(Display):
         if distance is None:
             distance = self.robot.length / 0.8
         vertices = [np.array([self.robot.position]), self.robot.get_bot_front(distance)]
-        vertices_trans = [Map.coordtransform_vector(v, self.arena_length, self.map_length).astype(int) for v in
+        vertices_trans = [Map.coordtransform_world_to_map(v, self.arena_length, self.map_length) for v in
                           vertices]
 
         return Map.coord_to_xylists(vertices_trans)
 
-    def update(self, display_front: bool = True):
+    def update(self, display_front: bool = True) -> None:
+        # clear display
+        self.setColor(0x000000)
+        self.fillRectangle(0, 0, self.height, self.width)
+
+        self.setColor(0xFFFFFF)
         px, py = self.get_map_bot_vertices()
         self.drawPolygon(px, py)
 
