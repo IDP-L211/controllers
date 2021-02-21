@@ -1,7 +1,13 @@
-from controller import GPS, Compass, Motor
+from controller import GPS, Compass, DistanceSensor
 
 
 class IDPCompass(Compass):
+    def __init__(self, name, sampling_rate):
+        super().__init__(name)
+        self.enable(sampling_rate)
+
+
+class IDPDistanceSensor(DistanceSensor):
     def __init__(self, name, sampling_rate):
         super().__init__(name)
         self.enable(sampling_rate)

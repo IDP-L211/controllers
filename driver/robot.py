@@ -9,7 +9,7 @@ from math import atan2, pi
 from controller import Robot
 import numpy as np
 
-from devices.sensors import IDPCompass, IDPGPS
+from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor
 from devices.motors import IDPMotorController
 
 from strategies.motion import MotionControlStrategies
@@ -35,6 +35,7 @@ class IDPRobot(Robot):
         self.gps = IDPGPS('gps', self.timestep)
         self.compass = IDPCompass('compass', self.timestep)
         self.motors = IDPMotorController('wheel1', 'wheel2')
+        self.ultrasonic = IDPDistanceSensor('ultrasonic')
 
         # Where the bot is trying to path to
         self.target_pos = [None, None]
@@ -47,7 +48,7 @@ class IDPRobot(Robot):
 
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
-        if name in ['gps', 'compass', 'wheel1', 'wheel2']:
+        if name in ['gps', 'compass', 'wheel1', 'wheel2', 'ultrasonic']:
             raise RuntimeError('Please use the corresponding properties instead')
         Robot.getDevice(self, name)
 
