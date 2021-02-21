@@ -58,7 +58,7 @@ class IDPRobot(Robot):
         # Where the bot is trying to path to
         self.target_pos = [None, None]
 
-        # Distance threshold for 'completing' moving to a position
+        # Distance threshold for 'completing' moving to a position, in metres
         self.target_distance_threshold = 1
 
     # .getDevice() will call createXXX if the tag name is not in __devices[]
@@ -120,16 +120,72 @@ class IDPRobot(Robot):
 
         return angle
 
-    @propert
+    @property
     def target_distance(self) -> float:
         """The Euclidean distance between the bot and its target
 
         Returns:
             float: Distance between bot and target in metres
         """
-        distance_vector = self.target_pos - self.position
+        distance_vector = np.array(self.target_pos) - np.array(self.position)
         distance = np.sqrt(sum(x**2 for x in distance_vector))
         return distance
+
+    @property
+    def wheel_rotation_speed(self) -> list:
+        """Uses control theory to calculate the speeds for the wheels to spin in opposite directions to correct angle
+        error
+
+        Currently implemented as proportional control
+
+        Returns:
+            [float, float]: The speed for the left and right motors respectively to correct angle error
+        """
+        k_p = 1
+        speed = self.target_angle * k_p
+        return [speed, -speed]
+
+    @property
+    def wheel_forward_speed(self) -> list:
+        """Uses control theory to calculate the speeds for the wheels to spin in the same direction to correct distance
+        error
+
+        Currently implemented as proportional control
+
+        Returns:
+            [float, float]: The speed for the left and right motors respectively to correct distance error
+        """
+
+        # Control
+        k_p = 1
+        speed = self.target_distance * k_p
+
+        # If we are within the threshold we no longer need to move forward
+        speed = speed if self.target_distance > self.target_distance_threshold else 0
+
+        # We need to attenuate based on angle so we don't drive away from target
+        # For now, implemented as a linear decay from 1 -> -1 as absolute angle varies from 0 -> pi
+        # Will also reverse robot if it's facing backwards
+        speed *= (abs(self.target_angle) * (-2 / np.pi)) + 1
+        return [speed, speed]
+
+    @property
+    def wheel_speeds(self) -> list:
+        """Uses wheel rotation and forward speeds to calculate the overall speeds for the wheels to reduce angle and
+        distance error
+
+        Returns:
+            [float, float]: The speed for the left and right motors respectively to correct both angle and distance
+                            error
+        """
+        speeds = np.array(self.wheel_forward_speed) + np.array(self.wheel_rotation_speed)
+
+        # This might be above our motor maximums so we'll use sigmoid to normalise our speeds to this range
+        # Sigmoid bounds -inf -> inf to 0 -> 1 so we'll need to do some correcting
+        max_motor_speed = 1
+        speeds = 1/(1 + np.exp(-speeds))
+        speeds = (speeds * 2) - 1
+        return list(speeds)
 
     def get_bot_vertices(self):
         """Get the coordinates of vertices of the bot in world frame (i.e. in meters)
