@@ -4,9 +4,13 @@
 """This module contains classes representing the robot.
 """
 
+<<<<<<< HEAD
 from math import atan2, pi
 
 from controller import Robot
+=======
+from controller import Robot, GPS, Compass, Motor, DistanceSensor
+>>>>>>> c1e0b93 (Improving map and refactoring (#6))
 import numpy as np
 
 from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor
@@ -14,8 +18,37 @@ from devices.motors import IDPMotorController
 
 from strategies.motion import MotionControlStrategies
 
+<<<<<<< HEAD
 from misc.utils import rotate_vector, get_target_bearing
 from misc.mapping import Map
+=======
+class IDPCompass(Compass):
+    def __init__(self, name, sampling_rate):
+        super().__init__(name)
+        self.enable(sampling_rate)
+
+
+class IDPDistanceSensor(DistanceSensor):
+    def __init__(self, name, sampling_rate):
+        super().__init__(name)
+        self.enable(sampling_rate)
+        self.max_range = self.getLookupTable()[-3]
+
+
+class IDPGPS(GPS):
+    def __init__(self, name, sampling_rate):
+        super().__init__(name)  # default to infinite resolution
+        if self.getCoordinateSystem() != 0:
+            raise RuntimeWarning('Need to set GPS coordinate system in WorldInfo to local')
+        self.enable(sampling_rate)
+
+
+class IDPMotor(Motor):
+    def __init__(self, name):
+        super().__init__(name)
+        self.setPosition(float('inf'))
+        self.setVelocity(0.0)
+>>>>>>> c1e0b93 (Improving map and refactoring (#6))
 
 
 class IDPRobot(Robot):
@@ -31,11 +64,17 @@ class IDPRobot(Robot):
 
         self.timestep = int(self.getBasicTimeStep())  # get the time step of the current world
 
+<<<<<<< HEAD
         # Devices
         self.gps = IDPGPS('gps', self.timestep)
         self.compass = IDPCompass('compass', self.timestep)
         self.motors = IDPMotorController('wheel1', 'wheel2')
         self.ultrasonic = IDPDistanceSensor('ultrasonic')
+=======
+    # .getDevice() will call createFoo if the tag name is not in __devices[]
+    def createCompass(self, name: str) -> IDPCompass:  # override method to use the custom Compass class
+        return IDPCompass(name, self.timestep)
+>>>>>>> c1e0b93 (Improving map and refactoring (#6))
 
         # Where the bot is trying to path to
         self.target_pos = [None, None]
@@ -85,6 +124,14 @@ class IDPRobot(Robot):
         rad = np.arctan2(north[0], north[2])  # [-pi, pi]
         return rad + 2 * np.pi if rad < 0 else rad
 
+    def coordtransform_bot_to_world(self, vec: np.ndarray) -> np.ndarray:
+        """Transform a position vector of a point in the robot frame (relative to the robot center)
+        to the absolute position vector of that point in the world frame
+
+        Args:
+            vec(np.ndarray): A vector relative to the centre of the robot
+
+<<<<<<< HEAD
     @property
     def target_angle(self) -> float:
         """The clockwise angle from the direction our bot is facing to the target in radians
@@ -139,13 +186,8 @@ class IDPRobot(Robot):
 
         return abs(self.target_angle) <= self.target_bearing_threshold
 
-    def coordtransform_bot_to_world(self, vec: np.ndarray) -> np.ndarray:
-        """Transform a position vector of a point in the robot frame (relative to the robot center)
-        to the absolute position vector of that point in the world frame
-
-        Args:
-            vec(np.ndarray): A vector relative to the centre of the robot
-
+    def get_bot_vertices(self):
+=======
         Returns:
             np.ndarray: The absolute position vector of the point in the world frame
         """
@@ -153,6 +195,7 @@ class IDPRobot(Robot):
         return np.array(self.position) + rotate_vector(vec, -self.bearing)
 
     def get_bot_vertices(self) -> list:
+>>>>>>> c1e0b93 (Improving map and refactoring (#6))
         """Get the coordinates of vertices of the bot in world frame (i.e. in meters)
 
         The robot is assumed to be a rectangle.

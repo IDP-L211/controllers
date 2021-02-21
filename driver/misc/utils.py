@@ -12,7 +12,7 @@ def get_rotation_matrix(angle: float) -> np.ndarray:
 
 
 def rotate_vector(vec: np.ndarray, angle: float) -> np.ndarray:
-    return (get_rotation_matrix(angle) @ vec.reshape(2, 1)).reshape(1, 2)
+    return (get_rotation_matrix(angle) @ vec.reshape(2, 1)).flatten()
 
 
 def get_target_bearing(own_pos: list, target_pos: list) -> float:
