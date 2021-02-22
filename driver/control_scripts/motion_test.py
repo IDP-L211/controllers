@@ -1,6 +1,6 @@
 # Test script for drive_to_pos
 
-from robot import IDPRobot
+from driver.robot.core import IDPRobot
 
 # create the Robot instance.
 robot = IDPRobot()
@@ -14,7 +14,8 @@ action_queue = [
     3.141,
     [-1, 1],
     [-1, -1],
-    [0, 0]
+    [0, 0],
+    0.0
 ]
 
 # Main loop:
