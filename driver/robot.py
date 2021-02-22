@@ -132,7 +132,7 @@ class IDPRobot(Robot):
         Returns:
             float: Distance between bot and target in metres
         """
-        if not all(self.target_pos):
+        if None in self.target_pos:
             return 0
 
         distance_vector = np.array(self.target_pos) - np.array(self.position)
