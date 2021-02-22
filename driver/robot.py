@@ -14,8 +14,8 @@ from devices.motors import IDPMotorController
 
 from strategies.motion import MotionControlStrategies
 
-from utils import rotate_vector, get_target_bearing
-from mapping import Map
+from misc.utils import rotate_vector, get_target_bearing
+from misc.mapping import Map
 
 
 class IDPRobot(Robot):
