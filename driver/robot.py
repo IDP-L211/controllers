@@ -215,8 +215,8 @@ class IDPRobot(Robot):
 
         return self.reached_bearing
 
-    def execute_actions(self, actions: list) -> bool:
-        """Execute a set of actions from a list in order
+    def execute_action(self, actions: list) -> bool:
+        """Execute the first action in a set of actions
 
         When each action is completed it's removed from the list. Using list mutability this allows us to alter / check
         the action list elsewhere in the code to see the bots progress and also change its objectives.
