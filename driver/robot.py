@@ -51,6 +51,10 @@ class IDPRobot(Robot):
         self.left_motor = self.getDevice('wheel1')
         self.right_motor = self.getDevice('wheel2')
         self.max_motor_speed = min(self.left_motor.getMaxVelocity(), self.right_motor.getMaxVelocity())
+        self.left_motor.setPosition(float('inf'))
+        self.right_motor.setPosition(float('inf'))
+        self.left_motor.setVelocity(0)
+        self.right_motor.setVelocity(0)
 
         # Sensors
         self.gps = self.getDevice('gps')  # or use createGPS() directly
@@ -150,7 +154,7 @@ class IDPRobot(Robot):
             [float, float]: The speed for the left and right motors respectively to correct angle error
         """
         # Control
-        k_p = 1
+        k_p = 4
         speed = self.target_angle * k_p
 
         # If we are within the threshold we should stop turning to face target, unless we have override
@@ -173,7 +177,7 @@ class IDPRobot(Robot):
         """
 
         # Control
-        k_p = 1
+        k_p = 4
         speed = self.target_distance * k_p
 
         # If we are within the threshold we no longer need to move forward
@@ -225,12 +229,26 @@ class IDPRobot(Robot):
             reached_angle = abs(self.target_angle) <= self.target_bearing_threshold
         return reached_angle
 
-    def set_motor_velocities(self):
-        """Set the velocities for each motor according to wheel_speeds"""
-        self.left_motor.setPosition(float('inf'))
-        self.right_motor.setPosition(float('inf'))
-        self.left_motor.setVelocity(self.wheel_speeds[0])
-        self.right_motor.setVelocity(self.wheel_speeds[1])
+    def set_motor_velocities(self, left=None, right=None):
+        """Set the velocities for each motor, if none given uses wheel_speeds
+
+        Args:
+            left: float: Manual speed override for left wheel, fraction of max speed (-1 -> 1)
+            right: float: Manual speed override for right wheel, fraction of max speed (-1 -> 1)
+        """
+
+        if left is None:
+            left_speed = self.wheel_speeds[0]
+        else:
+            left_speed = left * self.max_motor_speed
+
+        if right is None:
+            right_speed = self.wheel_speeds[1]
+        else:
+            right_speed = right * self.max_motor_speed
+
+        self.left_motor.setVelocity(left_speed)
+        self.right_motor.setVelocity(right_speed)
 
     def get_bot_vertices(self):
         """Get the coordinates of vertices of the bot in world frame (i.e. in meters)
@@ -307,6 +325,49 @@ class IDPRobot(Robot):
         self.set_motor_velocities()
 
         # Clear target_bearing so if we drive_to_position our target_angle is not overwritten
+        complete = self.reached_bearing
         self.target_bearing = None
 
-        return self.reached_bearing
+        return complete
+
+    def execute_actions(self, actions: list) -> bool:
+        """Execute a set of actions from a list in order
+
+        When each action is completed it's removed from the list. Using list mutability this allows us to alter / check
+        the action list elsewhere in the code to see the bots progress and also change its objectives.
+        If people have better ideas on how to do this I'm all ears.
+
+        Args:
+            actions: list: If an element is a list it's treated as co-ords, if it's a float it's treated as a bearing
+
+        Returns:
+            bool: Whether action list is completed or not
+        """
+
+        # Check if action list is empty i.e. 'complete'
+        if len(actions) == 0:
+            return True
+
+        # Execute action
+        else:
+            action = actions[0]
+
+            # Action is a list and therefore co-ords to drive to
+            if isinstance(action, list):
+                if len(action) != 2:
+                    raise Exception(f"Action {action} given to robot does not have 2 elements")
+                else:
+                    completed = self.drive_to_position(action)
+
+            # Action is a float and therefore a bearing to face
+            elif isinstance(action, float):
+                completed = self.face_bearing(action)
+
+            else:
+                raise Exception(f"Unrecognised action type for {action}, should be list or float")
+
+            # If we completed this action we should remove it from our list
+            if completed:
+                del actions[0]
+
+            return False
