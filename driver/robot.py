@@ -50,7 +50,7 @@ class IDPRobot(Robot):
         # Motors
         self.left_motor = self.getDevice('wheel1')
         self.right_motor = self.getDevice('wheel2')
-        self.max_motor_speed = 10
+        self.max_motor_speed = min(self.left_motor.getMaxVelocity(), self.right_motor.getMaxVelocity())
 
         # Sensors
         self.gps = self.getDevice('gps')  # or use createGPS() directly
@@ -132,6 +132,9 @@ class IDPRobot(Robot):
         Returns:
             float: Distance between bot and target in metres
         """
+        if None in self.target_pos:
+            return 0
+
         distance_vector = np.array(self.target_pos) - np.array(self.position)
         distance = np.sqrt(sum(x**2 for x in distance_vector))
         return distance
@@ -219,7 +222,7 @@ class IDPRobot(Robot):
         if self.target_bearing is None:
             reached_angle = None
         else:
-            reached_angle = self.target_bearing <= self.target_bearing_threshold
+            reached_angle = abs(self.target_angle) <= self.target_bearing_threshold
         return reached_angle
 
     def set_motor_velocities(self):
@@ -285,8 +288,8 @@ class IDPRobot(Robot):
         Args:
             target_pos: [float, float]: The East-North co-ords of the target position
         Returns:
-            bool: If we are at our target"""
-
+            bool: If we are at our target
+        """
         self.target_pos = target_pos
         self.set_motor_velocities()
 
@@ -298,8 +301,8 @@ class IDPRobot(Robot):
         Args:
             target_bearing: float: Desired bearing of our robot
         Returns:
-            bool: If we are at our target"""
-
+            bool: If we are at our target
+        """
         self.target_bearing = target_bearing
         self.set_motor_velocities()
 
