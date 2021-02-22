@@ -9,13 +9,13 @@ robot = IDPRobot()
 timestep = int(robot.getBasicTimeStep())
 
 action_queue = [
-    [1, -1],
-    [1, 1],
-    3.141,
-    [-1, 1],
-    [-1, -1],
-    [0, 0],
-    0.0
+    ("move", [1, -1]),
+    ("move", [1, 1]),
+    ("face", 3.141),
+    ("move", [-1, 1]),
+    ("move", [-1, -1]),
+    ("move", [0, 0]),
+    ("face", 0.0)
 ]
 
 # Main loop:

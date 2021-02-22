@@ -222,8 +222,12 @@ class IDPRobot(Robot):
         the action list elsewhere in the code to see the bots progress and also change its objectives.
         If people have better ideas on how to do this I'm all ears.
 
+        Actions:
+            move: Go to the given coordinates
+            turn: Face the given bearing
+
         Args:
-            actions: list: If an element is a list it's treated as co-ords, if it's a float it's treated as a bearing
+            actions: list: Each list element is a tuple/list of ["action_type", value]
 
         Returns:
             bool: Whether action list is completed or not
@@ -235,21 +239,21 @@ class IDPRobot(Robot):
 
         # Execute action
         else:
-            action = actions[0]
+            action_type = actions[0][0]
+            action_value = actions[0][1]
 
-            # Action is a list and therefore co-ords to drive to
-            if isinstance(action, list):
-                if len(action) != 2:
-                    raise Exception(f"Action {action} given to robot does not have 2 elements")
-                else:
-                    completed = self.drive_to_position(action)
+            # Store the function associated with each action
+            action_functions = {
+                "move": self.drive_to_position,
+                "face": self.face_bearing
+            }
 
-            # Action is a float and therefore a bearing to face
-            elif isinstance(action, float):
-                completed = self.face_bearing(action)
+            # Check action is valid
+            if action_type not in action_functions.keys():
+                raise Exception(f"Action {action_type} is not a valid action, valid actions: {', '.join(action_functions.keys())}")
 
-            else:
-                raise Exception(f"Unrecognised action type for {action}, should be list or float")
+            # Execute action
+            completed = action_functions[action_type](action_value)
 
             # If we completed this action we should remove it from our list
             if completed:
