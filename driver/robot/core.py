@@ -12,7 +12,7 @@ import numpy as np
 from driver.robot.sensors import IDPCompass, IDPGPS
 from driver.robot.motors import IDPMotorController
 
-from driver.strategies.motion import MotionCS
+from driver.strategies.motion import MotionControlStrategies
 
 from driver.utils import rotate_vector, get_target_bearing
 from driver.mapping import Map
@@ -198,7 +198,7 @@ class IDPRobot(Robot):
         # Need to clear any target_bearing so it doesn't mess up target_angle
         self.target_bearing = None
         self.target_pos = target_pos
-        self.motors.velocities = MotionCS.maximise_a_wheel_speed(self)
+        self.motors.velocities = MotionControlStrategies.maximise_a_wheel_speed(self)
 
         return self.reached_target
 
@@ -211,7 +211,7 @@ class IDPRobot(Robot):
             bool: If we are at our target
         """
         self.target_bearing = target_bearing
-        self.motors.velocities = MotionCS.distance_angle_error(self)
+        self.motors.velocities = MotionControlStrategies.distance_angle_error(self)
 
         return self.reached_bearing
 

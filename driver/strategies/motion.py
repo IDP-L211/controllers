@@ -1,8 +1,7 @@
 import numpy as np
 
 
-# CS stands for ControlStrategies
-class MotionCS:
+class MotionControlStrategies:
     """
     All MotionCS methods will return a list of left and right motor velocities
     To be used via robot.motors.velocities(MotionCS.some_method)
