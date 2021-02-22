@@ -4,7 +4,7 @@ import numpy as np
 class MotionControlStrategies:
     """
     All MotionCS methods will return a list of left and right motor velocities
-    To be used via robot.motors.velocities(MotionCS.some_method)
+    To be used via robot.motors.velocities(MotionControlStrategies.some_method)
     """
 
     @staticmethod

@@ -9,13 +9,13 @@ from math import atan2, pi
 from controller import Robot
 import numpy as np
 
-from driver.robot.sensors import IDPCompass, IDPGPS
-from driver.robot.motors import IDPMotorController
+from devices.sensors import IDPCompass, IDPGPS
+from devices.motors import IDPMotorController
 
-from driver.strategies.motion import MotionControlStrategies
+from strategies.motion import MotionControlStrategies
 
-from driver.utils import rotate_vector, get_target_bearing
-from driver.mapping import Map
+from utils import rotate_vector, get_target_bearing
+from mapping import Map
 
 
 class IDPRobot(Robot):
