@@ -3,7 +3,7 @@
 The robot should have GPS (named 'gps) and Compass (named 'compass') added as children
 """
 
-from robot import IDPRobot
+from driver.robot.core import IDPRobot
 
 # create the Robot instance.
 robot = IDPRobot()
