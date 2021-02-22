@@ -6,32 +6,13 @@
 
 from math import atan2, pi
 
-from controller import Robot, GPS, Compass, Motor
+from controller import Robot
 import numpy as np
 
+from sensors import IDPCompass, IDPGPS
+from motion import IDPMotorController, get_wheel_speeds1, get_wheel_speeds2
 from utils import rotate_vector, get_target_bearing
 from mapping import Map
-
-
-class IDPCompass(Compass):
-    def __init__(self, name, sampling_rate):
-        super().__init__(name)
-        self.enable(sampling_rate)
-
-
-class IDPGPS(GPS):
-    def __init__(self, name, sampling_rate):
-        super().__init__(name)  # default to infinite resolution
-        if self.getCoordinateSystem() != 0:
-            raise RuntimeWarning('Need to set GPS coordinate system in WorldInfo to local')
-        self.enable(sampling_rate)
-
-
-class IDPMotor(Motor):
-    def __init__(self, name):
-        super().__init__(name)
-        self.setPosition(float('inf'))
-        self.setVelocity(0.0)
 
 
 class IDPRobot(Robot):
@@ -45,20 +26,12 @@ class IDPRobot(Robot):
         self.length = 0.2
         self.width = 0.1
 
-        self.timestep = int(self.getBasicTimeStep())  # get the time step of the current world.
+        self.timestep = int(self.getBasicTimeStep())  # get the time step of the current world
 
-        # Motors
-        self.left_motor = self.getDevice('wheel1')
-        self.right_motor = self.getDevice('wheel2')
-        self.max_motor_speed = min(self.left_motor.getMaxVelocity(), self.right_motor.getMaxVelocity())
-        self.left_motor.setPosition(float('inf'))
-        self.right_motor.setPosition(float('inf'))
-        self.left_motor.setVelocity(0)
-        self.right_motor.setVelocity(0)
-
-        # Sensors
-        self.gps = self.getDevice('gps')  # or use createGPS() directly
-        self.compass = self.getDevice('compass')
+        # Devices
+        self.gps = IDPGPS('gps', self.timestep)
+        self.compass = IDPCompass('compass', self.timestep)
+        self.motors = IDPMotorController('wheel1', 'wheel2')
 
         # Where the bot is trying to path to
         self.target_pos = [None, None]
@@ -69,15 +42,11 @@ class IDPRobot(Robot):
         self.target_bearing = None
         self.target_bearing_threshold = np.pi / 50
 
-    # .getDevice() will call createXXX if the tag name is not in __devices[]
-    def createCompass(self, name: str) -> IDPCompass:  # override method to use the custom Compass class
-        return IDPCompass(name, self.timestep)
-
-    def createGPS(self, name: str) -> IDPGPS:
-        return IDPGPS(name, self.timestep)
-
-    def createMotor(self, name: str) -> IDPMotor:
-        return IDPMotor(name)
+    def getDevice(self, name: str):
+        # here to make sure no device is retrieved this way
+        if name in ['gps', 'compass', 'wheel1', 'wheel2']:
+            raise RuntimeError('Please use the corresponding properties instead')
+        Robot.getDevice(self, name)
 
     # The coordinate system is NUE, meaning positive-x is North etc
     @property
@@ -144,89 +113,6 @@ class IDPRobot(Robot):
         return distance
 
     @property
-    def wheel_speeds1(self) -> list:
-        """Set wheel speeds based on angle and distance error
-
-        This method performs well for face_bearing but has issues with point to point travel - slow turn times and
-        slowing down a lot when near target
-
-        Returns:
-            [float, float]: The speed for the left and right motors respectively to correct both angle and distance
-                            error. Given as a fraction of max speed.
-        """
-        # Control parameters
-        k_p_forward = 4
-        k_p_rotation = 4
-
-        forward_speed = self.target_distance * k_p_forward
-        rotation_speed = self.target_angle * k_p_rotation
-
-        # If we are within distance threshold we no longer need to move forward
-        forward_speed = 0 if self.reached_target else forward_speed
-
-        # If we are within angle threshold we should stop turning
-        if self.target_bearing is None:
-            rotation_speed = 0 if self.reached_target else rotation_speed
-        else:
-            rotation_speed = 0 if self.reached_bearing else rotation_speed
-
-        # Attenuate and possibly reverse forward speed based on angle of bot - don't want to speed off away from it
-        forward_speed *= np.cos(self.target_angle)
-
-        # Combine speeds
-        speeds = np.array([forward_speed + rotation_speed, forward_speed - rotation_speed])
-
-        # This might be above our motor maximums so we'll use sigmoid to normalise our speeds to this range
-        # Sigmoid bounds -inf -> inf to 0 -> 1 so we'll need to do some correcting
-        speeds = (1/(1 + np.exp(-speeds))) * 2 - 1
-
-        # Alternative to using sigmoid
-        # speeds = np.tanh(speeds)
-
-        # Another alternative where the minimum motor speed is half its value
-        # speeds = (1 / (1 + np.exp(-speeds))) + ((np.sign(speeds) - 1) * 0.5)
-
-        return list(speeds)
-
-    @property
-    def wheel_speeds2(self):
-        """Set fastest wheel speed to maximum with the other wheel slowed to facilitate turning
-
-        By using a cos^2 for our forward speed and sin^2 for our rotation speed, the fastest wheel will always be at max
-        drive fraction and the other wheel will correct for angle
-
-        This method seems to perform better for point to point travel but is slow to orientate the bot in face_bearing
-
-        Returns:
-            [float, float]: The speed for the left and right motors respectively to correct both angle and distance
-                            error. Given as a fraction of max speed.
-        """
-        # For some reason (probably floating point errors), we occasionally get warnings about requested speed exceeding
-        # max velocity even though they are equal. We shall subtract a small quantity to avoid this annoyance.
-        small_speed = 1e-5
-
-        # How fast our fastest wheel should go
-        forward_speed = (np.cos(self.target_angle)**2) - small_speed if abs(self.target_angle) <= np.pi / 2 else 0
-
-        # How much slower our slower wheel should go for turning purposes
-        rotation_speed = (np.sin(self.target_angle)**2) if abs(self.target_angle) <= np.pi / 2 else 1
-
-        # If we are within distance threshold we no longer need to move forward
-        forward_speed = 0 if self.reached_target else forward_speed
-
-        # If we are within angle threshold we should stop turning
-        if self.target_bearing is None:
-            rotation_speed = 0 if self.reached_target else rotation_speed
-        else:
-            rotation_speed = 0 if self.reached_bearing else rotation_speed
-
-        # Combine our speeds based on the sign of our angle
-        if self.target_angle >= 0:
-            return [forward_speed + rotation_speed, forward_speed - rotation_speed]
-        else:
-            return [forward_speed - rotation_speed, forward_speed + rotation_speed]
-
-    @property
     def reached_target(self) -> bool:
         """Whether we are at our target
 
@@ -243,24 +129,9 @@ class IDPRobot(Robot):
              bool: If we are within the threshold for our bearing
         """
         if self.target_bearing is None:
-            reached_angle = None
-        else:
-            reached_angle = abs(self.target_angle) <= self.target_bearing_threshold
-        return reached_angle
+            return True
 
-    def set_motor_velocities(self, left, right):
-        """Set the velocities for each motor
-
-        Args:
-            left: float: Speed for left wheel, fraction of max speed (-1 -> 1)
-            right: float: Speed for right wheel, fraction of max speed (-1 -> 1)
-        """
-
-        left_speed = left * self.max_motor_speed
-        right_speed = right * self.max_motor_speed
-
-        self.left_motor.setVelocity(left_speed)
-        self.right_motor.setVelocity(right_speed)
+        return abs(self.target_angle) <= self.target_bearing_threshold
 
     def get_bot_vertices(self):
         """Get the coordinates of vertices of the bot in world frame (i.e. in meters)
@@ -324,7 +195,7 @@ class IDPRobot(Robot):
         # Need to clear any target_bearing so it doesn't mess up target_angle
         self.target_bearing = None
         self.target_pos = target_pos
-        self.set_motor_velocities(*self.wheel_speeds2)
+        self.motors.set_motor_velocities(*get_wheel_speeds2(self))
 
         return self.reached_target
 
@@ -337,7 +208,7 @@ class IDPRobot(Robot):
             bool: If we are at our target
         """
         self.target_bearing = target_bearing
-        self.set_motor_velocities(*self.wheel_speeds1)
+        self.motors.set_motor_velocities(*get_wheel_speeds1(self))
 
         return self.reached_bearing
 
