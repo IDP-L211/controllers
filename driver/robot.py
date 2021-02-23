@@ -1,7 +1,7 @@
 # Copyright (C) 2021 Weixuan Zhang
 #
 # SPDX-License-Identifier: MIT
-"""This module contains classes representing the robot.
+"""This module contains a class representing the robot.
 """
 
 from math import atan2, pi
@@ -19,17 +19,29 @@ from misc.mapping import Map
 
 
 class IDPRobot(Robot):
+    """Class representing the robot
+    
+    Attributes:
+        compass (IDPCompass): The compass
+        gps (IDPGPS): The GPS
+        length (float): Length of the robot, parallel to the axis running back-to-front, in meters
+        motors (IDPMotorController): The two motors
+        target_bearing (float): Target bearing for the robot to turn to
+        target_bearing_threshold (float): Threshold determining whether the target bearing is reached
+        target_distance_threshold (float): Threshold determining whether the target coordinate is reached
+        target_pos (list): Target coordinate to move to
+        timestep (float): Time step of the current world
+        ultrasonic (IDPDistanceSensor): The ultrasonic sensor
+        width (float): Width of the robot, perpendicular to the axis running back-to-front
+    """
+
     def __init__(self):
         super().__init__()
 
-        """
-        length: Length of the robot, parallel to the axis running back-to-front, in meters
-        width: Width of the robot, perpendicular to the axis running back-to-front
-        """
         self.length = 0.2
         self.width = 0.1
 
-        self.timestep = int(self.getBasicTimeStep())  # get the time step of the current world
+        self.timestep = int(self.getBasicTimeStep())
 
         # Devices
         self.gps = IDPGPS('gps', self.timestep)
@@ -178,8 +190,8 @@ class IDPRobot(Robot):
         This requires the robot to have a Display child node with name 'map'.
 
         Args:
-            arena_length(float): Side length of the arena, which is assumed to be a square
-            name(str): Name of the Display node, default to 'map'
+            arena_length (float): Side length of the arena, which is assumed to be a square
+            name (str): Name of the Display node, default to 'map'
 
         Returns:
             Map: The map
@@ -190,7 +202,7 @@ class IDPRobot(Robot):
         """For this time step go to this position
 
         Args:
-            target_pos: [float, float]: The East-North co-ords of the target position
+            target_pos ([float, float]): The East-North co-ords of the target position
         Returns:
             bool: If we are at our target
         """
@@ -206,7 +218,7 @@ class IDPRobot(Robot):
         """For this time step go to this position
 
         Args:
-            target_bearing: float: Desired bearing of our robot
+            target_bearing (float): Desired bearing of our robot
         Returns:
             bool: If we are at our target
         """
@@ -223,11 +235,11 @@ class IDPRobot(Robot):
         If people have better ideas on how to do this I'm all ears.
 
         Actions:
-            move: Go to the given coordinates
-            turn: Face the given bearing
+            * move: Go to the given coordinates
+            * turn: Face the given bearing
 
         Args:
-            actions: list: Each list element is a tuple/list of ["action_type", value]
+            actions (list): Each list element is a tuple/list of ["action_type", value]
 
         Returns:
             bool: Whether action list is completed or not
