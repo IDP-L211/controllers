@@ -4,6 +4,9 @@ driver
 .. toctree::
    :maxdepth: 4
 
-   mapping
    robot
+   motors
+   sensors
+   mapping
    utils
+   controller

@@ -7,7 +7,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   
-  <title>driver &mdash; IDP Software  documentation</title>
+  <title>devices.sensors module &mdash; IDP Software  documentation</title>
   
 
   
@@ -38,8 +38,8 @@
     
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="robot module" href="robot.html" />
-    <link rel="prev" title="Welcome to IDP Software’s documentation!" href="index.html" /> 
+    <link rel="next" title="misc.mapping module" href="mapping.html" />
+    <link rel="prev" title="devices.motors module" href="motors.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -86,10 +86,10 @@
             
               <p class="caption"><span class="caption-text">Contents:</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">driver</a><ul>
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">driver</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="robot.html">robot module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="motors.html">devices.motors module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sensors.html">devices.sensors module</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">devices.sensors module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mapping.html">misc.mapping module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utils.html">misc.utils module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="controller.html">controller module</a></li>
@@ -143,13 +143,15 @@
     
       <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
         
-      <li>driver</li>
+          <li><a href="modules.html">driver</a> &raquo;</li>
+        
+      <li>devices.sensors module</li>
     
     
       <li class="wy-breadcrumbs-aside">
         
           
-            <a href="_sources/modules.rst.txt" rel="nofollow"> View page source</a>
+            <a href="_sources/sensors.rst.txt" rel="nofollow"> View page source</a>
           
         
       </li>
@@ -162,18 +164,27 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="driver">
-<h1>driver<a class="headerlink" href="#driver" title="Permalink to this headline">¶</a></h1>
-<div class="toctree-wrapper compound">
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="robot.html">robot module</a></li>
-<li class="toctree-l1"><a class="reference internal" href="motors.html">devices.motors module</a></li>
-<li class="toctree-l1"><a class="reference internal" href="sensors.html">devices.sensors module</a></li>
-<li class="toctree-l1"><a class="reference internal" href="mapping.html">misc.mapping module</a></li>
-<li class="toctree-l1"><a class="reference internal" href="utils.html">misc.utils module</a></li>
-<li class="toctree-l1"><a class="reference internal" href="controller.html">controller module</a></li>
-</ul>
-</div>
+  <div class="section" id="module-devices.sensors">
+<span id="devices-sensors-module"></span><h1>devices.sensors module<a class="headerlink" href="#module-devices.sensors" title="Permalink to this headline">¶</a></h1>
+<p>Sensors used on the robot</p>
+<dl class="py class">
+<dt id="devices.sensors.IDPCompass">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">devices.sensors.</span></code><code class="sig-name descname"><span class="pre">IDPCompass</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sampling_rate</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#devices.sensors.IDPCompass" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="controller.html#controller.Compass" title="controller.Compass"><code class="xref py py-class docutils literal notranslate"><span class="pre">controller.Compass</span></code></a></p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="devices.sensors.IDPDistanceSensor">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">devices.sensors.</span></code><code class="sig-name descname"><span class="pre">IDPDistanceSensor</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sampling_rate</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#devices.sensors.IDPDistanceSensor" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="controller.html#controller.DistanceSensor" title="controller.DistanceSensor"><code class="xref py py-class docutils literal notranslate"><span class="pre">controller.DistanceSensor</span></code></a></p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="devices.sensors.IDPGPS">
+<em class="property"><span class="pre">class</span> </em><code class="sig-prename descclassname"><span class="pre">devices.sensors.</span></code><code class="sig-name descname"><span class="pre">IDPGPS</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sampling_rate</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#devices.sensors.IDPGPS" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="controller.html#controller.GPS" title="controller.GPS"><code class="xref py py-class docutils literal notranslate"><span class="pre">controller.GPS</span></code></a></p>
+</dd></dl>
+
 </div>
 
 
@@ -182,8 +193,8 @@
           </div>
           <footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
-        <a href="robot.html" class="btn btn-neutral float-right" title="robot module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
-        <a href="index.html" class="btn btn-neutral float-left" title="Welcome to IDP Software’s documentation!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="mapping.html" class="btn btn-neutral float-right" title="misc.mapping module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="motors.html" class="btn btn-neutral float-left" title="devices.motors module" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
     </div>
 
   <hr/>
