@@ -19,8 +19,8 @@ autodoc_mock_imports = ["_controller"]
 # -- Project information -----------------------------------------------------
 
 project = 'IDP Software'
-copyright = '2021, L211'
-author = 'L211'
+copyright = '2021, Team Optimal'
+author = 'Weixuan Zhang, Jason Brown, Eleanor Clifford'
 
 
 # -- General configuration ---------------------------------------------------
