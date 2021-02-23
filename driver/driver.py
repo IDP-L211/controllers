@@ -1,3 +1,7 @@
+# Copyright (C) 2021 Weixuan Zhang
+# Copyright (C) 2021 Tim Clifford
+#
+# SPDX-License-Identifier: MIT
 from robot import IDPRobot
 
 # Change which script you want to run here

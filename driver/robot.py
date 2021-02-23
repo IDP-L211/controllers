@@ -1,4 +1,5 @@
 # Copyright (C) 2021 Weixuan Zhang
+# Copyright (C) 2021 Tim Clifford
 #
 # SPDX-License-Identifier: MIT
 """This module contains classes representing the robot.
