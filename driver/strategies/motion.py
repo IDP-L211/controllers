@@ -8,19 +8,21 @@ class MotionControlStrategies:
     """
 
     @staticmethod
-    def distance_angle_error(robot) -> list:
+    def distance_angle_error(robot, k_p_forward=4.0, k_p_rotation=4.0) -> list:
         """Set wheel speeds based on angle and distance error
 
         This method performs well for face_bearing but has issues with point to point travel - slow turn times and
         slowing down a lot when near target
 
+        Args:
+            robot: The robot to use for the calculation
+            k_p_forward: float: Value of k_p for forward speed
+            k_p_rotation: float: Value of k_p for rotation speed
+
         Returns:
             [float, float]: The speed for the left and right motors respectively to correct both angle and distance
                             error. Given as a fraction of max speed.
         """
-        # Control parameters
-        k_p_forward = 4
-        k_p_rotation = 4
 
         forward_speed = robot.target_distance * k_p_forward
         rotation_speed = robot.target_angle * k_p_rotation
@@ -54,13 +56,18 @@ class MotionControlStrategies:
 
 
     @staticmethod
-    def maximise_a_wheel_speed(robot):
+    def maximise_a_wheel_speed(robot, turn_speed_coefficient=0.75, velocity_profile_tightness=5.0):
         """Set fastest wheel speed to maximum with the other wheel slowed to facilitate turning
 
         By using a cos^2 for our forward speed and sin^2 for our rotation speed, the fastest wheel will always be at max
         drive fraction and the other wheel will correct for angle
 
         This method seems to perform better for point to point travel but is slow to orientate the bot in face_bearing
+
+        Args:
+            robot: The robot to use for the calculation
+            turn_speed_coefficient: float: How much to scale calculated rotation velocities by, [0, 1]
+            velocity_profile_tightness: float: How 'tight' to make the velocity profile, [0, inf]
 
         Returns:
             [float, float]: The speed for the left and right motors respectively to correct both angle and distance
@@ -70,11 +77,13 @@ class MotionControlStrategies:
         # max velocity even though they are equal. We shall subtract a small quantity to avoid this annoyance.
         small_speed = 1e-5
 
-        # How fast our fastest wheel should go
-        forward_speed = (np.cos(robot.target_angle) ** 2) - small_speed if abs(robot.target_angle) <= np.pi / 2 else 0
+        # Forward speed calculation - aimed to be maximised when facing forward
+        forward_speed = (np.cos(robot.target_angle)**velocity_profile_tightness) - small_speed \
+            if abs(robot.target_angle) <= np.pi / 2 else 0
 
-        # How much slower our slower wheel should go for turning purposes
-        rotation_speed = (np.sin(robot.target_angle) ** 2) if abs(robot.target_angle) <= np.pi / 2 else 1
+        # Use up the rest of our wheel speed for turning, attenuate to reduce aggressive turning
+        rotation_speed = 1 - forward_speed
+        rotation_speed *= turn_speed_coefficient
 
         # If we are within distance threshold we no longer need to move forward
         forward_speed = 0 if robot.reached_target else forward_speed
