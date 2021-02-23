@@ -1,7 +1,7 @@
-misc.utils module
+controller module
 =================
 
-.. automodule:: misc.utils
+.. automodule:: controller
    :members:
    :undoc-members:
    :show-inheritance:

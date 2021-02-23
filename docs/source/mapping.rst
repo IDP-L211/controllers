@@ -1,7 +1,7 @@
-mapping module
-==============
+misc.mapping module
+===================
 
-.. automodule:: mapping
+.. automodule:: misc.mapping
    :members:
    :undoc-members:
    :show-inheritance:
