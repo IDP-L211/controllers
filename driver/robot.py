@@ -27,10 +27,8 @@ class IDPRobot(Robot):
         gps (IDPGPS): The GPS
         length (float): Length of the robot, parallel to the axis running back-to-front, in meters
         motors (IDPMotorController): The two motors
-        target_bearing (float): Target bearing for the robot to turn to
         target_bearing_threshold (float): Threshold determining whether the target bearing is reached
         target_distance_threshold (float): Threshold determining whether the target coordinate is reached
-        target_pos (list): Target coordinate to move to
         timestep (float): Time step of the current world
         ultrasonic (IDPDistanceSensor): The ultrasonic sensor
         ir_long (IDPDistanceSensor): The IR sensor (long range)
@@ -58,14 +56,8 @@ class IDPRobot(Robot):
         self.last_action_type = None
         self.last_action_value = None
 
-        # Where the bot is trying to path to
-        self.target_pos = [None, None]
+        # Thresholds for finishing actions
         self.target_distance_threshold = 0.1
-
-        # If we need to point bot in a specific direction, otherwise it points
-        # at target if this is None
-        # This would be interpreted as a bearing from north
-        self.target_bearing = None
         self.target_bearing_threshold = np.pi / 100
 
         # For rotations
@@ -113,48 +105,6 @@ class IDPRobot(Robot):
         return rad + 2 * np.pi if rad < 0 else rad
 
     @property
-    def target_angle(self) -> float:
-        """The clockwise angle from the direction our bot is facing to the target in radians
-
-        Returns:
-            float: Angle measured clockwise from direction bot is facing, [-pi, pi]
-        """
-        target_bearing = get_target_bearing(self.position, self.target_pos) if self.target_bearing is None \
-            else self.target_bearing
-        angle = target_bearing - self.bearing
-
-        # Need to adjust if outside [-pi,pi]
-        if angle > np.pi:
-            angle -= 2 * np.pi
-        elif angle < -np.pi:
-            angle += 2 * np.pi
-
-        return angle
-
-    @property
-    def target_distance(self) -> float:
-        """The Euclidean distance between the bot and its target
-
-        Returns:
-            float: Distance between bot and target in metres
-        """
-        if None in self.target_pos:
-            return 0
-
-        distance_vector = np.array(self.target_pos) - np.array(self.position)
-        distance = np.hypot(*distance_vector)
-        return distance
-
-    @property
-    def reached_target(self) -> bool:
-        """Whether we are at our target
-
-         Returns:
-             bool: If we are within the threshold for our target
-        """
-        return self.target_distance <= self.target_distance_threshold
-
-    @property
     def reached_bearing(self) -> bool:
         """If we provide a bearing override, whether we are within tolerance
 
@@ -166,6 +116,50 @@ class IDPRobot(Robot):
 
         return abs(self.target_angle) <= self.target_bearing_threshold
 
+    def distance_from_bot(self, position) -> float:
+        """The Euclidean distance between the bot and a position
+
+        Args:
+            position ([float, float]): Positions co-ordinates, East-North, m
+
+        Returns:
+            float: Distance between bot and target in metres
+        """
+        distance_vector = np.array(position) - np.array(self.position)
+        distance = np.hypot(*distance_vector)
+        return distance
+
+    def bearing_angle_from_bot(self, bearing):
+        """The clockwise angle from the direction our bot is facing to the bearing in radians
+
+        Args:
+            bearing (float): Bearing from north
+
+        Returns:
+            float: Angle measured clockwise from direction bot is facing, [-pi, pi]
+        """
+        angle = bearing - self.bearing
+
+        # Need to adjust if outside [-pi,pi]
+        if angle > np.pi:
+            angle -= 2 * np.pi
+        elif angle < -np.pi:
+            angle += 2 * np.pi
+
+        return angle
+
+    def position_angle_from_bot(self, position) -> float:
+        """The clockwise angle from the direction our bot is facing to the position in radians
+
+        Args:
+            position ([float, float]): Positions co-ordinates, East-North, m
+
+        Returns:
+            float: Angle measured clockwise from direction bot is facing, [-pi, pi]
+        """
+        target_bearing = get_target_bearing(self.position, position)  # Should probably just move this code here
+        return self.bearing_angle_from_bot(target_bearing)
+
     def coordtransform_bot_to_world(self, vec: np.ndarray) -> np.ndarray:
         """Transform a position vector of a point in the robot frame (relative to the robot center)
         to the absolute position vector of that point in the world frame
@@ -176,7 +170,7 @@ class IDPRobot(Robot):
         Returns:
             np.ndarray: The absolute position vector of the point in the world frame
         """
-        # bearing is positive if clockwise while for rotation anticlockwise is positive
+        # bearing is positive if clockwise while for rotation anticlockwistargete is positive
         return np.array(self.position) + rotate_vector(vec, -self.bearing)
 
     def get_bot_vertices(self) -> list:
@@ -231,8 +225,6 @@ class IDPRobot(Robot):
         """Cleanup method to be called when the current action changes. If executing bot commands manually
         (i.e. robot.drive_to_position), call this first.
         """
-        self.target_bearing = None
-        self.target_pos = [None, None]
         self.rotation_start_bearing = None
         self.last_bearing = None
         self.angle_rotated = 0
@@ -248,10 +240,16 @@ class IDPRobot(Robot):
             bool: If we are at our target
         """
 
-        self.target_pos = target_pos
-        self.motors.velocities = MotionControlStrategies.angle_based_control(self)
+        distance = self.distance_from_bot(target_pos)
+        angle = self.position_angle_from_bot(target_pos)
 
-        return self.reached_target
+        reached_target = distance <= self.target_distance_threshold
+        if reached_target:
+            distance, angle = 0, 0
+
+        self.motors.velocities = MotionControlStrategies.angle_based_control(distance, angle)
+
+        return reached_target
 
     def face_bearing(self, target_bearing: float) -> bool:
         """For this time step go to this position
@@ -261,10 +259,14 @@ class IDPRobot(Robot):
         Returns:
             bool: If we are at our target
         """
-        self.target_bearing = target_bearing
-        self.motors.velocities = MotionControlStrategies.distance_angle_error(self)
 
-        return self.reached_bearing
+        angle = self.bearing_angle_from_bot(target_bearing)
+        reached_bearing = abs(angle) <= self.target_bearing_threshold
+        angle = 0 if reached_bearing else angle
+
+        self.motors.velocities = MotionControlStrategies.distance_angle_error(0, angle)
+
+        return reached_bearing
 
     def rotate(self, angle: float, rotation_rate=5.0) -> bool:
         """Rotate the bot a fixed angle at a fixed rate of rotation
@@ -294,9 +296,9 @@ class IDPRobot(Robot):
         if abs(angle_difference) <= self.target_bearing_threshold:
             return True
 
-        # Change sign of rotation rate and set wheel velocities
+        # Execute motion control strategy
         rotation_rate *= np.sign(angle)
-        self.motors.velocities = MotionControlStrategies.rotate(self, rotation_rate)
+        self.motors.velocities = MotionControlStrategies.rotate_at_fixed_rate(self, rotation_rate)
 
         return False
 
