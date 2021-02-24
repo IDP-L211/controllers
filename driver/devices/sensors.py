@@ -17,19 +17,18 @@ class IDPDistanceSensor(DistanceSensor):
         self.enable(sampling_rate)
         # We could approximate the min range and whether it's decreasing from
         # the data, but not worth it imo
-        self.min_range  = min_range
-        self.max_range  = self.getLookupTable()[-3]
+        self.min_range = min_range
+        self.max_range = self.getLookupTable()[-3]
         self.decreasing = decreasing
 
         lookupTable = self.getLookupTable()
         betterLookupTable = list(zip(*[
-            lookupTable[i:i+3] for i in range(0, len(lookupTable) - 2, 3)
-            if lookupTable[i] >= min_range # prevent it being many-to-one
+            lookupTable[i:i + 3] for i in range(0, len(lookupTable) - 2, 3)
+            if lookupTable[i] >= min_range  # prevent it being many-to-one
         ]))
 
         # For now we will ignore the uncertainty, but we should add it later
-        self.inverseLookupTable = betterLookupTable[1::-1] # First two reversed
-
+        self.inverseLookupTable = betterLookupTable[1::-1]  # First two reversed
 
     def getValue(self):
         # We need some context about the response of the sensor in order to
@@ -42,15 +41,17 @@ class IDPDistanceSensor(DistanceSensor):
             return self.max_range
 
         # interpolate the inverse lookup table
-        f = lambda x: x < v if self.decreasing else x > v # This is a bit dirty
+        f = lambda x: x < v if self.decreasing else x > v  # This is a bit dirty
         idx = next(i for i, x in enumerate(self.inverseLookupTable[0]) if f(x))
 
         fractional_position = abs(
-            (self.inverseLookupTable[0][idx-1] - v) / \
-            (self.inverseLookupTable[0][idx-1] - self.inverseLookupTable[0][idx])
+            (self.inverseLookupTable[0][idx - 1] - v)
+            / (self.inverseLookupTable[0][idx - 1] - self.inverseLookupTable[0][idx])
         )
-        return self.inverseLookupTable[1][idx-1] + fractional_position * \
-            (self.inverseLookupTable[1][idx] - self.inverseLookupTable[1][idx-1])
+        return (
+                self.inverseLookupTable[1][idx - 1] + fractional_position
+                * (self.inverseLookupTable[1][idx] - self.inverseLookupTable[1][idx - 1])
+        )
 
 
 class IDPGPS(GPS):
