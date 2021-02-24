@@ -203,6 +203,7 @@ class IDPRobot(Robot):
         This requires the robot to have a Display child node with name 'map'.
 
         Args:
+            sensor (IDPDistanceSensor): The distance sensor used on the robot
             arena_length (float): Side length of the arena, which is assumed to be a square
             name (str): Name of the Display node, default to 'map'
 
@@ -297,7 +298,6 @@ class IDPRobot(Robot):
         self.motors.velocities = MotionControlStrategies.short_linear_region(0, angle, angle_drive=angle_drive)
 
         return False
-
 
     def execute_action(self, actions: list) -> bool:
         """Execute the first action in a set of actions

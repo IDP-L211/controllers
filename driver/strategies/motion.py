@@ -45,7 +45,6 @@ class MotionControlStrategies:
 
         return list(speeds)
 
-
     @staticmethod
     def combine_speeds(angle, forward, rotation):
         # Reverse rotation if angle is negative
@@ -56,7 +55,6 @@ class MotionControlStrategies:
         right_speed = min(1, forward - rotation)
 
         return [left_speed, right_speed]
-
 
     @staticmethod
     def angle_based_control(distance: float, angle: float, rotation_speed_profile_power=0.5,
