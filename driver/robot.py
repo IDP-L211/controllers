@@ -195,7 +195,7 @@ class IDPRobot(Robot):
 
         return self.coordtransform_bot_to_world(np.array([0, distance]))
 
-    def get_map(self, arena_length: float, name: str = 'map') -> Map:
+    def get_map(self, sensor, arena_length: float, name: str = 'map') -> Map:
         """Get a map of the arena, on which the current position and bounding box of the robot
         will be displayed.
 
@@ -208,7 +208,7 @@ class IDPRobot(Robot):
         Returns:
             Map: The map
         """
-        return Map(self, arena_length, name)
+        return Map(self, sensor, arena_length, name)
 
     def drive_to_position(self, target_pos: list) -> bool:
         """For this time step go to this position
