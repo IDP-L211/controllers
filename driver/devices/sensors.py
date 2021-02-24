@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: MIT
 """Sensors used on the robot"""
 from controller import GPS, Compass, DistanceSensor
-from itertools import dropwhile
 
 
 class IDPCompass(Compass):
@@ -42,7 +41,7 @@ class IDPDistanceSensor(DistanceSensor):
             return self.max_range
 
         # interpolate the inverse lookup table
-        idx, x = next(dropwhile(
+        idx, x = next(filter(
             lambda x: x[1] < v if self.decreasing else x[1] > v,
             enumerate(self.inverseLookupTable[0])
         ))
