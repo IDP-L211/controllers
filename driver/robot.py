@@ -39,6 +39,7 @@ class IDPRobot(Robot):
 
         self.length = 0.2
         self.width = 0.1
+        self.wheel_radius = 0.04
 
         self.timestep = int(self.getBasicTimeStep())
 
@@ -50,6 +51,10 @@ class IDPRobot(Robot):
                                          decreasing=True, min_range=0.15)
         self.motors = IDPMotorController('wheel1', 'wheel2')
 
+        # So we can cleanup if we change our action
+        self.last_action_type = None
+        self.last_action_value = None
+
         # Where the bot is trying to path to
         self.target_pos = [None, None]
         self.target_distance_threshold = 0.1
@@ -58,7 +63,12 @@ class IDPRobot(Robot):
         # at target if this is None
         # This would be interpreted as a bearing from north
         self.target_bearing = None
-        self.target_bearing_threshold = np.pi / 50
+        self.target_bearing_threshold = np.pi / 100
+
+        # For rotations
+        self.rotation_start_bearing = None
+        self.last_bearing = None
+        self.angle_rotated = 0
 
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
@@ -214,6 +224,19 @@ class IDPRobot(Robot):
         """
         return Map(self, sensor, arena_length, name)
 
+    def reset_action_variables(self):
+        """Cleanup method to be called when the current action changes. If executing bot commands manually
+        (i.e. robot.drive_to_position), call this first.
+        """
+        self.target_bearing = None
+        self.target_pos = [None, None]
+        self.rotation_start_bearing = None
+        self.last_bearing = None
+        self.angle_rotated = 0
+        self.last_action_type = None
+        self.last_action_value = None
+        # print("Action variables reset")
+
     def drive_to_position(self, target_pos: list) -> bool:
         """For this time step go to this position
 
@@ -223,10 +246,8 @@ class IDPRobot(Robot):
             bool: If we are at our target
         """
 
-        # Need to clear any target_bearing so it doesn't mess up target_angle
-        self.target_bearing = None
         self.target_pos = target_pos
-        self.motors.velocities = MotionControlStrategies.maximise_a_wheel_speed(self)
+        self.motors.velocities = MotionControlStrategies.angle_based_control(self)
 
         return self.reached_target
 
@@ -242,6 +263,41 @@ class IDPRobot(Robot):
         self.motors.velocities = MotionControlStrategies.distance_angle_error(self)
 
         return self.reached_bearing
+
+    def rotate(self, angle: float, rotation_rate=5.0) -> bool:
+        """Rotate the bot a fixed angle at a fixed rate of rotation
+
+        Args:
+            angle (float): Angle to rotate in radians, positive is clockwise
+            rotation_rate (float): Rate of rotation in radians per second, [0, 1]
+        Returns:
+            bool: If we completed rotation"""
+
+        # First need to determine if this is a new rotation or a continued one
+        if self.rotation_start_bearing is None:
+            self.rotation_start_bearing = self.bearing
+            self.last_bearing = self.bearing
+
+        # Update how far we've rotated, making sure to correct if bearing crosses north
+        bearing_diff = self.bearing - self.last_bearing
+        if bearing_diff > np.pi:
+            bearing_diff -= 2 * np.pi
+        elif bearing_diff < -np.pi:
+            bearing_diff += 2 * np.pi
+        self.angle_rotated += bearing_diff
+        self.last_bearing = self.bearing
+
+        # Check if we're done
+        angle_difference = angle - self.angle_rotated
+        if abs(angle_difference) <= self.target_bearing_threshold:
+            return True
+
+        # Change sign of rotation rate and set wheel velocities
+        rotation_rate *= np.sign(angle)
+        self.motors.velocities = MotionControlStrategies.rotate(self, rotation_rate)
+
+        return False
+
 
     def execute_action(self, actions: list) -> bool:
         """Execute the first action in a set of actions
@@ -262,16 +318,18 @@ class IDPRobot(Robot):
         """
         # Check if action list is empty i.e. 'complete'
         if len(actions) == 0:
+            self.motors.velocities = [0, 0]
             return True
 
         # Execute action
         action_type = actions[0][0]
-        action_value = actions[0][1]
+        action_value = actions[0][1:]
 
         # Store the function associated with each action
         action_functions = {
             "move": self.drive_to_position,
-            "face": self.face_bearing
+            "face": self.face_bearing,
+            "rotate": self.rotate
         }
 
         # Check action is valid
@@ -279,11 +337,30 @@ class IDPRobot(Robot):
             raise Exception(
                 f"Action {action_type} is not a valid action, valid actions: {', '.join(action_functions.keys())}")
 
-        # Execute action
-        completed = action_functions[action_type](action_value)
+        # If we are changing our action we need to reset
+        if action_type != self.last_action_type or action_value != self.last_action_value:
+            self.reset_action_variables()
 
-        # If we completed this action we should remove it from our list
+        # Update log of last action
+        self.last_action_type = action_type
+        self.last_action_value = action_value
+
+        # Execute action
+        completed = action_functions[action_type](*action_value)
+
+        # If we completed this action we should remove it from our list, uncomment prints for monitoring
         if completed:
+            # print(f"\nCompleted action: {actions[0]}")
             del actions[0]
+            # actions_left_string = '\n'.join(str(x) for x in actions)
+            # print(f"Remaining actions:")
+
+            # Check if action list is now empty
+            if len(actions) == 0:
+                # print("None")
+                self.motors.velocities = [0, 0]
+                return True
+
+            # print(actions_left_string)
 
         return False

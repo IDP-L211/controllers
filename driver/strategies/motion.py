@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 
 
 class MotionControlStrategies:
@@ -16,12 +17,11 @@ class MotionControlStrategies:
 
         Args:
             robot: The robot to use for the calculation
-            k_p_forward: float: Value of k_p for forward speed
-            k_p_rotation: float: Value of k_p for rotation speed
+            k_p_forward (float): Value of k_p for forward speed
+            k_p_rotation (float): Value of k_p for rotation speed
 
         Returns:
-            [float, float]: The speed for the left and right motors respectively to correct both angle and distance
-                            error. Given as a fraction of max speed.
+            [float, float]: The speed for the left and right motors respectively. Given as a fraction of max speed.
         """
 
         forward_speed = robot.target_distance * k_p_forward
@@ -56,7 +56,7 @@ class MotionControlStrategies:
 
 
     @staticmethod
-    def maximise_a_wheel_speed(robot, turn_speed_coefficient=0.75, velocity_profile_tightness=5.0):
+    def angle_based_control(robot, rotation_speed_profile_power=0.5, forward_speed_profile_power=3.0):
         """Set fastest wheel speed to maximum with the other wheel slowed to facilitate turning
 
         By using a cos^2 for our forward speed and sin^2 for our rotation speed, the fastest wheel will always be at max
@@ -66,24 +66,23 @@ class MotionControlStrategies:
 
         Args:
             robot: The robot to use for the calculation
-            turn_speed_coefficient: float: How much to scale calculated rotation velocities by, [0, 1]
-            velocity_profile_tightness: float: How 'tight' to make the velocity profile, [0, inf]
+            rotation_speed_profile_power (float): Exponent of rotation speed profile, [0, inf]
+            forward_speed_profile_power (float): How 'tight' to make the velocity profile, [0, inf]
 
         Returns:
-            [float, float]: The speed for the left and right motors respectively to correct both angle and distance
-                            error. Given as a fraction of max speed.
+            [float, float]: The speed for the left and right motors respectively. Given as a fraction of max speed.
         """
         # For some reason (probably floating point errors), we occasionally get warnings about requested speed exceeding
         # max velocity even though they are equal. We shall subtract a small quantity to avoid this annoyance.
         small_speed = 1e-5
 
         # Forward speed calculation - aimed to be maximised when facing forward
-        forward_speed = (np.cos(robot.target_angle)**velocity_profile_tightness) - small_speed \
+        forward_speed = (np.cos(robot.target_angle)**forward_speed_profile_power) - small_speed \
             if abs(robot.target_angle) <= np.pi / 2 else 0
 
         # Use up the rest of our wheel speed for turning, attenuate to reduce aggressive turning
         rotation_speed = 1 - forward_speed
-        rotation_speed *= turn_speed_coefficient
+        rotation_speed = ((abs(rotation_speed))/np.pi)**rotation_speed_profile_power
 
         # If we are within distance threshold we no longer need to move forward
         forward_speed = 0 if robot.reached_target else forward_speed
@@ -96,6 +95,35 @@ class MotionControlStrategies:
 
         # Combine our speeds based on the sign of our angle
         if robot.target_angle >= 0:
-            return [forward_speed + rotation_speed, forward_speed - rotation_speed]
+            left_speed = forward_speed + rotation_speed
+            right_speed = forward_speed - rotation_speed
         else:
-            return [forward_speed - rotation_speed, forward_speed + rotation_speed]
+            left_speed = forward_speed - rotation_speed
+            right_speed = forward_speed + rotation_speed
+
+        # Make sure speeds are maxed at 1
+        left_speed = min(1, left_speed)
+        right_speed = min(1, right_speed)
+
+        return [left_speed, right_speed]
+
+    @staticmethod
+    def rotate(robot, rotation_rate: float):
+        """Rotate the robot at a fixed rate
+
+        Args:
+            robot: The robot to use for the calculation
+            rotation_rate (float): Rate of rotation in radians per second, [-inf, inf]
+
+        Returns:
+            [float, float]: The speed for the left and right motors respectively. Given as a fraction of max speed."""
+
+        # Calculate wheel drive based on rotation rate
+        turn_radius = robot.width / 2
+        wheel_drive = (rotation_rate * turn_radius) / (robot.motors.max_motor_speed * robot.wheel_radius)
+
+        if wheel_drive > 1:
+            max_rot = rotation_rate/wheel_drive
+            warnings.warn(f"Requested rotation rate of {rotation_rate}, exceeds bot's apparent maximum of {max_rot}")
+
+        return [wheel_drive, -wheel_drive]
