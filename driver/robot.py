@@ -12,8 +12,11 @@ from devices.motors import IDPMotorController
 
 from strategies.motion import MotionControlStrategies
 
-from misc.utils import rotate_vector, get_target_bearing
+from misc.utils import rotate_vector, get_target_bearing, debug_print
 from misc.mapping import Map
+
+
+DEBUG = False
 
 
 class IDPRobot(Robot):
@@ -348,19 +351,18 @@ class IDPRobot(Robot):
         # Execute action
         completed = action_functions[action_type](*action_value)
 
-        # If we completed this action we should remove it from our list, uncomment prints for monitoring
+        # If we completed this action we should remove it from our list
         if completed:
-            # print(f"\nCompleted action: {actions[0]}")
+            debug_print(f"\nCompleted action: {actions[0]}", debug_flag=DEBUG)
             del actions[0]
-            # actions_left_string = '\n'.join(str(x) for x in actions)
-            # print(f"Remaining actions:")
+            debug_print(f"Remaining actions:", debug_flag=DEBUG)
 
             # Check if action list is now empty
             if len(actions) == 0:
-                # print("None")
+                debug_print("None", debug_flag=DEBUG)
                 self.motors.velocities = [0, 0]
                 return True
 
-            # print(actions_left_string)
+            debug_print('\n'.join(str(x) for x in actions), debug_flag=DEBUG)
 
         return False

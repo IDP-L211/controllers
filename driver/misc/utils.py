@@ -41,3 +41,8 @@ def get_target_bearing(own_pos: list, target_pos: list) -> float:
     bearing = angle if target_vector[0] >= 0 else 2 * np.pi - angle
 
     return bearing
+
+
+def debug_print(*args, debug_flag=True):
+    if debug_flag:
+        print(*args)
