@@ -6,14 +6,19 @@
 
 from controller import Robot
 import numpy as np
+import warnings
+
 
 from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor
 from devices.motors import IDPMotorController
 
 from strategies.motion import MotionControlStrategies
 
-from misc.utils import rotate_vector, get_target_bearing
+from misc.utils import rotate_vector, get_target_bearing, print_if_debug
 from misc.mapping import Map
+
+
+DEBUG = False
 
 
 class IDPRobot(Robot):
@@ -24,10 +29,8 @@ class IDPRobot(Robot):
         gps (IDPGPS): The GPS
         length (float): Length of the robot, parallel to the axis running back-to-front, in meters
         motors (IDPMotorController): The two motors
-        target_bearing (float): Target bearing for the robot to turn to
         target_bearing_threshold (float): Threshold determining whether the target bearing is reached
         target_distance_threshold (float): Threshold determining whether the target coordinate is reached
-        target_pos (list): Target coordinate to move to
         timestep (float): Time step of the current world
         ultrasonic (IDPDistanceSensor): The ultrasonic sensor
         ir_long (IDPDistanceSensor): The IR sensor (long range)
@@ -39,6 +42,7 @@ class IDPRobot(Robot):
 
         self.length = 0.2
         self.width = 0.1
+        self.wheel_radius = 0.04
 
         self.timestep = int(self.getBasicTimeStep())
 
@@ -50,15 +54,18 @@ class IDPRobot(Robot):
                                          decreasing=True, min_range=0.15)
         self.motors = IDPMotorController('wheel1', 'wheel2')
 
-        # Where the bot is trying to path to
-        self.target_pos = [None, None]
-        self.target_distance_threshold = 0.1
+        # So we can cleanup if we change our action
+        self.last_action_type = None
+        self.last_action_value = None
 
-        # If we need to point bot in a specific direction, otherwise it points
-        # at target if this is None
-        # This would be interpreted as a bearing from north
-        self.target_bearing = None
-        self.target_bearing_threshold = np.pi / 50
+        # Thresholds for finishing actions
+        self.target_distance_threshold = 0.1
+        self.target_bearing_threshold = np.pi / 100
+
+        # For rotations
+        self.rotation_start_bearing = None
+        self.last_bearing = None
+        self.angle_rotated = 0
 
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
@@ -99,16 +106,29 @@ class IDPRobot(Robot):
         rad = np.arctan2(north[0], north[2])  # [-pi, pi]
         return rad + 2 * np.pi if rad < 0 else rad
 
-    @property
-    def target_angle(self) -> float:
-        """The clockwise angle from the direction our bot is facing to the target in radians
+    def distance_from_bot(self, position) -> float:
+        """The Euclidean distance between the bot and a position
+
+        Args:
+            position ([float, float]): Positions co-ordinates, East-North, m
+
+        Returns:
+            float: Distance between bot and target in metres
+        """
+        distance_vector = np.array(position) - np.array(self.position)
+        distance = np.hypot(*distance_vector)
+        return distance
+
+    def bearing_angle_from_bot(self, bearing):
+        """The clockwise angle from the direction our bot is facing to the bearing in radians
+
+        Args:
+            bearing (float): Bearing from north
 
         Returns:
             float: Angle measured clockwise from direction bot is facing, [-pi, pi]
         """
-        target_bearing = get_target_bearing(self.position, self.target_pos) if self.target_bearing is None \
-            else self.target_bearing
-        angle = target_bearing - self.bearing
+        angle = bearing - self.bearing
 
         # Need to adjust if outside [-pi,pi]
         if angle > np.pi:
@@ -118,40 +138,17 @@ class IDPRobot(Robot):
 
         return angle
 
-    @property
-    def target_distance(self) -> float:
-        """The Euclidean distance between the bot and its target
+    def position_angle_from_bot(self, position) -> float:
+        """The clockwise angle from the direction our bot is facing to the position in radians
+
+        Args:
+            position ([float, float]): Positions co-ordinates, East-North, m
 
         Returns:
-            float: Distance between bot and target in metres
+            float: Angle measured clockwise from direction bot is facing, [-pi, pi]
         """
-        if None in self.target_pos:
-            return 0
-
-        distance_vector = np.array(self.target_pos) - np.array(self.position)
-        distance = np.hypot(*distance_vector)
-        return distance
-
-    @property
-    def reached_target(self) -> bool:
-        """Whether we are at our target
-
-         Returns:
-             bool: If we are within the threshold for our target
-        """
-        return self.target_distance <= self.target_distance_threshold
-
-    @property
-    def reached_bearing(self) -> bool:
-        """If we provide a bearing override, whether we are within tolerance
-
-         Returns:
-             bool: If we are within the threshold for our bearing
-        """
-        if self.target_bearing is None:
-            return True
-
-        return abs(self.target_angle) <= self.target_bearing_threshold
+        target_bearing = get_target_bearing(self.position, position)  # Should probably just move this code here
+        return self.bearing_angle_from_bot(target_bearing)
 
     def coordtransform_bot_to_world(self, vec: np.ndarray) -> np.ndarray:
         """Transform a position vector of a point in the robot frame (relative to the robot center)
@@ -163,7 +160,7 @@ class IDPRobot(Robot):
         Returns:
             np.ndarray: The absolute position vector of the point in the world frame
         """
-        # bearing is positive if clockwise while for rotation anticlockwise is positive
+        # bearing is positive if clockwise while for rotation anticlockwistargete is positive
         return np.array(self.position) + rotate_vector(vec, -self.bearing)
 
     def get_bot_vertices(self) -> list:
@@ -206,6 +203,7 @@ class IDPRobot(Robot):
         This requires the robot to have a Display child node with name 'map'.
 
         Args:
+            sensor (IDPDistanceSensor): The distance sensor used on the robot
             arena_length (float): Side length of the arena, which is assumed to be a square
             name (str): Name of the Display node, default to 'map'
 
@@ -213,6 +211,16 @@ class IDPRobot(Robot):
             Map: The map
         """
         return Map(self, sensor, arena_length, name)
+
+    def reset_action_variables(self):
+        """Cleanup method to be called when the current action changes. If executing bot commands manually
+        (i.e. robot.drive_to_position), call this first.
+        """
+        self.rotation_start_bearing = None
+        self.last_bearing = None
+        self.angle_rotated = 0
+        self.last_action_type = None
+        self.last_action_value = None
 
     def drive_to_position(self, target_pos: list) -> bool:
         """For this time step go to this position
@@ -223,12 +231,16 @@ class IDPRobot(Robot):
             bool: If we are at our target
         """
 
-        # Need to clear any target_bearing so it doesn't mess up target_angle
-        self.target_bearing = None
-        self.target_pos = target_pos
-        self.motors.velocities = MotionControlStrategies.maximise_a_wheel_speed(self)
+        distance = self.distance_from_bot(target_pos)
+        angle = self.position_angle_from_bot(target_pos)
 
-        return self.reached_target
+        reached_target = distance <= self.target_distance_threshold
+        if reached_target:
+            distance, angle = 0, 0
+
+        self.motors.velocities = MotionControlStrategies.angle_based_control(distance, angle)
+
+        return reached_target
 
     def face_bearing(self, target_bearing: float) -> bool:
         """For this time step go to this position
@@ -238,10 +250,54 @@ class IDPRobot(Robot):
         Returns:
             bool: If we are at our target
         """
-        self.target_bearing = target_bearing
-        self.motors.velocities = MotionControlStrategies.distance_angle_error(self)
 
-        return self.reached_bearing
+        angle = self.bearing_angle_from_bot(target_bearing)
+        reached_bearing = abs(angle) <= self.target_bearing_threshold
+        angle = 0 if reached_bearing else angle
+
+        self.motors.velocities = MotionControlStrategies.distance_angle_error(0, angle)
+
+        return reached_bearing
+
+    def rotate(self, angle: float, rotation_rate=5.0) -> bool:
+        """Rotate the bot a fixed angle at a fixed rate of rotation
+
+        Args:
+            angle (float): Angle to rotate in radians, positive is clockwise
+            rotation_rate (float): Rate of rotation in radians per second, [0, 1]
+        Returns:
+            bool: If we completed rotation"""
+
+        # First need to determine if this is a new rotation or a continued one
+        if self.rotation_start_bearing is None:
+            self.rotation_start_bearing = self.bearing
+            self.last_bearing = self.bearing
+
+        # Update how far we've rotated, making sure to correct if bearing crosses north
+        bearing_diff = self.bearing - self.last_bearing
+        if bearing_diff > np.pi:
+            bearing_diff -= 2 * np.pi
+        elif bearing_diff < -np.pi:
+            bearing_diff += 2 * np.pi
+        self.angle_rotated += bearing_diff
+        self.last_bearing = self.bearing
+
+        # Check if we're done
+        angle_difference = angle - self.angle_rotated
+        if abs(angle_difference) <= self.target_bearing_threshold:
+            return True
+
+        # Calculate angle_drive based on rotation rate
+        turn_radius = self.width / 2
+        angle_drive = (rotation_rate * turn_radius) / (self.motors.max_motor_speed * self.wheel_radius)
+
+        if angle_drive > 1:
+            max_rot = rotation_rate/angle_drive
+            warnings.warn(f"Requested rotation rate of {rotation_rate} exceeds bot's apparent maximum of {max_rot}")
+
+        self.motors.velocities = MotionControlStrategies.short_linear_region(0, angle, angle_drive=angle_drive)
+
+        return False
 
     def execute_action(self, actions: list) -> bool:
         """Execute the first action in a set of actions
@@ -262,16 +318,18 @@ class IDPRobot(Robot):
         """
         # Check if action list is empty i.e. 'complete'
         if len(actions) == 0:
+            self.motors.velocities = [0, 0]
             return True
 
         # Execute action
         action_type = actions[0][0]
-        action_value = actions[0][1]
+        action_value = actions[0][1:]
 
         # Store the function associated with each action
         action_functions = {
             "move": self.drive_to_position,
-            "face": self.face_bearing
+            "face": self.face_bearing,
+            "rotate": self.rotate
         }
 
         # Check action is valid
@@ -279,11 +337,29 @@ class IDPRobot(Robot):
             raise Exception(
                 f"Action {action_type} is not a valid action, valid actions: {', '.join(action_functions.keys())}")
 
+        # If we are changing our action we need to reset
+        if action_type != self.last_action_type or action_value != self.last_action_value:
+            self.reset_action_variables()
+
+        # Update log of last action
+        self.last_action_type = action_type
+        self.last_action_value = action_value
+
         # Execute action
-        completed = action_functions[action_type](action_value)
+        completed = action_functions[action_type](*action_value)
 
         # If we completed this action we should remove it from our list
         if completed:
+            print_if_debug(f"\nCompleted action: {actions[0]}", debug_flag=DEBUG)
             del actions[0]
+            print_if_debug(f"Remaining actions:", debug_flag=DEBUG)
+
+            # Check if action list is now empty
+            if len(actions) == 0:
+                print_if_debug("None", debug_flag=DEBUG)
+                self.motors.velocities = [0, 0]
+                return True
+
+            print_if_debug('\n'.join(str(x) for x in actions), debug_flag=DEBUG)
 
         return False
