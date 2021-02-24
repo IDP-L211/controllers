@@ -41,14 +41,14 @@ class IDPDistanceSensor(DistanceSensor):
             return self.max_range
 
         # interpolate the inverse lookup table
-        idx = next(
-            i for i, x in enumerate(self.inverseLookupTable[0])
-            if (lambda y: y < v if self.decreasing else y > v)(x)
-        )
+        idx, x = next(dropwhile(
+            lambda x: x[1] < v if self.decreasing else x[1] > v,
+            enumerate(self.inverseLookupTable[0])
+        ))
 
         fractional_position = abs(
             (self.inverseLookupTable[0][idx - 1] - v)
-            / (self.inverseLookupTable[0][idx - 1] - self.inverseLookupTable[0][idx])
+            / (self.inverseLookupTable[0][idx - 1] - x)
         )
         return (
                 self.inverseLookupTable[1][idx - 1] + fractional_position
