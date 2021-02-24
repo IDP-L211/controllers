@@ -11,9 +11,10 @@ from controller import Display
 
 
 class Map(Display):
-    def __init__(self, robot, arena_length: float, name: str = 'map'):
+    def __init__(self, robot, sensor, arena_length: float, name: str = 'map'):
         super().__init__(name)
         self.robot = robot
+        self.sensor = sensor
         self.arena_length = arena_length
         self.width = self.getWidth()
         self.height = self.getHeight()
@@ -87,7 +88,7 @@ class Map(Display):
         self.drawPolygon(*self.get_map_bot_vertices())
 
         # draw markers
-        front_coord = self.get_map_bot_front(self.robot.ultrasonic.getValue() if draw_distance else 0)
+        front_coord = self.get_map_bot_front(self.sensor.getValue() if draw_distance else 0)
         self.draw_line_from_botcenter(front_coord)
         self.draw_marker(front_coord)
-        self.draw_marker(self.get_map_bot_front(self.robot.ultrasonic.max_range))
+        self.draw_marker(self.get_map_bot_front(self.sensor.max_range))

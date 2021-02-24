@@ -18,7 +18,7 @@ from misc.mapping import Map
 
 class IDPRobot(Robot):
     """Class representing the robot
-    
+
     Attributes:
         compass (IDPCompass): The compass
         gps (IDPGPS): The GPS
@@ -30,6 +30,7 @@ class IDPRobot(Robot):
         target_pos (list): Target coordinate to move to
         timestep (float): Time step of the current world
         ultrasonic (IDPDistanceSensor): The ultrasonic sensor
+        ir_long (IDPDistanceSensor): The IR sensor (long range)
         width (float): Width of the robot, perpendicular to the axis running back-to-front
     """
 
@@ -45,20 +46,23 @@ class IDPRobot(Robot):
         self.gps = IDPGPS('gps', self.timestep)
         self.compass = IDPCompass('compass', self.timestep)
         self.ultrasonic = IDPDistanceSensor('ultrasonic', self.timestep)
+        self.ir_long = IDPDistanceSensor('ir_long', self.timestep,
+                                         decreasing=True, min_range=0.15)
         self.motors = IDPMotorController('wheel1', 'wheel2')
 
         # Where the bot is trying to path to
         self.target_pos = [None, None]
         self.target_distance_threshold = 0.1
 
-        # If we need to point bot in a specific direction, otherwise it points at target if this is None
+        # If we need to point bot in a specific direction, otherwise it points
+        # at target if this is None
         # This would be interpreted as a bearing from north
         self.target_bearing = None
         self.target_bearing_threshold = np.pi / 50
 
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
-        if name in ['gps', 'compass', 'wheel1', 'wheel2', 'ultrasonic']:
+        if name in ['gps', 'compass', 'wheel1', 'wheel2', 'ultrasonic', 'ir_long']:
             raise RuntimeError('Please use the corresponding properties instead')
         return Robot.getDevice(self, name)
 
@@ -195,7 +199,7 @@ class IDPRobot(Robot):
 
         return self.coordtransform_bot_to_world(np.array([0, distance]))
 
-    def get_map(self, arena_length: float, name: str = 'map') -> Map:
+    def get_map(self, sensor, arena_length: float, name: str = 'map') -> Map:
         """Get a map of the arena, on which the current position and bounding box of the robot
         will be displayed.
 
@@ -208,7 +212,7 @@ class IDPRobot(Robot):
         Returns:
             Map: The map
         """
-        return Map(self, arena_length, name)
+        return Map(self, sensor, arena_length, name)
 
     def drive_to_position(self, target_pos: list) -> bool:
         """For this time step go to this position
