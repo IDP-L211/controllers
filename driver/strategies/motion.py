@@ -124,6 +124,6 @@ class MotionControlStrategies:
 
         if wheel_drive > 1:
             max_rot = rotation_rate/wheel_drive
-            warnings.warn(f"Requested rotation rate of {rotation_rate}, exceeds bot's apparent maximum of {max_rot}")
+            warnings.warn(f"Requested rotation rate of {rotation_rate} exceeds bot's apparent maximum of {max_rot}")
 
         return [wheel_drive, -wheel_drive]

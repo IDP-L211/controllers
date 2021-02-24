@@ -12,7 +12,7 @@ from devices.motors import IDPMotorController
 
 from strategies.motion import MotionControlStrategies
 
-from misc.utils import rotate_vector, get_target_bearing, debug_print
+from misc.utils import rotate_vector, get_target_bearing, print_if_debug
 from misc.mapping import Map
 
 
@@ -238,7 +238,6 @@ class IDPRobot(Robot):
         self.angle_rotated = 0
         self.last_action_type = None
         self.last_action_value = None
-        # print("Action variables reset")
 
     def drive_to_position(self, target_pos: list) -> bool:
         """For this time step go to this position
@@ -353,16 +352,16 @@ class IDPRobot(Robot):
 
         # If we completed this action we should remove it from our list
         if completed:
-            debug_print(f"\nCompleted action: {actions[0]}", debug_flag=DEBUG)
+            print_if_debug(f"\nCompleted action: {actions[0]}", debug_flag=DEBUG)
             del actions[0]
-            debug_print(f"Remaining actions:", debug_flag=DEBUG)
+            print_if_debug(f"Remaining actions:", debug_flag=DEBUG)
 
             # Check if action list is now empty
             if len(actions) == 0:
-                debug_print("None", debug_flag=DEBUG)
+                print_if_debug("None", debug_flag=DEBUG)
                 self.motors.velocities = [0, 0]
                 return True
 
-            debug_print('\n'.join(str(x) for x in actions), debug_flag=DEBUG)
+            print_if_debug('\n'.join(str(x) for x in actions), debug_flag=DEBUG)
 
         return False

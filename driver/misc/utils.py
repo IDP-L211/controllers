@@ -43,6 +43,6 @@ def get_target_bearing(own_pos: list, target_pos: list) -> float:
     return bearing
 
 
-def debug_print(*args, debug_flag=True):
+def print_if_debug(*args, debug_flag=True):
     if debug_flag:
         print(*args)
