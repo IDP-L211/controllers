@@ -3,7 +3,7 @@
 def main(robot):
     # Setup
     timestep = int(robot.getBasicTimeStep())
-    nav_map = robot.get_map(robot.ultrasonic, 2.4)
+    nav_map = robot.get_map(robot.ir_long, 2.4)
 
     # Actions for our robot
     action_queue = [
