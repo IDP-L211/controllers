@@ -106,18 +106,6 @@ class IDPRobot(Robot):
         rad = np.arctan2(north[0], north[2])  # [-pi, pi]
         return rad + 2 * np.pi if rad < 0 else rad
 
-    @property
-    def reached_bearing(self) -> bool:
-        """If we provide a bearing override, whether we are within tolerance
-
-         Returns:
-             bool: If we are within the threshold for our bearing
-        """
-        if self.target_bearing is None:
-            return True
-
-        return abs(self.target_angle) <= self.target_bearing_threshold
-
     def distance_from_bot(self, position) -> float:
         """The Euclidean distance between the bot and a position
 
