@@ -283,6 +283,17 @@
 </dd></dl>
 
 <dl class="py attribute">
+<dt id="robot.IDPRobot.ir_long">
+<code class="sig-name descname"><span class="pre">ir_long</span></code><a class="headerlink" href="#robot.IDPRobot.ir_long" title="Permalink to this definition">¶</a></dt>
+<dd><p>The IR sensor (long range)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type</dt>
+<dd class="field-odd"><p><a class="reference internal" href="sensors.html#devices.sensors.IDPDistanceSensor" title="devices.sensors.IDPDistanceSensor">IDPDistanceSensor</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
 <dt id="robot.IDPRobot.width">
 <code class="sig-name descname"><span class="pre">width</span></code><a class="headerlink" href="#robot.IDPRobot.width" title="Permalink to this definition">¶</a></dt>
 <dd><p>Width of the robot, perpendicular to the axis running back-to-front</p>
@@ -425,7 +436,7 @@ If people have better ideas on how to do this I’m all ears.</p>
 
 <dl class="py method">
 <dt id="robot.IDPRobot.get_map">
-<code class="sig-name descname"><span class="pre">get_map</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">arena_length</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">'map'</span></span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="mapping.html#misc.mapping.Map" title="misc.mapping.Map"><span class="pre">misc.mapping.Map</span></a><a class="headerlink" href="#robot.IDPRobot.get_map" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname"><span class="pre">get_map</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">arena_length</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">'map'</span></span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="mapping.html#misc.mapping.Map" title="misc.mapping.Map"><span class="pre">misc.mapping.Map</span></a><a class="headerlink" href="#robot.IDPRobot.get_map" title="Permalink to this definition">¶</a></dt>
 <dd><p>Get a map of the arena, on which the current position and bounding box of the robot
 will be displayed.</p>
 <p>This requires the robot to have a Display child node with name ‘map’.</p>
