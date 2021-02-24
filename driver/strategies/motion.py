@@ -1,5 +1,4 @@
 import numpy as np
-import warnings
 
 
 class MotionControlStrategies:
@@ -48,7 +47,20 @@ class MotionControlStrategies:
 
 
     @staticmethod
-    def angle_based_control(distance: float, angle: float, rotation_speed_profile_power=0.5, forward_speed_profile_power=3.0):
+    def combine_speeds(angle, forward, rotation):
+        # Reverse rotation if angle is negative
+        rotation *= np.sign(angle)
+
+        # Make sure speeds are maxed at 1
+        left_speed = min(1, forward + rotation)
+        right_speed = min(1, forward - rotation)
+
+        return [left_speed, right_speed]
+
+
+    @staticmethod
+    def angle_based_control(distance: float, angle: float, rotation_speed_profile_power=0.5,
+                            forward_speed_profile_power=3.0):
         """Set fastest wheel speed to maximum with the other wheel slowed to facilitate turning
 
         By using a cos^2 for our forward speed and sin^2 for our rotation speed, the fastest wheel will always be at max
@@ -79,32 +91,27 @@ class MotionControlStrategies:
         # Zero forward speed if we're not actually needing to move forward
         forward_speed *= np.sign(distance)
 
-        # Reverse rotation if angle is negative
-        rotation_speed *= np.sign(angle)
-
-        # Make sure speeds are maxed at 1
-        left_speed = min(1, forward_speed + rotation_speed)
-        right_speed = min(1, forward_speed - rotation_speed)
-
-        return [left_speed, right_speed]
+        return MotionControlStrategies.combine_speeds(angle, forward_speed, rotation_speed)
 
     @staticmethod
-    def rotate_at_fixed_rate(robot, rotation_rate: float):
-        """Rotate the robot at a fixed rate
+    def short_linear_region(distance, angle, forward_drive=1, angle_drive=1,
+                            forward_lin_region_width=0.2, angular_lin_region_width=np.pi/50):
+        """Calculates wheel speeds based on trying to achieve a fixed drive but with a short linear region when close
 
         Args:
-            robot: The robot to use for the calculation
-            rotation_rate (float): Rate of rotation in radians per second, [-inf, inf]
+            distance (float): Distance from target, m. For this method only matters if it is 0 or not
+            angle (float): Angle to target, rad
+            forward_drive (float): Ideal forward drive when far from target [0, 1]
+            angle_drive (float): Ideal angle drive when far from target [0, 1]
+            forward_lin_region_width (float): Width of the linear region for forward drive
+            angular_lin_region_width (float): Width of the linear region for angular drive
 
         Returns:
             [float, float]: The speed for the left and right motors respectively. Given as a fraction of max speed."""
 
-        # Calculate wheel drive based on rotation rate
-        turn_radius = robot.width / 2
-        wheel_drive = (rotation_rate * turn_radius) / (robot.motors.max_motor_speed * robot.wheel_radius)
+        forward_speed = forward_drive if distance > forward_lin_region_width else\
+            (distance / forward_lin_region_width) * forward_drive
+        rotation_speed = angle_drive if abs(angle) > angular_lin_region_width else\
+            (angle / angular_lin_region_width) * angle_drive
 
-        if wheel_drive > 1:
-            max_rot = rotation_rate/wheel_drive
-            warnings.warn(f"Requested rotation rate of {rotation_rate} exceeds bot's apparent maximum of {max_rot}")
-
-        return [wheel_drive, -wheel_drive]
+        return MotionControlStrategies.combine_speeds(angle, forward_speed, rotation_speed)

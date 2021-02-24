@@ -6,6 +6,8 @@
 
 from controller import Robot
 import numpy as np
+import warnings
+
 
 from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor
 from devices.motors import IDPMotorController
@@ -296,9 +298,15 @@ class IDPRobot(Robot):
         if abs(angle_difference) <= self.target_bearing_threshold:
             return True
 
-        # Execute motion control strategy
-        rotation_rate *= np.sign(angle)
-        self.motors.velocities = MotionControlStrategies.rotate_at_fixed_rate(self, rotation_rate)
+        # Calculate angle_drive based on rotation rate
+        turn_radius = self.width / 2
+        angle_drive = (rotation_rate * turn_radius) / (self.motors.max_motor_speed * self.wheel_radius)
+
+        if angle_drive > 1:
+            max_rot = rotation_rate/angle_drive
+            warnings.warn(f"Requested rotation rate of {rotation_rate} exceeds bot's apparent maximum of {max_rot}")
+
+        self.motors.velocities = MotionControlStrategies.short_linear_region(0, angle, angle_drive=angle_drive)
 
         return False
 
