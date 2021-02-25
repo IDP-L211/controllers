@@ -4,6 +4,8 @@
 """Motors and a class bundling two motors together"""
 from controller import Motor
 
+import numpy as np
+
 
 class IDPMotor(Motor):
     def __init__(self, name):
@@ -20,20 +22,18 @@ class IDPMotorController:
 
     @property
     def velocities(self):
-        return [self.left_motor.getVelocity(), self.right_motor.getVelocity()]
+        return np.array(self.left_motor.getVelocity(), self.right_motor.getVelocity())
 
     @velocities.setter
-    def velocities(self, value: list):
+    def velocities(self, values: np.array):
         """Set the velocities for each motor
 
         Args:
-            value (list): Speeds for left and right wheel respectively, as fractions of max speed (-1 -> 1), [left, right]
+            values (np.array): Speeds for left and right wheel respectively, as fractions of max speed (-1 -> 1), [left, right]
         """
-        if len(value) != 2:
+        if len(values) != 2:
             raise Exception("Velocities should be set by a 2 element list")
 
-        left_speed = value[0] * self.max_motor_speed
-        right_speed = value[1] * self.max_motor_speed
-
-        self.left_motor.setVelocity(left_speed)
-        self.right_motor.setVelocity(right_speed)
+        values *= self.max_motor_speed
+        self.left_motor.setVelocity(values[0])
+        self.right_motor.setVelocity(values[1])

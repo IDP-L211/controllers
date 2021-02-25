@@ -63,9 +63,9 @@ class IDPRobot(Robot):
         self.target_bearing_threshold = np.pi / 100
 
         # For rotations
-        self.rotation_start_bearing = None
-        self.last_bearing = None
+        self.rotation_angle = 0
         self.angle_rotated = 0
+        self.last_bearing = None
 
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
@@ -119,7 +119,7 @@ class IDPRobot(Robot):
         distance = np.hypot(*distance_vector)
         return distance
 
-    def bearing_angle_from_bot(self, bearing):
+    def angle_from_bot_from_bearing(self, bearing):
         """The clockwise angle from the direction our bot is facing to the bearing in radians
 
         Args:
@@ -138,7 +138,7 @@ class IDPRobot(Robot):
 
         return angle
 
-    def position_angle_from_bot(self, position) -> float:
+    def angle_from_bot_from_position(self, position) -> float:
         """The clockwise angle from the direction our bot is facing to the position in radians
 
         Args:
@@ -148,7 +148,7 @@ class IDPRobot(Robot):
             float: Angle measured clockwise from direction bot is facing, [-pi, pi]
         """
         target_bearing = get_target_bearing(self.position, position)  # Should probably just move this code here
-        return self.bearing_angle_from_bot(target_bearing)
+        return self.angle_from_bot_from_bearing(target_bearing)
 
     def coordtransform_bot_to_world(self, vec: np.ndarray) -> np.ndarray:
         """Transform a position vector of a point in the robot frame (relative to the robot center)
@@ -216,48 +216,48 @@ class IDPRobot(Robot):
         """Cleanup method to be called when the current action changes. If executing bot commands manually
         (i.e. robot.drive_to_position), call this first.
         """
-        self.rotation_start_bearing = None
+        self.rotation_angle = 0
         self.last_bearing = None
         self.angle_rotated = 0
         self.last_action_type = None
         self.last_action_value = None
 
-    def drive_to_position(self, target_pos: list) -> bool:
-        """For this time step go to this position
+    def drive_to_position(self, target_pos: list, reverse=False) -> bool:
+        """Go to a position
+
+        Args:
+            target_pos ([float, float]): The East-North co-ords of the target position
+            reverse (bool): Whether to reverse there
+        Returns:
+            bool: If we are at our target
+        """
+
+        distance = self.distance_from_bot(target_pos)
+        angle = self.angle_from_bot_from_position(target_pos)
+
+        reached_target = distance <= self.target_distance_threshold
+        if reached_target:
+            distance, angle = 0, 0
+
+        # If we're reversing we change the angle so it mimics the bot facing the opposite way
+        # When we apply the wheel velocities we negative them and voila we tricked the bot into reversing
+        if reverse:
+            angle = (np.sign(angle) * np.pi) - angle
+
+        raw_velocities = MotionControlStrategies.angle_based_control(distance, angle)
+        self.motors.velocities = raw_velocities if not reverse else -raw_velocities
+
+        return reached_target
+
+    def reverse_to_position(self, target_pos: list) -> bool:
+        """Go to a position in reverse
 
         Args:
             target_pos ([float, float]): The East-North co-ords of the target position
         Returns:
             bool: If we are at our target
         """
-
-        distance = self.distance_from_bot(target_pos)
-        angle = self.position_angle_from_bot(target_pos)
-
-        reached_target = distance <= self.target_distance_threshold
-        if reached_target:
-            distance, angle = 0, 0
-
-        self.motors.velocities = MotionControlStrategies.angle_based_control(distance, angle)
-
-        return reached_target
-
-    def face_bearing(self, target_bearing: float) -> bool:
-        """For this time step go to this position
-
-        Args:
-            target_bearing (float): Desired bearing of our robot
-        Returns:
-            bool: If we are at our target
-        """
-
-        angle = self.bearing_angle_from_bot(target_bearing)
-        reached_bearing = abs(angle) <= self.target_bearing_threshold
-        angle = 0 if reached_bearing else angle
-
-        self.motors.velocities = MotionControlStrategies.distance_angle_error(0, angle)
-
-        return reached_bearing
+        return self.drive_to_position(target_pos, reverse=True)
 
     def rotate(self, angle: float, rotation_rate=5.0) -> bool:
         """Rotate the bot a fixed angle at a fixed rate of rotation
@@ -269,8 +269,8 @@ class IDPRobot(Robot):
             bool: If we completed rotation"""
 
         # First need to determine if this is a new rotation or a continued one
-        if self.rotation_start_bearing is None:
-            self.rotation_start_bearing = self.bearing
+        if self.rotation_angle == 0:
+            self.rotation_angle = angle
             self.last_bearing = self.bearing
 
         # Update how far we've rotated, making sure to correct if bearing crosses north
@@ -283,7 +283,7 @@ class IDPRobot(Robot):
         self.last_bearing = self.bearing
 
         # Check if we're done
-        angle_difference = angle - self.angle_rotated
+        angle_difference = self.rotation_angle - self.angle_rotated
         if abs(angle_difference) <= self.target_bearing_threshold:
             return True
 
@@ -295,9 +295,18 @@ class IDPRobot(Robot):
             max_rot = rotation_rate/angle_drive
             warnings.warn(f"Requested rotation rate of {rotation_rate} exceeds bot's apparent maximum of {max_rot}")
 
-        self.motors.velocities = MotionControlStrategies.short_linear_region(0, angle, angle_drive=angle_drive)
-
+        self.motors.velocities = MotionControlStrategies.short_linear_region(0, angle_difference, angle_drive=angle_drive)
         return False
+
+    def face_bearing(self, target_bearing: float) -> bool:
+        """Face a given bearing
+
+        Args:
+            target_bearing (float): Desired bearing of our robot
+        Returns:
+            bool: If we are at our target
+        """
+        return self.rotate(self.angle_from_bot_from_bearing(target_bearing))
 
     def execute_action(self, actions: list) -> bool:
         """Execute the first action in a set of actions
@@ -318,7 +327,7 @@ class IDPRobot(Robot):
         """
         # Check if action list is empty i.e. 'complete'
         if len(actions) == 0:
-            self.motors.velocities = [0, 0]
+            self.motors.velocities = np.zeros(2)
             return True
 
         # Execute action
@@ -329,7 +338,8 @@ class IDPRobot(Robot):
         action_functions = {
             "move": self.drive_to_position,
             "face": self.face_bearing,
-            "rotate": self.rotate
+            "rotate": self.rotate,
+            "reverse": self.reverse_to_position
         }
 
         # Check action is valid
@@ -357,9 +367,14 @@ class IDPRobot(Robot):
             # Check if action list is now empty
             if len(actions) == 0:
                 print_if_debug("None", debug_flag=DEBUG)
-                self.motors.velocities = [0, 0]
+                self.motors.velocities = np.zeros(2)
                 return True
 
             print_if_debug('\n'.join(str(x) for x in actions), debug_flag=DEBUG)
+
+        # Check if bot is stuck, note we only reach here if action not completed
+        if abs(self.speed) <= 0.001:
+            print_if_debug("BOT STUCK - REVERSING", debug_flag=DEBUG)
+            actions.insert(0, ("reverse", list(self.coordtransform_bot_to_world(np.array([0, -0.2])))))
 
         return False
