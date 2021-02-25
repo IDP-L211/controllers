@@ -158,7 +158,7 @@ class IDPRobot(Robot):
         bearing = np.arctan2(*relative_position)
         return self.angle_from_bot_from_bearing(bearing)
 
-    def position_from_distance_and_angle_from_bot(self, distance: float, angle: float) -> list:
+    def coordtransform_bot_polar_to_world(self, distance: float, angle: float) -> list:
         """Given a distance and angle from our bot, return the objects position
 
         Args:
@@ -168,11 +168,10 @@ class IDPRobot(Robot):
         Returns:
             [float, float]: Positions co-ordinates, East-North, m
         """
-        object_bearing = angle + self.bearing
-        position_diff = np.array([distance * np.sin(object_bearing), distance * np.cos(object_bearing)])
-        return list(np.array(self.position) + position_diff)
+        bot_cartesian = np.array([distance * np.sin(angle), distance * np.cos(angle)])
+        return list(self.coordtransform_bot_cartesian_to_world(bot_cartesian))
 
-    def coordtransform_bot_to_world(self, vec: np.ndarray) -> np.ndarray:
+    def coordtransform_bot_cartesian_to_world(self, vec: np.ndarray) -> np.ndarray:
         """Transform a position vector of a point in the robot frame (relative to the robot center)
         to the absolute position vector of that point in the world frame
 
@@ -204,7 +203,7 @@ class IDPRobot(Robot):
         center_to_corners = [center_to_topleft, center_to_topright,
                              center_to_bottomright, center_to_bottomleft]
 
-        return list(map(self.coordtransform_bot_to_world, center_to_corners))
+        return list(map(self.coordtransform_bot_cartesian_to_world, center_to_corners))
 
     def get_bot_front(self, distance: float) -> np.ndarray:
         """Get the coordinates of a point a certain distance in front of the center of the robot
@@ -216,7 +215,7 @@ class IDPRobot(Robot):
             np.ndarray: The coordinate
         """
 
-        return self.coordtransform_bot_to_world(np.array([0, distance]))
+        return self.coordtransform_bot_cartesian_to_world(np.array([0, distance]))
 
     def get_map(self, sensor, arena_length: float, name: str = 'map') -> Map:
         """Get a map of the arena, on which the current position and bounding box of the robot
@@ -410,5 +409,5 @@ class IDPRobot(Robot):
             angle (float): Angle from our bot in rads, if we are storing as we scan this will be 0
             classification (string): What we think the object is
         """
-        position = self.position_from_distance_and_angle_from_bot(distance, angle)
+        position = self.coordtransform_bot_polar_to_world(distance, angle)
         self.object_detection_handler.new_detection(position, classification)
