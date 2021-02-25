@@ -287,7 +287,8 @@ class IDPRobot(Robot):
             angle (float): Angle to rotate in radians, positive is clockwise
             rotation_rate (float): Rate of rotation in radians per second, [0, 1]
         Returns:
-            bool: If we completed rotation"""
+            bool: If we completed rotation
+        """
 
         # First need to determine if this is a new rotation or a continued one
         if self.rotation_angle == 0:
@@ -401,13 +402,11 @@ class IDPRobot(Robot):
 
         return False
 
-    def log_object_detection(self, distance: float, angle=0.0, classification="unknown"):
+    def log_object_detection(self, position, classification="unknown"):
         """Take an object detected a certain distance away and store its detection
 
         Args:
-            distance (float): How far away the object is, m
-            angle (float): Angle from our bot in rads, if we are storing as we scan this will be 0
+            position ([float, float]):  Positions co-ordinates in world, East-North, m
             classification (string): What we think the object is
         """
-        position = self.coordtransform_bot_polar_to_world(distance, angle)
         self.object_detection_handler.new_detection(position, classification)

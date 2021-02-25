@@ -57,6 +57,8 @@ class ObjectDetectionHandler:
                 This is to use it's distance_from_bot method for the sorting
 
         Returns:
-            list: The object positions sorted by distance from bot"""
+            list: The object positions sorted by distance from bot
+        """
+
         return sorted([v["position"] for v in self.objects.values() if v["class"] in ["box", "red_box", "green_box"]],
                       key=robot.distance_from_bot)
