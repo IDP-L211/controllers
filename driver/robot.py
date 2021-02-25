@@ -16,6 +16,7 @@ from strategies.motion import MotionControlStrategies
 
 from misc.utils import rotate_vector, print_if_debug
 from misc.mapping import Map
+from misc.detection_handler import ObjectDetectionHandler
 
 
 DEBUG = False
@@ -53,6 +54,9 @@ class IDPRobot(Robot):
         self.ir_long = IDPDistanceSensor('ir_long', self.timestep,
                                          decreasing=True, min_range=0.15)
         self.motors = IDPMotorController('wheel1', 'wheel2')
+
+        # To store and process detections
+        self.object_detection_handler = ObjectDetectionHandler()
 
         # So we can cleanup if we change our action
         self.last_action_type = None
@@ -153,6 +157,20 @@ class IDPRobot(Robot):
         relative_position = np.array(position) - np.array(self.position)
         bearing = np.arctan2(*relative_position)
         return self.angle_from_bot_from_bearing(bearing)
+
+    def position_from_distance_and_angle_from_bot(self, distance: float, angle: float) -> list:
+        """Given a distance and angle from our bot, return the objects position
+
+        Args:
+            distance (float): Distance to object in m
+            angle (float): Angle from bot to object in rads
+
+        Returns:
+            [float, float]: Positions co-ordinates, East-North, m
+        """
+        object_bearing = angle + self.bearing
+        position_diff = np.array([distance * np.sin(object_bearing), distance * np.cos(object_bearing)])
+        return list(np.array(self.position) + position_diff)
 
     def coordtransform_bot_to_world(self, vec: np.ndarray) -> np.ndarray:
         """Transform a position vector of a point in the robot frame (relative to the robot center)
@@ -383,3 +401,14 @@ class IDPRobot(Robot):
                 self.stuck_last_step = True
 
         return False
+
+    def log_object_detection(self, distance: float, angle=0.0, classification="unknown"):
+        """Take an object detected a certain distance away and store its detection
+
+        Args:
+            distance (float): How far away the object is, m
+            angle (float): Angle from our bot in rads, if we are storing as we scan this will be 0
+            classification (string): What we think the object is
+        """
+        position = self.position_from_distance_and_angle_from_bot(distance, angle)
+        self.object_detection_handler.new_detection(position, classification)
