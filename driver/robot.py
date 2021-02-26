@@ -216,6 +216,17 @@ class IDPRobot(Robot):
 
         return self.coordtransform_bot_cartesian_to_world(np.array([0, distance]))
 
+    def get_sensor_distance_to_wall(self):
+        pass
+
+    def get_min_distance_vertex_to_wall(self):
+        vertices = self.get_bot_vertices()
+        max_x_abs = max(map(lambda v: abs(v[0]), vertices))
+        max_y_abs = max(map(lambda v: abs(v[1]), vertices))
+
+        wall_from_origin = self.arena_length / 2
+        return min(wall_from_origin - max_x_abs, wall_from_origin - max_y_abs)
+
     def get_min_distance_bot_to_bot(self, other_bot_vertices: list) -> float:
         return get_min_distance_rectangles(self.get_bot_vertices(), other_bot_vertices)
 
