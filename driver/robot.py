@@ -14,11 +14,11 @@ from devices.motors import IDPMotorController
 
 from strategies.motion import MotionControlStrategies
 
-from misc.utils import rotate_vector, get_target_bearing, print_if_debug
+from misc.utils import rotate_vector, print_if_debug
 from misc.mapping import Map
 
 
-DEBUG = False
+DEBUG = True
 
 
 class IDPRobot(Robot):
@@ -66,6 +66,9 @@ class IDPRobot(Robot):
         self.rotation_angle = 0
         self.angle_rotated = 0
         self.last_bearing = None
+
+        # For getting stuck
+        self.stuck_last_step = False
 
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
@@ -115,8 +118,8 @@ class IDPRobot(Robot):
         Returns:
             float: Distance between bot and target in metres
         """
-        distance_vector = np.array(position) - np.array(self.position)
-        distance = np.hypot(*distance_vector)
+        relative_position = np.array(position) - np.array(self.position)
+        distance = np.hypot(*relative_position)
         return distance
 
     def angle_from_bot_from_bearing(self, bearing):
@@ -147,8 +150,9 @@ class IDPRobot(Robot):
         Returns:
             float: Angle measured clockwise from direction bot is facing, [-pi, pi]
         """
-        target_bearing = get_target_bearing(self.position, position)  # Should probably just move this code here
-        return self.angle_from_bot_from_bearing(target_bearing)
+        relative_position = np.array(position) - np.array(self.position)
+        bearing = np.arctan2(relative_position[0], relative_position[1])
+        return self.angle_from_bot_from_bearing(bearing)
 
     def coordtransform_bot_to_world(self, vec: np.ndarray) -> np.ndarray:
         """Transform a position vector of a point in the robot frame (relative to the robot center)
@@ -274,16 +278,12 @@ class IDPRobot(Robot):
             self.last_bearing = self.bearing
 
         # Update how far we've rotated, making sure to correct if bearing crosses north
-        bearing_diff = self.bearing - self.last_bearing
-        if bearing_diff > np.pi:
-            bearing_diff -= 2 * np.pi
-        elif bearing_diff < -np.pi:
-            bearing_diff += 2 * np.pi
-        self.angle_rotated += bearing_diff
+        self.angle_rotated -= self.angle_from_bot_from_bearing(self.last_bearing)
         self.last_bearing = self.bearing
 
         # Check if we're done
         angle_difference = self.rotation_angle - self.angle_rotated
+        print(self.rotation_angle, self.angle_rotated, angle_difference)
         if abs(angle_difference) <= self.target_bearing_threshold:
             return True
 
@@ -360,6 +360,7 @@ class IDPRobot(Robot):
 
         # If we completed this action we should remove it from our list
         if completed:
+            self.reset_action_variables()
             print_if_debug(f"\nCompleted action: {actions[0]}", debug_flag=DEBUG)
             del actions[0]
             print_if_debug(f"Remaining actions:", debug_flag=DEBUG)
@@ -374,7 +375,12 @@ class IDPRobot(Robot):
 
         # Check if bot is stuck, note we only reach here if action not completed
         if abs(self.speed) <= 0.001:
-            print_if_debug("BOT STUCK - REVERSING", debug_flag=DEBUG)
-            actions.insert(0, ("reverse", list(self.coordtransform_bot_to_world(np.array([0, -0.2])))))
+            if self.stuck_last_step:
+                print_if_debug("BOT STUCK - REVERSING", debug_flag=DEBUG)
+                un_stuck_action = "reverse" if action_type != "reverse" else "move"
+                actions.insert(0, (un_stuck_action, list(self.coordtransform_bot_to_world(np.array([0, -0.2])))))
+                self.stuck_last_step = False
+            else:
+                self.stuck_last_step = True
 
         return False
