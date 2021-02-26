@@ -331,8 +331,8 @@
 </dd></dl>
 
 <dl class="py method">
-<dt id="robot.IDPRobot.coordtransform_bot_to_world">
-<code class="sig-name descname"><span class="pre">coordtransform_bot_to_world</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vec</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">numpy.ndarray</span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">numpy.ndarray</span><a class="headerlink" href="#robot.IDPRobot.coordtransform_bot_to_world" title="Permalink to this definition">¶</a></dt>
+<dt id="robot.IDPRobot.coordtransform_bot_cartesian_to_world">
+<code class="sig-name descname"><span class="pre">coordtransform_bot_cartesian_to_world</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vec</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">numpy.ndarray</span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">numpy.ndarray</span><a class="headerlink" href="#robot.IDPRobot.coordtransform_bot_cartesian_to_world" title="Permalink to this definition">¶</a></dt>
 <dd><p>Transform a position vector of a point in the robot frame (relative to the robot center)
 to the absolute position vector of that point in the world frame</p>
 <dl class="field-list simple">
@@ -344,6 +344,26 @@ to the absolute position vector of that point in the world frame</p>
 </dd>
 <dt class="field-odd">Return type</dt>
 <dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="robot.IDPRobot.coordtransform_bot_polar_to_world">
+<code class="sig-name descname"><span class="pre">coordtransform_bot_polar_to_world</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">distance</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">angle</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">list</span><a class="headerlink" href="#robot.IDPRobot.coordtransform_bot_polar_to_world" title="Permalink to this definition">¶</a></dt>
+<dd><p>Given a distance and angle from our bot, return the objects position</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>distance</strong> (<em>float</em>) – Distance to object in m</p></li>
+<li><p><strong>angle</strong> (<em>float</em>) – Angle from bot to object in rads</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Positions co-ordinates, East-North, m</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>[float, float]</p>
 </dd>
 </dl>
 </dd></dl>
@@ -485,6 +505,20 @@ will be displayed.</p>
 </dd>
 <dt class="field-odd">Return type</dt>
 <dd class="field-odd"><p><a class="reference internal" href="mapping.html#misc.mapping.Map" title="misc.mapping.Map">Map</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="robot.IDPRobot.log_object_detection">
+<code class="sig-name descname"><span class="pre">log_object_detection</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">position</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">classification</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'unknown'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#robot.IDPRobot.log_object_detection" title="Permalink to this definition">¶</a></dt>
+<dd><p>Take an object detected a certain distance away and store its detection</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>position</strong> (<em>[</em><em>float</em><em>, </em><em>float</em><em>]</em>) – Positions co-ordinates in world, East-North, m</p></li>
+<li><p><strong>classification</strong> (<em>string</em>) – What we think the object is</p></li>
+</ul>
 </dd>
 </dl>
 </dd></dl>
