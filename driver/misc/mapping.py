@@ -20,6 +20,8 @@ class Map(Display):
         self.height = self.getHeight()
         self.map_length = min(self.width, self.height)
 
+        self.plot_commands = []
+
     @staticmethod
     def coord_to_xylists(list_of_arrays: list) -> list:
         """Separate the x and y coordinates into two lists
@@ -78,6 +80,9 @@ class Map(Display):
         # must be of type int not np.int64, pass in a list instead of np.ndarray
         self.drawLine(*self.coordtransform_world_to_map(self.robot.position), *map_coord)
 
+    def plot_coordinate(self, world_coord):
+        self.plot_commands.append(lambda: self.draw_marker(self.coordtransform_world_to_map(world_coord)))
+
     def clear(self):
         # clear display
         self.setColor(0x000000)
@@ -100,3 +105,7 @@ class Map(Display):
         self.draw_marker(front_coord)
         if draw_range:
             self.draw_marker(self.get_map_bot_front(self.sensor.max_range))
+
+        # other external plot commands
+        while len(self.plot_commands) > 0:
+            self.plot_commands.pop(0)()

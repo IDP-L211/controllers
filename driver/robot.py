@@ -39,6 +39,7 @@ class IDPRobot(Robot):
     def __init__(self):
         super().__init__()
 
+        # note the sensors are assumed to be at the centre of the robot, and the robot is assumed symmetrical
         self.length = 0.2
         self.width = 0.1
         self.wheel_radius = 0.04
@@ -121,7 +122,7 @@ class IDPRobot(Robot):
         Returns:
             float: Distance between bot and target in metres
         """
-        relative_position = np.array(position) - np.array(self.position)
+        relative_position = np.asarray(position) - np.asarray(self.position)
         distance = np.hypot(*relative_position)
         return distance
 
@@ -153,22 +154,9 @@ class IDPRobot(Robot):
         Returns:
             float: Angle measured clockwise from direction bot is facing, [-pi, pi]
         """
-        relative_position = np.array(position) - np.array(self.position)
+        relative_position = np.asarray(position) - np.asarray(self.position)
         bearing = np.arctan2(*relative_position)
         return self.angle_from_bot_from_bearing(bearing)
-
-    def coordtransform_bot_polar_to_world(self, distance: float, angle: float) -> list:
-        """Given a distance and angle from our bot, return the objects position
-
-        Args:
-            distance (float): Distance to object in m
-            angle (float): Angle from bot to object in rads
-
-        Returns:
-            [float, float]: Positions co-ordinates, East-North, m
-        """
-        bot_cartesian = np.array([distance * np.sin(angle), distance * np.cos(angle)])
-        return list(self.coordtransform_bot_cartesian_to_world(bot_cartesian))
 
     def coordtransform_bot_cartesian_to_world(self, vec: np.ndarray) -> np.ndarray:
         """Transform a position vector of a point in the robot frame (relative to the robot center)
@@ -180,8 +168,21 @@ class IDPRobot(Robot):
         Returns:
             np.ndarray: The absolute position vector of the point in the world frame
         """
-        # bearing is positive if clockwise while for rotation anticlockwistargete is positive
-        return np.array(self.position) + rotate_vector(vec, -self.bearing)
+        # bearing is positive if clockwise while for rotation anticlockwise is positive
+        return np.asarray(self.position) + rotate_vector(vec, -self.bearing)
+
+    def coordtransform_bot_polar_to_world(self, distance: float, angle: float) -> np.ndarray:
+        """Given a distance and angle from our bot, return the objects position
+
+        Args:
+            distance (float): Distance to object in m
+            angle (float): Angle from bot to object in rads
+
+        Returns:
+            [float, float]: Positions co-ordinates, East-North, m
+        """
+        bot_cartesian = np.array([distance * np.sin(angle), distance * np.cos(angle)])
+        return self.coordtransform_bot_cartesian_to_world(bot_cartesian)
 
     def get_bot_vertices(self) -> list:
         """Get the coordinates of vertices of the bot in world frame (i.e. in meters)
@@ -217,9 +218,33 @@ class IDPRobot(Robot):
         return self.coordtransform_bot_cartesian_to_world(np.array([0, distance]))
 
     def get_sensor_distance_to_wall(self):
-        pass
+        """Get the distance the sensor should measure if there is nothing between it and the wall
+
+        Note that the sensor is assumed to be at the centre of the robot.
+
+        Returns:
+            float: The distance
+        """
+        wall_from_origin = self.arena_length / 2
+
+        sin_bearing = np.sin(self.bearing)
+        distance_from_x = abs(
+            (wall_from_origin - np.sign(sin_bearing) * self.position[0]) / sin_bearing
+        ) if sin_bearing != 0 else np.inf
+
+        cos_bearing = np.cos(self.bearing)
+        distance_from_y = abs(
+            (wall_from_origin - np.sign(cos_bearing) * self.position[1]) / cos_bearing
+        ) if cos_bearing != 0 else np.inf
+
+        return min(distance_from_x, distance_from_y)
 
     def get_min_distance_vertex_to_wall(self):
+        """Get the minimum distance from any of the vertices of the robot to the wall
+
+        Returns:
+            float: The minimum distance
+        """
         vertices = self.get_bot_vertices()
         max_x_abs = max(map(lambda v: abs(v[0]), vertices))
         max_y_abs = max(map(lambda v: abs(v[1]), vertices))
@@ -228,9 +253,18 @@ class IDPRobot(Robot):
         return min(wall_from_origin - max_x_abs, wall_from_origin - max_y_abs)
 
     def get_min_distance_bot_to_bot(self, other_bot_vertices: list) -> float:
+        """Get the minimum distances between two robots
+
+        Args:
+            other_bot_vertices ([np.ndarray]): List of vertices of the other robot, needs to be specified in
+            a clockwise order
+
+        Returns:
+            float: The minimum distance between the two robots
+        """
         return get_min_distance_rectangles(self.get_bot_vertices(), other_bot_vertices)
 
-    def get_map(self, sensor, name: str = 'map') -> Map:
+    def get_map(self, sensor: IDPDistanceSensor, name: str = 'map') -> Map:
         """Get a map of the arena, on which the current position and bounding box of the robot
         will be displayed.
 
@@ -238,7 +272,6 @@ class IDPRobot(Robot):
 
         Args:
             sensor (IDPDistanceSensor): The distance sensor used on the robot
-            arena_length (float): Side length of the arena, which is assumed to be a square
             name (str): Name of the Display node, default to 'map'
 
         Returns:
@@ -325,7 +358,8 @@ class IDPRobot(Robot):
             max_rot = rotation_rate / angle_drive
             warnings.warn(f"Requested rotation rate of {rotation_rate} exceeds bot's apparent maximum of {max_rot}")
 
-        self.motors.velocities = MotionControlStrategies.short_linear_region(0, angle_difference, angle_drive=angle_drive)
+        self.motors.velocities = MotionControlStrategies.short_linear_region(0, angle_difference,
+                                                                             angle_drive=angle_drive)
         return False
 
     def face_bearing(self, target_bearing: float) -> bool:
@@ -408,7 +442,8 @@ class IDPRobot(Robot):
             if self.stuck_last_step:
                 print_if_debug("BOT STUCK - REVERSING", debug_flag=DEBUG)
                 un_stuck_action = "reverse" if action_type != "reverse" else "move"
-                actions.insert(0, (un_stuck_action, list(self.coordtransform_bot_to_world(np.array([0, -0.2])))))
+                actions.insert(0,
+                               (un_stuck_action, list(self.coordtransform_bot_cartesian_to_world(np.array([0, -0.2])))))
                 self.stuck_last_step = False
             else:
                 self.stuck_last_step = True
