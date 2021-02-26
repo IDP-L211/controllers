@@ -414,6 +414,10 @@ class IDPRobot(Robot):
         """Wrapper to make ordering the robot around cleaner code-wise"""
         self.action_queue = [args]
 
+    def do_first(self, *args):
+        """Wrapper to make ordering the robot around cleaner code-wise"""
+        self.action_queue.insert(0, args)
+
     def execute_next_action(self) -> bool:
         """Execute the next action in self.action_queue
 
@@ -479,8 +483,7 @@ class IDPRobot(Robot):
             if self.stuck_last_step:
                 print_if_debug("BOT STUCK - REVERSING", debug_flag=DEBUG)
                 un_stuck_action = "reverse" if action_type != "reverse" else "move"
-                self.action_queue.insert(0, (un_stuck_action,
-                                             list(self.coordtransform_bot_cartesian_to_world(np.array([0, -0.1])))))
+                self.do_first(un_stuck_action, list(self.coordtransform_bot_cartesian_to_world(np.array([0, -0.1]))))
                 self.stuck_last_step = False
             else:
                 self.stuck_last_step = True
