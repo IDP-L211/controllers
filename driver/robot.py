@@ -64,6 +64,14 @@ class IDPRobot(Robot):
         # Store internal action queue
         self.action_queue = []
 
+        # Store the function associated with each action
+        self.action_functions = {
+            "move": self.drive_to_position,
+            "face": self.face_bearing,
+            "rotate": self.rotate,
+            "reverse": self.reverse_to_position
+        }
+
         # So we can cleanup if we change our action
         self.last_action_type = None
         self.last_action_value = None
@@ -333,37 +341,6 @@ class IDPRobot(Robot):
         """
         return self.drive_to_position(target_pos, reverse=True)
 
-    def collect_block(self, block_pos):
-        """Collect block at position
-
-        Args:
-            block_pos ([float, float]): The East-North co-ords of the blocks position
-        Returns:
-            bool: If we are at our target
-        """
-
-        # Update these variables when we have more info
-        distance_from_block_to_stop = 0.1
-        rotate_angle = np.pi
-        home_pos = [0, 0]
-
-        # Calculate pos to got to to be near block not on it
-        distance = self.distance_from_bot(block_pos) - distance_from_block_to_stop
-        target_pos = self.coordtransform_bot_polar_to_world(distance, self.angle_from_bot_from_position(block_pos))
-
-        # Need to add action that deposits block
-        actions = [
-            ("move", target_pos),
-            ("rotate", rotate_angle),
-            ("move", home_pos)
-        ]
-
-        del self.action_queue[0]  # Delete the move command
-        actions.extend(self.action_queue)
-        self.action_queue = actions
-
-        return False
-
     def rotate(self, angle: float, rotation_rate=5.0) -> bool:
         """Rotate the bot a fixed angle at a fixed rate of rotation
 
@@ -410,14 +387,6 @@ class IDPRobot(Robot):
         """
         return self.rotate(self.angle_from_bot_from_bearing(target_bearing))
 
-    def do(self, *args):
-        """Wrapper to make ordering the robot around cleaner code-wise"""
-        self.action_queue = [args]
-
-    def do_first(self, *args):
-        """Wrapper to make ordering the robot around cleaner code-wise"""
-        self.action_queue.insert(0, args)
-
     def execute_next_action(self) -> bool:
         """Execute the next action in self.action_queue
 
@@ -438,19 +407,10 @@ class IDPRobot(Robot):
         action_type = self.action_queue[0][0]
         action_value = self.action_queue[0][1:]
 
-        # Store the function associated with each action
-        action_functions = {
-            "move": self.drive_to_position,
-            "face": self.face_bearing,
-            "rotate": self.rotate,
-            "reverse": self.reverse_to_position,
-            "collect": self.collect_block
-        }
-
         # Check action is valid
-        if action_type not in action_functions.keys():
+        if action_type not in self.action_functions.keys():
             raise Exception(
-                f"Action {action_type} is not a valid action, valid actions: {', '.join(action_functions.keys())}")
+                f"Action {action_type} is not a valid action, valid actions: {', '.join(self.action_functions.keys())}")
 
         # If we are changing our action we need to reset
         if action_type != self.last_action_type or action_value != self.last_action_value:
@@ -461,7 +421,7 @@ class IDPRobot(Robot):
         self.last_action_value = action_value
 
         # Execute action
-        completed = action_functions[action_type](*action_value)
+        completed = self.action_functions[action_type](*action_value)
 
         # If we completed this action we should remove it from our list
         if completed:
@@ -483,7 +443,8 @@ class IDPRobot(Robot):
             if self.stuck_last_step:
                 print_if_debug("BOT STUCK - REVERSING", debug_flag=DEBUG)
                 un_stuck_action = "reverse" if action_type != "reverse" else "move"
-                self.do_first(un_stuck_action, list(self.coordtransform_bot_cartesian_to_world(np.array([0, -0.1]))))
+                self.action_queue.insert(0, (un_stuck_action,
+                                             list(self.coordtransform_bot_cartesian_to_world(np.array([0, -0.1])))))
                 self.stuck_last_step = False
             else:
                 self.stuck_last_step = True
