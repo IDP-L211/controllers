@@ -16,6 +16,7 @@ from strategies.motion import MotionControlStrategies
 
 from misc.utils import rotate_vector, print_if_debug
 from misc.mapping import Map
+from misc.detection_handler import ObjectDetectionHandler
 
 
 DEBUG = False
@@ -53,6 +54,9 @@ class IDPRobot(Robot):
         self.ir_long = IDPDistanceSensor('ir_long', self.timestep,
                                          decreasing=True, min_range=0.15)
         self.motors = IDPMotorController('wheel1', 'wheel2')
+
+        # To store and process detections
+        self.object_detection_handler = ObjectDetectionHandler()
 
         # So we can cleanup if we change our action
         self.last_action_type = None
@@ -154,7 +158,20 @@ class IDPRobot(Robot):
         bearing = np.arctan2(*relative_position)
         return self.angle_from_bot_from_bearing(bearing)
 
-    def coordtransform_bot_to_world(self, vec: np.ndarray) -> np.ndarray:
+    def coordtransform_bot_polar_to_world(self, distance: float, angle: float) -> list:
+        """Given a distance and angle from our bot, return the objects position
+
+        Args:
+            distance (float): Distance to object in m
+            angle (float): Angle from bot to object in rads
+
+        Returns:
+            [float, float]: Positions co-ordinates, East-North, m
+        """
+        bot_cartesian = np.array([distance * np.sin(angle), distance * np.cos(angle)])
+        return list(self.coordtransform_bot_cartesian_to_world(bot_cartesian))
+
+    def coordtransform_bot_cartesian_to_world(self, vec: np.ndarray) -> np.ndarray:
         """Transform a position vector of a point in the robot frame (relative to the robot center)
         to the absolute position vector of that point in the world frame
 
@@ -186,7 +203,7 @@ class IDPRobot(Robot):
         center_to_corners = [center_to_topleft, center_to_topright,
                              center_to_bottomright, center_to_bottomleft]
 
-        return list(map(self.coordtransform_bot_to_world, center_to_corners))
+        return list(map(self.coordtransform_bot_cartesian_to_world, center_to_corners))
 
     def get_bot_front(self, distance: float) -> np.ndarray:
         """Get the coordinates of a point a certain distance in front of the center of the robot
@@ -198,7 +215,7 @@ class IDPRobot(Robot):
             np.ndarray: The coordinate
         """
 
-        return self.coordtransform_bot_to_world(np.array([0, distance]))
+        return self.coordtransform_bot_cartesian_to_world(np.array([0, distance]))
 
     def get_map(self, sensor, arena_length: float, name: str = 'map') -> Map:
         """Get a map of the arena, on which the current position and bounding box of the robot
@@ -270,7 +287,8 @@ class IDPRobot(Robot):
             angle (float): Angle to rotate in radians, positive is clockwise
             rotation_rate (float): Rate of rotation in radians per second, [0, 1]
         Returns:
-            bool: If we completed rotation"""
+            bool: If we completed rotation
+        """
 
         # First need to determine if this is a new rotation or a continued one
         if self.rotation_angle == 0:
@@ -383,3 +401,12 @@ class IDPRobot(Robot):
                 self.stuck_last_step = True
 
         return False
+
+    def log_object_detection(self, position, classification="unknown"):
+        """Take an object detected a certain distance away and store its detection
+
+        Args:
+            position ([float, float]):  Positions co-ordinates in world, East-North, m
+            classification (string): What we think the object is
+        """
+        self.object_detection_handler.new_detection(position, classification)
