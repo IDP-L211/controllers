@@ -9,7 +9,8 @@ from typing import Union
 from controller import Robot
 import numpy as np
 
-from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor
+from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor, IDPLightSensor
+
 from devices.motors import IDPMotorController
 from devices.radio import IDPRadio
 
@@ -37,6 +38,8 @@ class IDPRobot(Robot):
         ultrasonic_left (IDPDistanceSensor): The ultrasonic sensor on the left
         ultrasonic_right (IDPDistanceSensor): The ultrasonic sensor on the right
         infrared (IDPDistanceSensor): The IR sensor (long range)
+        red_light_sensor (IDPLightSensor): The light sensor (red filter)
+        green_light_sensor (IDPLightSensor): The IR sensor (green filter)
         width (float): Width of the robot, perpendicular to the axis running back-to-front
     """
 
@@ -68,6 +71,8 @@ class IDPRobot(Robot):
                                           decreasing=True, min_range=0.15)
         self.motors = IDPMotorController('wheel1', 'wheel2', self)
         self.radio = IDPRadio(self.timestep)
+        self.red_light_sensor = IDPLightSensor('red_light_sensor', self.timestep)
+        self.green_light_sensor = IDPLightSensor('green_light_sensor', self.timestep)
 
         # To store and process detections
         self.targeting_handler = TargetingHandler()
@@ -129,7 +134,8 @@ class IDPRobot(Robot):
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
         if name in ['gps', 'compass', 'wheel1', 'wheel2', 'ultrasonic_left',
-                    'ultrasonic_right', 'infrared']:
+                    'ultrasonic_right', 'infrared', 'red_light_sensor',
+                    'green_light_sensor']:
             raise RuntimeError('Please use the corresponding properties instead')
         return Robot.getDevice(self, name)
 

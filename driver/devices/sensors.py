@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 """Sensors used on the robot"""
-from controller import GPS, Compass, DistanceSensor
+from controller import GPS, Compass, DistanceSensor, LightSensor
 from scipy.interpolate import interp1d
 from scipy.optimize import root_scalar as root
 from warnings import warn
@@ -15,6 +15,10 @@ class IDPCompass(Compass):
         super().__init__(name)
         self.enable(sampling_rate)
 
+class IDPLightSensor(LightSensor):
+    def __init__(self, name, sampling_rate):
+        super().__init__(name)
+        self.enable(sampling_rate)
 
 class IDPDistanceSensor(DistanceSensor):
     def __init__(self, name, sampling_rate, decreasing=False, min_range=0):
