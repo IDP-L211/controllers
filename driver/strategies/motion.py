@@ -8,7 +8,7 @@ class MotionControlStrategies:
     """
 
     @staticmethod
-    def distance_angle_error(distance: float, angle: float, k_p_forward=4.0, k_p_rotation=4.0) -> list:
+    def distance_angle_error(distance: float, angle: float, k_p_forward=4.0, k_p_rotation=4.0) -> np.array:
         """Set wheel speeds based on angle and distance error
 
         This method performs well for face_bearing but has issues with point to point travel - slow turn times and
@@ -21,7 +21,7 @@ class MotionControlStrategies:
             k_p_rotation (float): Value of k_p for rotation speed
 
         Returns:
-            [float, float]: The speed for the left and right motors respectively. Given as a fraction of max speed.
+            np.array(float, float): The speed for the left and right motors respectively. Given as a fraction of max speed.
         """
 
         forward_speed = distance * k_p_forward
@@ -43,7 +43,7 @@ class MotionControlStrategies:
         # Another alternative where the minimum motor speed is half its value
         # speeds = (1 / (1 + np.exp(-speeds))) + ((np.sign(speeds) - 1) * 0.5)
 
-        return list(speeds)
+        return speeds
 
     @staticmethod
     def combine_speeds(angle, forward, rotation):
@@ -51,14 +51,14 @@ class MotionControlStrategies:
         rotation *= np.sign(angle)
 
         # Make sure speeds are maxed at 1
-        left_speed = min(1, forward + rotation)
-        right_speed = min(1, forward - rotation)
+        left_speed = max(min(1, forward + rotation), -1)
+        right_speed = max(min(1, forward - rotation), -1)
 
-        return [left_speed, right_speed]
+        return np.array([left_speed, right_speed])
 
     @staticmethod
     def angle_based_control(distance: float, angle: float, rotation_speed_profile_power=0.5,
-                            forward_speed_profile_power=3.0):
+                            forward_speed_profile_power=3.0) -> np.array:
         """Set fastest wheel speed to maximum with the other wheel slowed to facilitate turning
 
         By using a cos^2 for our forward speed and sin^2 for our rotation speed, the fastest wheel will always be at max
@@ -73,7 +73,7 @@ class MotionControlStrategies:
             forward_speed_profile_power (float): How 'tight' to make the velocity profile, [0, inf]
 
         Returns:
-            [float, float]: The speed for the left and right motors respectively. Given as a fraction of max speed.
+            np.array(float, float): The speed for the left and right motors respectively. Given as a fraction of max speed.
         """
         # For some reason (probably floating point errors), we occasionally get warnings about requested speed exceeding
         # max velocity even though they are equal. We shall subtract a small quantity to avoid this annoyance.
@@ -93,7 +93,7 @@ class MotionControlStrategies:
 
     @staticmethod
     def short_linear_region(distance, angle, forward_drive=1, angle_drive=1,
-                            forward_lin_region_width=0.2, angular_lin_region_width=np.pi/50):
+                            forward_lin_region_width=0.2, angular_lin_region_width=np.pi/10) -> np.array:
         """Calculates wheel speeds based on trying to achieve a fixed drive but with a short linear region when close
 
         Args:
@@ -107,7 +107,7 @@ class MotionControlStrategies:
         Returns:
             [float, float]: The speed for the left and right motors respectively. Given as a fraction of max speed."""
 
-        forward_speed = forward_drive if distance > forward_lin_region_width else\
+        forward_speed = forward_drive if abs(distance) > forward_lin_region_width else\
             (distance / forward_lin_region_width) * forward_drive
         rotation_speed = angle_drive if abs(angle) > angular_lin_region_width else\
             (angle / angular_lin_region_width) * angle_drive
