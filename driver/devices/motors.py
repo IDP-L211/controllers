@@ -29,7 +29,8 @@ class IDPMotorController:
         """Set the velocities for each motor
 
         Args:
-            values (np.array): Speeds for left and right wheel respectively, as fractions of max speed (-1 -> 1), [left, right]
+            values (np.array): Speeds for left and right wheel respectively,
+            as fractions of max speed (-1 -> 1), [left, right]
         """
         if len(values) != 2:
             raise Exception("Velocities should be set by a 2 element list")
