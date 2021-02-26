@@ -27,7 +27,7 @@ def main(robot):
         # If we have actions; not elif so that we can get on with an action queued this timestep
         if action_queue:
             # Code
-            robot.execute_action(action_queue)
+            robot.execute_next_action()
             # Code
 
         # Code

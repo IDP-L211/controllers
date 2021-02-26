@@ -1,4 +1,4 @@
-# Test script for drive_to_pos
+# Test script for collecting a block
 
 def main(robot):
     # Setup
@@ -6,11 +6,9 @@ def main(robot):
     nav_map = robot.get_map(robot.ir_long, 2.4)
 
     # Actions for our robot
-    action_queue = [
-        ("collect", [0.5, -0.5])
-    ]
+    robot.do("collect", [0.5, -0.5])
 
     # Main loop, perform simulation steps until Webots is stopping the controller
     while robot.step(timestep) != -1:
-        robot.execute_action(action_queue)
+        robot.execute_next_action()
         nav_map.update()

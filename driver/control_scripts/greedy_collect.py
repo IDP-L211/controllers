@@ -23,10 +23,10 @@ def main(robot):
 
             # If we have a target go to it, else scan
             if target:
-                action_queue.append(("collect", target))
+                robot.do("collect", target)
             else:
-                action_queue.append(("rotate", TAU))
+                robot.do("rotate", TAU)
 
         # If we have actions; not elif so that we can get on with an action queued this timestep
         if action_queue:
-            robot.execute_action(action_queue)
+            robot.execute_next_action()

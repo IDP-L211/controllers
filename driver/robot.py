@@ -61,12 +61,12 @@ class IDPRobot(Robot):
         # To store and process detections
         self.object_detection_handler = ObjectDetectionHandler()
 
+        # Store internal action queue
+        self.action_queue = []
+
         # So we can cleanup if we change our action
         self.last_action_type = None
         self.last_action_value = None
-
-        # So actions can alter the action_queue
-        self.action_queue = []
 
         # Thresholds for finishing actions
         self.target_distance_threshold = 0.05
@@ -358,8 +358,11 @@ class IDPRobot(Robot):
             ("move", home_pos)
         ]
 
-        self.action_queue.extend(actions)
-        return True
+        del self.action_queue[0]  # Delete the move command
+        actions.extend(self.action_queue)
+        self.action_queue = actions
+
+        return False
 
     def rotate(self, angle: float, rotation_rate=5.0) -> bool:
         """Rotate the bot a fixed angle at a fixed rate of rotation
@@ -407,30 +410,25 @@ class IDPRobot(Robot):
         """
         return self.rotate(self.angle_from_bot_from_bearing(target_bearing))
 
-    def execute_action(self, actions: list) -> bool:
-        """Execute the first action in a set of actions
+    def do(self, *args):
+        """Wrapper to make ordering the robot around cleaner code-wise"""
+        self.action_queue = [args]
+
+    def execute_next_action(self) -> bool:
+        """Execute the next action in self.action_queue
 
         When each action is completed it's removed from the list. Using list mutability this allows us to alter / check
         the action list elsewhere in the code to see the bots progress and also change its objectives.
         If people have better ideas on how to do this I'm all ears.
 
-        Actions:
-            * move: Go to the given coordinates
-            * turn: Face the given bearing
-
-        Args:
-            actions (list): Each list element is a tuple/list of ["action_type", value]
-
         Returns:
             bool: Whether action list is completed or not
         """
-        # Update internal queue
-        self.action_queue = actions
 
         # Check if action list is empty i.e. 'complete'
         if len(self.action_queue) == 0:
             self.motors.velocities = np.zeros(2)
-            return True
+            return False
 
         # Execute action
         action_type = self.action_queue[0][0]
@@ -487,7 +485,7 @@ class IDPRobot(Robot):
             else:
                 self.stuck_last_step = True
 
-        return False
+        return completed
 
     def log_object_detection(self, position, classification="unknown"):
         """Take an object detected a certain distance away and store its detection

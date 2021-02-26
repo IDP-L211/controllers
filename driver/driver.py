@@ -6,10 +6,10 @@
 from robot import IDPRobot
 
 # Change which script you want to run here
-from control_scripts.motion_test import main as motion_test
-from control_scripts.camera_test import main as camera_test
-from control_scripts.object_processing_test import main as object_processing_test
-from control_scripts.block_collect_test import main as block_collect_test
+from control_scripts.tests.motion_test import main as motion_test
+from control_scripts.tests.camera_test import main as camera_test
+from control_scripts.tests.object_processing_test import main as object_processing_test
+from control_scripts.tests.block_collect_test import main as block_collect_test
 from control_scripts.sensor_dist_calc_test import main as sensor_dist_calc_test
 from control_scripts.sensor_bounds_ir_test import main as sensor_bounds_ir_test
 from control_scripts.sensor_bounds_ultrasonic_test import main as sensor_bounds_ultrasonic_test
