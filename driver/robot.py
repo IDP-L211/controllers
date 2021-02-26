@@ -14,7 +14,7 @@ from devices.motors import IDPMotorController
 
 from strategies.motion import MotionControlStrategies
 
-from misc.utils import rotate_vector, print_if_debug
+from misc.utils import rotate_vector, get_min_distance_rectangles, print_if_debug
 from misc.mapping import Map
 from misc.detection_handler import ObjectDetectionHandler
 
@@ -216,6 +216,9 @@ class IDPRobot(Robot):
         """
 
         return self.coordtransform_bot_cartesian_to_world(np.array([0, distance]))
+
+    def get_min_distance_bot_to_bot(self, other_bot_vertices: list) -> float:
+        return get_min_distance_rectangles(self.get_bot_vertices(), other_bot_vertices)
 
     def get_map(self, sensor, arena_length: float, name: str = 'map') -> Map:
         """Get a map of the arena, on which the current position and bounding box of the robot
