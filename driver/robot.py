@@ -65,8 +65,11 @@ class IDPRobot(Robot):
         self.last_action_type = None
         self.last_action_value = None
 
+        # So actions can alter the action_queue
+        self.action_queue = []
+
         # Thresholds for finishing actions
-        self.target_distance_threshold = 0.1
+        self.target_distance_threshold = 0.05
         self.target_bearing_threshold = np.pi / 100
 
         # For rotations
@@ -330,6 +333,34 @@ class IDPRobot(Robot):
         """
         return self.drive_to_position(target_pos, reverse=True)
 
+    def collect_block(self, block_pos):
+        """Collect block at position
+
+        Args:
+            block_pos ([float, float]): The East-North co-ords of the blocks position
+        Returns:
+            bool: If we are at our target
+        """
+
+        # Update these variables when we have more info
+        distance_from_block_to_stop = 0.1
+        rotate_angle = np.pi
+        home_pos = [0, 0]
+
+        # Calculate pos to got to to be near block not on it
+        distance = self.distance_from_bot(block_pos) - distance_from_block_to_stop
+        target_pos = self.coordtransform_bot_polar_to_world(distance, self.angle_from_bot_from_position(block_pos))
+
+        # Need to add action that deposits block
+        actions = [
+            ("move", target_pos),
+            ("rotate", rotate_angle),
+            ("move", home_pos)
+        ]
+
+        self.action_queue.extend(actions)
+        return True
+
     def rotate(self, angle: float, rotation_rate=5.0) -> bool:
         """Rotate the bot a fixed angle at a fixed rate of rotation
 
@@ -393,21 +424,25 @@ class IDPRobot(Robot):
         Returns:
             bool: Whether action list is completed or not
         """
+        # Update internal queue
+        self.action_queue = actions
+
         # Check if action list is empty i.e. 'complete'
-        if len(actions) == 0:
+        if len(self.action_queue) == 0:
             self.motors.velocities = np.zeros(2)
             return True
 
         # Execute action
-        action_type = actions[0][0]
-        action_value = actions[0][1:]
+        action_type = self.action_queue[0][0]
+        action_value = self.action_queue[0][1:]
 
         # Store the function associated with each action
         action_functions = {
             "move": self.drive_to_position,
             "face": self.face_bearing,
             "rotate": self.rotate,
-            "reverse": self.reverse_to_position
+            "reverse": self.reverse_to_position,
+            "collect": self.collect_block
         }
 
         # Check action is valid
@@ -429,25 +464,25 @@ class IDPRobot(Robot):
         # If we completed this action we should remove it from our list
         if completed:
             self.reset_action_variables()
-            print_if_debug(f"\nCompleted action: {actions[0]}", debug_flag=DEBUG)
-            del actions[0]
+            print_if_debug(f"\nCompleted action: {self.action_queue[0]}", debug_flag=DEBUG)
+            del self.action_queue[0]
             print_if_debug(f"Remaining actions:", debug_flag=DEBUG)
 
             # Check if action list is now empty
-            if len(actions) == 0:
+            if len(self.action_queue) == 0:
                 print_if_debug("None", debug_flag=DEBUG)
                 self.motors.velocities = np.zeros(2)
                 return True
 
-            print_if_debug('\n'.join(str(x) for x in actions), debug_flag=DEBUG)
+            print_if_debug('\n'.join(str(x) for x in self.action_queue), debug_flag=DEBUG)
 
         # Check if bot is stuck, note we only reach here if action not completed
         if abs(self.speed) <= 0.001:
             if self.stuck_last_step:
                 print_if_debug("BOT STUCK - REVERSING", debug_flag=DEBUG)
                 un_stuck_action = "reverse" if action_type != "reverse" else "move"
-                actions.insert(0,
-                               (un_stuck_action, list(self.coordtransform_bot_cartesian_to_world(np.array([0, -0.2])))))
+                self.action_queue.insert(0, (un_stuck_action,
+                                             list(self.coordtransform_bot_cartesian_to_world(np.array([0, -0.1])))))
                 self.stuck_last_step = False
             else:
                 self.stuck_last_step = True

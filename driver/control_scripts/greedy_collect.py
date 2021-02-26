@@ -1,4 +1,4 @@
-# Example control_script for robot
+# Greedy collect algorithm for robot
 
 import numpy as np
 
@@ -15,19 +15,18 @@ def main(robot):
     # Main loop, perform simulation steps until Webots is stopping the controller
     while robot.step(timestep) != -1:
 
-        # Code
-
         # If we have no action
         if not action_queue:
-            # Code
-            pass
 
-        # Code
+            # Update target
+            target = robot.get_target()
+
+            # If we have a target go to it, else scan
+            if target:
+                action_queue.append(("collect", target))
+            else:
+                action_queue.append(("rotate", TAU))
 
         # If we have actions; not elif so that we can get on with an action queued this timestep
         if action_queue:
-            # Code
             robot.execute_action(action_queue)
-            # Code
-
-        # Code
