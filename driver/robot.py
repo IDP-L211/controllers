@@ -8,7 +8,6 @@ from controller import Robot
 import numpy as np
 import warnings
 
-
 from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor
 from devices.motors import IDPMotorController
 
@@ -17,7 +16,6 @@ from strategies.motion import MotionControlStrategies
 from misc.utils import rotate_vector, get_min_distance_rectangles, print_if_debug
 from misc.mapping import Map
 from misc.detection_handler import ObjectDetectionHandler
-
 
 DEBUG = False
 
@@ -45,6 +43,7 @@ class IDPRobot(Robot):
         self.width = 0.1
         self.wheel_radius = 0.04
 
+        self.arena_length = 2.4
         self.timestep = int(self.getBasicTimeStep())
 
         # Devices
@@ -220,7 +219,7 @@ class IDPRobot(Robot):
     def get_min_distance_bot_to_bot(self, other_bot_vertices: list) -> float:
         return get_min_distance_rectangles(self.get_bot_vertices(), other_bot_vertices)
 
-    def get_map(self, sensor, arena_length: float, name: str = 'map') -> Map:
+    def get_map(self, sensor, name: str = 'map') -> Map:
         """Get a map of the arena, on which the current position and bounding box of the robot
         will be displayed.
 
@@ -234,7 +233,7 @@ class IDPRobot(Robot):
         Returns:
             Map: The map
         """
-        return Map(self, sensor, arena_length, name)
+        return Map(self, sensor, self.arena_length, name)
 
     def reset_action_variables(self):
         """Cleanup method to be called when the current action changes. If executing bot commands manually
@@ -312,7 +311,7 @@ class IDPRobot(Robot):
         angle_drive = (rotation_rate * turn_radius) / (self.motors.max_motor_speed * self.wheel_radius)
 
         if angle_drive > 1:
-            max_rot = rotation_rate/angle_drive
+            max_rot = rotation_rate / angle_drive
             warnings.warn(f"Requested rotation rate of {rotation_rate} exceeds bot's apparent maximum of {max_rot}")
 
         self.motors.velocities = MotionControlStrategies.short_linear_region(0, angle_difference, angle_drive=angle_drive)

@@ -78,17 +78,25 @@ class Map(Display):
         # must be of type int not np.int64, pass in a list instead of np.ndarray
         self.drawLine(*self.coordtransform_world_to_map(self.robot.position), *map_coord)
 
-    def update(self, draw_distance: bool = True) -> None:
+    def clear(self):
         # clear display
         self.setColor(0x000000)
         self.fillRectangle(0, 0, self.height, self.width)
 
-        # draw bounding box
-        self.setColor(0xFFFFFF)
-        self.drawPolygon(*self.get_map_bot_vertices())
+    def update(self, clear_frame: bool = True, draw_robot: bool = True, draw_line: bool = True,
+               draw_range: bool = True) -> None:
+        if clear_frame:
+            self.clear()
+
+        if draw_robot:
+            # draw bounding box
+            self.setColor(0xFFFFFF)
+            self.drawPolygon(*self.get_map_bot_vertices())
 
         # draw markers
-        front_coord = self.get_map_bot_front(self.sensor.getValue() if draw_distance else 0)
-        self.draw_line_from_botcenter(front_coord)
+        front_coord = self.get_map_bot_front(self.sensor.getValue())
+        if draw_line:
+            self.draw_line_from_botcenter(front_coord)
         self.draw_marker(front_coord)
-        self.draw_marker(self.get_map_bot_front(self.sensor.max_range))
+        if draw_range:
+            self.draw_marker(self.get_map_bot_front(self.sensor.max_range))
