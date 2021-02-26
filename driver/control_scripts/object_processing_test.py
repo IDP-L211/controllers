@@ -14,11 +14,17 @@ def main(robot):
 
     example_detections = list(zip(x_coords, z_coords))
     print('\n'.join(str(x) for x in example_detections))
+    print()
 
     for detection in example_detections:
         robot.log_object_detection(detection, classification="box")
 
     print(robot.object_detection_handler.objects)
-    object_position_list = robot.object_detection_handler.get_box_positions_list(robot)
+    print()
+    object_list = robot.object_detection_handler.get_sorted_objects(valid_classes=["box"],
+                                                                    sort_quantity="position",
+                                                                    sort_algorithm=robot.distance_from_bot)
+    object_position_list = [d["position"] for d in object_list]
     print(object_position_list)
+    print()
     print([robot.distance_from_bot(x) for x in object_position_list])

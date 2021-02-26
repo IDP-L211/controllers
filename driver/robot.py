@@ -44,6 +44,7 @@ class IDPRobot(Robot):
         self.length = 0.2
         self.width = 0.1
         self.wheel_radius = 0.04
+        self.colour = "red"
 
         self.arena_length = 2.4
         self.timestep = int(self.getBasicTimeStep())
@@ -461,3 +462,21 @@ class IDPRobot(Robot):
             classification (string): What we think the object is
         """
         self.object_detection_handler.new_detection(position, classification)
+
+    def get_target(self) -> list:
+        """Decide on a new target block for robot
+
+        If targeting is not just get closest block there could be more logic here, potentially calls to a script in
+            strategies folder that applied more complex algorithms and could even return a list of ordered targets
+
+        For now we just choose the closest block of correct colour or unknown colour
+
+        Returns:
+            [float, float]: Targets co-ordinates, East-North, m
+        """
+        valid_classes = ["box", f"{self.colour}_box"]
+        object_list = self.object_detection_handler.get_sorted_objects(valid_classes=valid_classes,
+                                                                       sort_quantity="position",
+                                                                       sort_algorithm=self.distance_from_bot)
+        object_position_list = [d["position"] for d in object_list]
+        return object_position_list[0]

@@ -35,6 +35,7 @@ class ObjectDetectionHandler:
                             f"Valid: {', '.join(valid_classifications)}")
 
         self.objects[self.last_object_id] = {
+            "id": self.last_object_id,
             "position": position,
             "class": classification
         }
@@ -49,16 +50,17 @@ class ObjectDetectionHandler:
         """
         del self.objects[identity]
 
-    def get_box_positions_list(self, robot) -> list:
-        """Returns a list of box positions sorted by distance, smallest first
+    def get_sorted_objects(self, valid_classes: list, sort_quantity="position", sort_algorithm=None) -> list:
+        """Returns a list of object dicts based on a sorting algorithm
 
         Args:
-            robot: The robot which this instance is attached to
-                This is to use it's distance_from_bot method for the sorting
+            valid_classes (list): The valid classes of objects to return
+            sort_quantity (string): The quantity of the object to give the algorithm
+            sort_algorithm (function): The algorithm used to sort the blocks
 
         Returns:
-            list: The object positions sorted by distance from bot
+            list: The object positions sorted by the algorithm
         """
 
-        return sorted([v["position"] for v in self.objects.values() if v["class"] in ["box", "red_box", "green_box"]],
-                      key=robot.distance_from_bot)
+        return sorted([v for v in self.objects.values() if v["class"] in valid_classes],
+                      key=lambda v: sort_algorithm(v[sort_quantity]))
