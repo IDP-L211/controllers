@@ -18,7 +18,7 @@ from misc.utils import rotate_vector, print_if_debug
 from misc.mapping import Map
 
 
-DEBUG = True
+DEBUG = False
 
 
 class IDPRobot(Robot):
