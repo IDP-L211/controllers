@@ -151,7 +151,7 @@ class IDPRobot(Robot):
             float: Angle measured clockwise from direction bot is facing, [-pi, pi]
         """
         relative_position = np.array(position) - np.array(self.position)
-        bearing = np.arctan2(relative_position[0], relative_position[1])
+        bearing = np.arctan2(*relative_position)
         return self.angle_from_bot_from_bearing(bearing)
 
     def coordtransform_bot_to_world(self, vec: np.ndarray) -> np.ndarray:
@@ -283,7 +283,6 @@ class IDPRobot(Robot):
 
         # Check if we're done
         angle_difference = self.rotation_angle - self.angle_rotated
-        print(self.rotation_angle, self.angle_rotated, angle_difference)
         if abs(angle_difference) <= self.target_bearing_threshold:
             return True
 
