@@ -350,7 +350,7 @@ to the absolute position vector of that point in the world frame</p>
 
 <dl class="py method">
 <dt id="robot.IDPRobot.coordtransform_bot_polar_to_world">
-<code class="sig-name descname"><span class="pre">coordtransform_bot_polar_to_world</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">distance</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">angle</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">list</span><a class="headerlink" href="#robot.IDPRobot.coordtransform_bot_polar_to_world" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname"><span class="pre">coordtransform_bot_polar_to_world</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">distance</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">angle</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">numpy.ndarray</span><a class="headerlink" href="#robot.IDPRobot.coordtransform_bot_polar_to_world" title="Permalink to this definition">¶</a></dt>
 <dd><p>Given a distance and angle from our bot, return the objects position</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -488,7 +488,7 @@ If people have better ideas on how to do this I’m all ears.</p>
 
 <dl class="py method">
 <dt id="robot.IDPRobot.get_map">
-<code class="sig-name descname"><span class="pre">get_map</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">arena_length</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">'map'</span></span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="mapping.html#misc.mapping.Map" title="misc.mapping.Map"><span class="pre">misc.mapping.Map</span></a><a class="headerlink" href="#robot.IDPRobot.get_map" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname"><span class="pre">get_map</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sensor</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><a class="reference internal" href="sensors.html#devices.sensors.IDPDistanceSensor" title="devices.sensors.IDPDistanceSensor"><span class="pre">devices.sensors.IDPDistanceSensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span> <span class="o"><span class="pre">=</span></span> <span class="default_value"><span class="pre">'map'</span></span></em><span class="sig-paren">)</span> &#x2192; <a class="reference internal" href="mapping.html#misc.mapping.Map" title="misc.mapping.Map"><span class="pre">misc.mapping.Map</span></a><a class="headerlink" href="#robot.IDPRobot.get_map" title="Permalink to this definition">¶</a></dt>
 <dd><p>Get a map of the arena, on which the current position and bounding box of the robot
 will be displayed.</p>
 <p>This requires the robot to have a Display child node with name ‘map’.</p>
@@ -496,7 +496,6 @@ will be displayed.</p>
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>sensor</strong> (<a class="reference internal" href="sensors.html#devices.sensors.IDPDistanceSensor" title="devices.sensors.IDPDistanceSensor"><em>IDPDistanceSensor</em></a>) – The distance sensor used on the robot</p></li>
-<li><p><strong>arena_length</strong> (<em>float</em>) – Side length of the arena, which is assumed to be a square</p></li>
 <li><p><strong>name</strong> (<em>str</em>) – Name of the Display node, default to ‘map’</p></li>
 </ul>
 </dd>
@@ -505,6 +504,55 @@ will be displayed.</p>
 </dd>
 <dt class="field-odd">Return type</dt>
 <dd class="field-odd"><p><a class="reference internal" href="mapping.html#misc.mapping.Map" title="misc.mapping.Map">Map</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="robot.IDPRobot.get_min_distance_bot_to_bot">
+<code class="sig-name descname"><span class="pre">get_min_distance_bot_to_bot</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">other_bot_vertices</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">list</span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">float</span><a class="headerlink" href="#robot.IDPRobot.get_min_distance_bot_to_bot" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the minimum distances between two robots</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>other_bot_vertices</strong> (<em>[</em><em>np.ndarray</em><em>]</em>) – List of vertices of the other robot, needs to be specified in</p></li>
+<li><p><strong>clockwise order</strong> (<em>a</em>) – </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>The minimum distance between the two robots</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="robot.IDPRobot.get_min_distance_vertex_to_wall">
+<code class="sig-name descname"><span class="pre">get_min_distance_vertex_to_wall</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#robot.IDPRobot.get_min_distance_vertex_to_wall" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the minimum distance from any of the vertices of the robot to the wall</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>The minimum distance</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="robot.IDPRobot.get_sensor_distance_to_wall">
+<code class="sig-name descname"><span class="pre">get_sensor_distance_to_wall</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#robot.IDPRobot.get_sensor_distance_to_wall" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the distance the sensor should measure if there is nothing between it and the wall</p>
+<p>Note that the sensor is assumed to be at the centre of the robot.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>The distance</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>float</p>
 </dd>
 </dl>
 </dd></dl>
