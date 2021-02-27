@@ -26,13 +26,12 @@ def point_in_line_shadow(p1: np.ndarray, p2: np.ndarray, q: np.ndarray) -> bool:
 
 
 def get_min_distance_to_segment(p1: np.ndarray, p2: np.ndarray, q: np.ndarray) -> float:
-    if point_in_line_shadow(p1, p2, q):
-        return np.linalg.norm(np.cross(
-            (p2 - p1) / np.linalg.norm(p2 - p1),
-            q - p1
-        ))
-
-    return min(np.linalg.norm(q - p1), np.linalg.norm(q - p2))
+    return np.linalg.norm(np.cross(
+        (p2 - p1) / np.linalg.norm(p2 - p1),
+        q - p1
+    )) if point_in_line_shadow(p1, p2, q) else min(
+        np.linalg.norm(q - p1), np.linalg.norm(q - p2)
+    )
 
 
 def get_rectangle_sides(vertices: list) -> list:
