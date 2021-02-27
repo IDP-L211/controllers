@@ -54,10 +54,10 @@ class IDPDistanceSensor(DistanceSensor):
 
         self.f_upper_bound = lambda x: interp1d(
             self.betterLookupTable[0],
-            tuple(map(sum, zip(*self.betterLookupTable[1:]))),
+            tuple(map(lambda x: x[0] + x[0] * x[1], zip(*self.betterLookupTable[1:]))),
             bounds_error=False,
             fill_value=tuple(
-                map(sum, zip(*self.betterLookupTable[1:]))
+                map(lambda x: x[0] + x[0] * x[1], zip(*self.betterLookupTable[1:]))
             )[-1]
         )(x) if x > self.min_range else tuple(
             map(sum, zip(*self.betterLookupTable[1:]))
@@ -65,10 +65,10 @@ class IDPDistanceSensor(DistanceSensor):
 
         self.f_lower_bound = lambda x: interp1d(
             self.betterLookupTable[0],
-            tuple(map(lambda x: x[0] - x[1], zip(*self.betterLookupTable[1:]))),
+            tuple(map(lambda x: x[0] - x[0] * x[1], zip(*self.betterLookupTable[1:]))),
             bounds_error=False,
             fill_value=tuple(
-                map(lambda x: x[0] - x[1], zip(*self.betterLookupTable[1:]))
+                map(lambda x: x[0] - x[0] * x[1], zip(*self.betterLookupTable[1:]))
             )[-1]
         )(x) if x > self.min_range else tuple(
             map(lambda x: x[0] - x[1], zip(*self.betterLookupTable[1:]))
@@ -103,7 +103,6 @@ class IDPDistanceSensor(DistanceSensor):
             warn(f'WARNING: Could not calculate {self.getName()} value')
             return self.max_range
 
-        # it shouldn't have more than one root
         return sc_expectation_result.root
 
 
@@ -141,7 +140,6 @@ class IDPDistanceSensor(DistanceSensor):
             warn(f'WARNING: Could not calculate {self.getName()} bounds')
             return (self.max_range, 3.5) # Roughly the maximum possible
         else:
-            # it shouldn't have more than one root
             return sorted(tuple(map(lambda y: y.root, sc_bound_results)))
 
 
