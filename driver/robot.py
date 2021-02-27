@@ -16,6 +16,7 @@ from strategies.motion import MotionControlStrategies
 from misc.utils import rotate_vector, get_min_distance_rectangles, print_if_debug
 from misc.mapping import Map
 from misc.detection_handler import ObjectDetectionHandler
+from misc.pid import PID
 
 DEBUG = False
 
@@ -88,6 +89,10 @@ class IDPRobot(Robot):
 
         # For getting stuck
         self.stuck_last_step = False
+
+        # PID Stuff
+        self.pid_f_velocity = PID(1, 0, 0, self.timestep)
+        self.pid_angle = PID(1, 0, 0, self.timestep)
 
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
@@ -302,6 +307,8 @@ class IDPRobot(Robot):
         self.rotation_angle = 0
         self.last_bearing = None
         self.angle_rotated = 0
+        self.pid_f_velocity.reset()
+        self.pid_angle.reset()
         self.last_action_type = None
         self.last_action_value = None
 
@@ -327,7 +334,9 @@ class IDPRobot(Robot):
         if reverse:
             angle = (np.sign(angle) * np.pi) - angle
 
-        raw_velocities = MotionControlStrategies.angle_based_control(distance, angle)
+        # raw_velocities = MotionControlStrategies.angle_based_control(distance, angle)
+        raw_velocities = MotionControlStrategies.f_velocity_angle_pid(distance, angle, self.speed,
+                                                                      self.pid_f_velocity, self.pid_angle)
         self.motors.velocities = raw_velocities if not reverse else -raw_velocities
 
         return reached_target

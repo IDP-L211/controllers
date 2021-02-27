@@ -8,6 +8,48 @@ class MotionControlStrategies:
     """
 
     @staticmethod
+    def combine_and_limit(forward, rotation, angle=None):
+        # Reverse rotation if angle is negative for symmetric strategies
+        if angle is not None:
+            rotation *= np.sign(angle)
+
+        # Make sure speeds are maxed at 1
+        left_speed = max(min(1, forward + rotation), -1)
+        right_speed = max(min(1, forward - rotation), -1)
+
+        return np.array([left_speed, right_speed])
+
+    @staticmethod
+    def combine_and_scale_if_over(forward, rotation, angle=None):
+        # Reverse rotation if angle is negative for symmetric strategies
+        if angle is not None:
+            rotation *= np.sign(angle)
+
+        # Make sure speeds are maxed at 1 but scale instead of capping
+        left_speed = forward + rotation
+        right_speed = forward - rotation
+
+        if abs(left_speed) >= 1:
+            left_speed = np.sign(left_speed)
+            right_speed = right_speed / abs(left_speed)
+
+        if abs(right_speed) >= 1:
+            right_speed = np.sign(right_speed)
+            left_speed = left_speed / abs(right_speed)
+
+        return np.array([left_speed, right_speed])
+
+    @staticmethod
+    def f_velocity_angle_pid(distance: float, angle: float, current_f_velocity, pid_f_velocity, pid_angle):
+
+        velocity_error = np.tanh(distance * 10) - current_f_velocity
+
+        forward_speed = pid_f_velocity.step(velocity_error)
+        rotation_speed = pid_angle.step(angle)
+
+        return MotionControlStrategies.combine_and_scale_if_over(forward_speed, rotation_speed)
+
+    @staticmethod
     def distance_angle_error(distance: float, angle: float, k_p_forward=4.0, k_p_rotation=4.0) -> np.array:
         """Set wheel speeds based on angle and distance error
 
@@ -46,17 +88,6 @@ class MotionControlStrategies:
         return speeds
 
     @staticmethod
-    def combine_speeds(angle, forward, rotation):
-        # Reverse rotation if angle is negative
-        rotation *= np.sign(angle)
-
-        # Make sure speeds are maxed at 1
-        left_speed = max(min(1, forward + rotation), -1)
-        right_speed = max(min(1, forward - rotation), -1)
-
-        return np.array([left_speed, right_speed])
-
-    @staticmethod
     def angle_based_control(distance: float, angle: float, rotation_speed_profile_power=0.5,
                             forward_speed_profile_power=3.0) -> np.array:
         """Set fastest wheel speed to maximum with the other wheel slowed to facilitate turning
@@ -89,7 +120,7 @@ class MotionControlStrategies:
         # Zero forward speed if we're not actually needing to move forward
         forward_speed *= np.sign(distance)
 
-        return MotionControlStrategies.combine_speeds(angle, forward_speed, rotation_speed)
+        return MotionControlStrategies.combine_and_limit(forward_speed, rotation_speed, angle)
 
     @staticmethod
     def short_linear_region(distance, angle, forward_drive=1, angle_drive=1,
@@ -112,4 +143,4 @@ class MotionControlStrategies:
         rotation_speed = angle_drive if abs(angle) > angular_lin_region_width else\
             (angle / angular_lin_region_width) * angle_drive
 
-        return MotionControlStrategies.combine_speeds(angle, forward_speed, rotation_speed)
+        return MotionControlStrategies.combine_and_limit(forward_speed, rotation_speed, angle)
