@@ -4,7 +4,6 @@
 """Main driver code
 """
 from robot import IDPRobot
-from misc.idp_controller import IDPController
 
 # Change which script you want to run here
 from control_scripts.tests.motion_test import main as motion_test
@@ -23,10 +22,8 @@ if __name__ == '__main__':
     # motion_test(robot)
     # camera_test(robot)
     # object_processing_test(robot)
-    # block_collect_test(robot)
+    block_collect_test(robot)
     # sensor_dist_calc_test(robot)
     # sensor_bounds_ultrasonic_test(robot)
     # sensor_bounds_ir_test(robot)
-
-    idp_controller = IDPController(robot)
-    greedy_collect(idp_controller)
+    # greedy_collect(robot)

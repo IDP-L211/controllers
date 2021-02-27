@@ -17,7 +17,7 @@ from misc.utils import rotate_vector, get_min_distance_rectangles, print_if_debu
 from misc.mapping import Map
 from misc.detection_handler import ObjectDetectionHandler
 
-DEBUG = False
+DEBUG = True
 
 
 class IDPRobot(Robot):
@@ -69,7 +69,8 @@ class IDPRobot(Robot):
             "move": self.drive_to_position,
             "face": self.face_bearing,
             "rotate": self.rotate,
-            "reverse": self.reverse_to_position
+            "reverse": self.reverse_to_position,
+            "collect": self.collect_block
         }
 
         # So we can cleanup if we change our action
@@ -386,6 +387,44 @@ class IDPRobot(Robot):
             bool: If we are at our target
         """
         return self.rotate(self.angle_from_bot_from_bearing(target_bearing))
+
+    def collect_block(self, block_pos):
+        """Collect block at position
+
+        Args:
+            block_pos ([float, float]): The East-North co-ords of the blocks position
+        Returns:
+            bool: If we are at our target
+        """
+
+        # Update these variables when we have more info
+        distance_from_block_to_stop = 0.1
+        rotate_angle = np.pi
+        home_pos = [0, 0]
+
+        # Calculate pos to got to to be near block not on it
+        distance = self.distance_from_bot(block_pos) - distance_from_block_to_stop
+        target_pos = self.coordtransform_bot_polar_to_world(distance, self.angle_from_bot_from_position(block_pos))
+
+        # Need to add action that deposits block
+        actions = [
+            ("move", target_pos),
+            ("rotate", rotate_angle),
+            ("move", home_pos)
+        ]
+
+        self.action_queue = [self.action_queue[0]] + actions + self.action_queue[1:]
+        return True
+
+
+    def do(self, *args):
+        """Small wrapper to make telling robot to do something a little cleaner"""
+        self.action_queue = [args]
+
+    @property
+    def idle(self):
+        """To make checking if the robot is busy a little cleaner"""
+        return self.action_queue == []
 
     def execute_next_action(self) -> bool:
         """Execute the next action in self.action_queue
