@@ -17,7 +17,7 @@ from misc.utils import rotate_vector, get_min_distance_rectangles, print_if_debu
 from misc.mapping import Map
 from misc.detection_handler import ObjectDetectionHandler
 
-DEBUG = True
+DEBUG = False
 
 
 class IDPRobot(Robot):

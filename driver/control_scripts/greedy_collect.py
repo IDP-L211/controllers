@@ -15,7 +15,7 @@ def main(robot):
     while robot.step(timestep) != -1:
 
         # If we have no action
-        if not action_queue:
+        if robot.idle:
 
             # Update target
             target = robot.get_target()
@@ -27,5 +27,5 @@ def main(robot):
                 robot.do("rotate", TAU)
 
         # If we have actions; not elif so that we can get on with an action queued this timestep
-        if action_queue:
+        if not robot.idle:
             robot.execute_next_action()
