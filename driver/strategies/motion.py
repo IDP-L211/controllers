@@ -1,9 +1,15 @@
+# Copyright (C) 2021 Jason Brown
+#
+# SPDX-License-Identifier: MIT
+"""Class file for the motion controller"""
+
+
 import numpy as np
 
 
 class MotionControlStrategies:
     """
-    All MotionCS methods will return am array of left and right motor velocities
+    All MotionCS methods will return an array of left and right motor velocities
     To be used via robot.motors.velocities = MotionControlStrategies.some_method(*args)
     """
 
@@ -41,24 +47,53 @@ class MotionControlStrategies:
         return np.array([left_speed, right_speed])
 
     @staticmethod
-    def f_velocity_angle_pid(distance: float, angle: float, current_f_velocity, pid_f_velocity, pid_angle):
+    def combined_pid(current_f_velocity=None, current_distance=None, current_r_velocity=None, current_angle=None,
+                     pid_f_velocity=None, pid_distance=None, pid_r_velocity=None, pid_angle=None,
+                     required_f_velocity=0.4, required_distance=0.0, required_r_velocity=8.0, required_angle=0.0,
+                     switch_distance=0.2, switch_angle=np.pi):
+        """This method uses PID control for four different quantities based on thresholds. If some quantities aren't
+        given then it will try and use the other quantity for that velocity type. If that quantity is also not given it
+        assumes that no velocity of that type is required. As a result this strategy can be used for any situation.
 
-        velocity_error = np.tanh(distance * 10) - current_f_velocity
+        For virtually all use cases the default value of required_distance and required_angle will suffice.
 
-        forward_speed = pid_f_velocity.step(velocity_error)
-        rotation_speed = pid_angle.step(angle)
+        The required velocities are defaulted to maximum possible for the robot
 
-        return MotionControlStrategies._combine_and_scale(forward_speed, rotation_speed)
+        Args:
+            current_f_velocity (float): Our current forward velocity, m/s
+            current_distance (float): Our current distance from the target, m
+            current_r_velocity (float): Our current rotational velocity, rad/s
+            current_angle (float): Our current angle from the target, rad
+            pid_f_velocity (PID): Forward velocity PID controller
+            pid_distance (PID): Distance PID controller
+            pid_r_velocity (PID): Rotational velocity PID controller
+            pid_angle (PID): Angle PID controller
+            required_f_velocity (float): Required forward velocity, m/s
+            required_distance (float): Required distance from the target, m
+            required_r_velocity (float): Required rotational velocity, rad/s
+            required_angle (float): Required angle from target, rad
+            switch_distance (float): Within this distance from target use distance error, else forward velocity, m
+            switch_angle (float): Within this angle from target use angle error, else rotational velocity, rad
 
-    @staticmethod
-    def f_r_velocity_pid(current_f_velocity, current_r_velocity, required_f_velocity, required_r_velocity,
-                         pid_f_velocity, pid_r_velocity):
+        Returns:
+            np.array(float, float): The speed for the left and right motors respectively. Given as a fraction of max speed.
+        """
 
-        f_velocity_error = required_f_velocity - current_f_velocity
-        r_velocity_error = required_r_velocity - current_r_velocity
+        if current_distance is None and current_f_velocity is None:
+            forward_speed = 0
+        else:
+            if (current_distance is None or current_distance > switch_distance) and current_f_velocity is not None:
+                forward_speed = pid_f_velocity.step(required_f_velocity - current_f_velocity)
+            else:
+                forward_speed = pid_distance.step(current_distance - required_distance)
 
-        forward_speed = pid_f_velocity.step(f_velocity_error)
-        rotation_speed = pid_r_velocity.step(r_velocity_error)
+        if current_angle is None and current_r_velocity is None:
+            rotation_speed = 0
+        else:
+            if (current_angle is None or current_angle > switch_angle) and current_r_velocity is not None:
+                rotation_speed = pid_r_velocity.step(required_r_velocity - current_r_velocity)
+            else:
+                rotation_speed = pid_angle.step(current_angle - required_angle)
 
         return MotionControlStrategies._combine_and_scale(forward_speed, rotation_speed)
 

@@ -90,11 +90,12 @@ class IDPRobot(Robot):
         # For getting stuck
         self.stuck_last_step = False
 
-        # PID Stuff
-        actual_timestep = self.timestep / 1000  # Webots timestep is in ms
-        self.pid_f_velocity = PID(1, 0, 0, actual_timestep)
-        self.pid_r_velocity = PID(1, 0, 0, actual_timestep)
-        self.pid_angle = PID(1, 0, 0, actual_timestep)
+        # Motion control
+        self.timestep_actual = self.timestep / 1000  # Webots timestep is in ms
+        self.pid_f_velocity = PID(1, 0, 0, self.timestep_actual)
+        self.pid_r_velocity = PID(1, 0, 0, self.timestep_actual)
+        self.pid_distance = PID(1, 0, 0, self.timestep_actual)
+        self.pid_angle = PID(1, 0, 0, self.timestep_actual)
 
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
@@ -309,10 +310,12 @@ class IDPRobot(Robot):
         self.rotation_angle = 0
         self.last_bearing = None
         self.angle_rotated = 0
-        self.pid_f_velocity.reset()
-        self.pid_angle.reset()
         self.last_action_type = None
         self.last_action_value = None
+        self.pid_f_velocity.reset()
+        self.pid_r_velocity.reset()
+        self.pid_distance.reset()
+        self.pid_angle.reset()
 
     def drive_to_position(self, target_pos: list, reverse=False) -> bool:
         """Go to a position
@@ -329,7 +332,7 @@ class IDPRobot(Robot):
 
         reached_target = distance <= self.target_distance_threshold
         if reached_target:
-            distance, angle = 0, 0
+            return True
 
         # If we're reversing we change the angle so it mimics the bot facing the opposite way
         # When we apply the wheel velocities we negative them and voila we tricked the bot into reversing
@@ -337,11 +340,11 @@ class IDPRobot(Robot):
             angle = (np.sign(angle) * np.pi) - angle
 
         # raw_velocities = MotionControlStrategies.angle_based_control(distance, angle)
-        raw_velocities = MotionControlStrategies.f_velocity_angle_pid(distance, angle, self.speed,
-                                                                      self.pid_f_velocity, self.pid_angle)
+        raw_velocities = MotionControlStrategies.combined_pid(current_f_velocity=self.speed, current_distance=distance,
+                                                              current_angle=angle, pid_f_velocity=self.pid_f_velocity,
+                                                              pid_distance=self.pid_distance, pid_angle=self.pid_angle)
         self.motors.velocities = raw_velocities if not reverse else -raw_velocities
-
-        return reached_target
+        return False
 
     def reverse_to_position(self, target_pos: list) -> bool:
         """Go to a position in reverse
@@ -353,12 +356,12 @@ class IDPRobot(Robot):
         """
         return self.drive_to_position(target_pos, reverse=True)
 
-    def rotate(self, angle: float, rotation_rate=5.0) -> bool:
+    def rotate(self, angle: float, rotation_rate=None) -> bool:
         """Rotate the bot a fixed angle at a fixed rate of rotation
 
         Args:
             angle (float): Angle to rotate in radians, positive is clockwise
-            rotation_rate (float): Rate of rotation in radians per second, [0, 1]
+            rotation_rate (float): Rate of rotation in radians per second, [0, 1], None will cause PID to use max (8.0)
         Returns:
             bool: If we completed rotation
         """
@@ -368,8 +371,10 @@ class IDPRobot(Robot):
             self.rotation_angle = angle
             self.last_bearing = self.bearing
 
-        # Update how far we've rotated, making sure to correct if bearing crosses north
-        self.angle_rotated -= self.angle_from_bot_from_bearing(self.last_bearing)
+        # Update how far we've rotated
+        angle_rotated_in_timestep = -self.angle_from_bot_from_bearing(self.last_bearing)
+        self.angle_rotated += angle_rotated_in_timestep
+        r_velocity = angle_rotated_in_timestep / self.timestep_actual
         self.last_bearing = self.bearing
 
         # Check if we're done
@@ -377,16 +382,10 @@ class IDPRobot(Robot):
         if abs(angle_difference) <= self.target_bearing_threshold:
             return True
 
-        # Calculate angle_drive based on rotation rate
-        turn_radius = self.width / 2
-        angle_drive = (rotation_rate * turn_radius) / (self.motors.max_motor_speed * self.wheel_radius)
-
-        if angle_drive > 1:
-            max_rot = rotation_rate / angle_drive
-            warnings.warn(f"Requested rotation rate of {rotation_rate} exceeds bot's apparent maximum of {max_rot}")
-
-        self.motors.velocities = MotionControlStrategies.short_linear_region(0, angle_difference,
-                                                                             angle_drive=angle_drive)
+        velocities = MotionControlStrategies.combined_pid(current_r_velocity=r_velocity, current_angle=angle_difference,
+                                                          required_r_velocity=rotation_rate, pid_angle=self.pid_angle,
+                                                          pid_r_velocity=self.pid_r_velocity, switch_angle=np.pi/10)
+        self.motors.velocities = velocities
         return False
 
     def face_bearing(self, target_bearing: float) -> bool:
