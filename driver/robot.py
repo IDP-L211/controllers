@@ -91,8 +91,10 @@ class IDPRobot(Robot):
         self.stuck_last_step = False
 
         # PID Stuff
-        self.pid_f_velocity = PID(1, 0, 0, self.timestep)
-        self.pid_angle = PID(1, 0, 0, self.timestep)
+        actual_timestep = self.timestep / 1000  # Webots timestep is in ms
+        self.pid_f_velocity = PID(1, 0, 0, actual_timestep)
+        self.pid_r_velocity = PID(1, 0, 0, actual_timestep)
+        self.pid_angle = PID(1, 0, 0, actual_timestep)
 
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
