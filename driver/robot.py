@@ -79,8 +79,8 @@ class IDPRobot(Robot):
         self.last_action_value = None
 
         # Thresholds for finishing actions
-        self.target_distance_threshold = 0.05
-        self.target_bearing_threshold = np.pi / 100
+        self.target_distance_threshold = 0.01
+        self.target_bearing_threshold = np.pi / 1000
 
         # For rotations
         self.rotation_angle = 0
@@ -95,7 +95,7 @@ class IDPRobot(Robot):
         self.pid_f_velocity = PID(1, 0, 0, self.timestep_actual)
         self.pid_r_velocity = PID(1, 0, 0, self.timestep_actual)
         self.pid_distance = PID(1, 0, 0, self.timestep_actual)
-        self.pid_angle = PID(1, 0, 0, self.timestep_actual)
+        self.pid_angle = PID(1.8, 0, 0.1, self.timestep_actual)
 
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
@@ -379,12 +379,12 @@ class IDPRobot(Robot):
 
         # Check if we're done
         angle_difference = self.rotation_angle - self.angle_rotated
-        if abs(angle_difference) <= self.target_bearing_threshold:
+        if abs(angle_difference) <= self.target_bearing_threshold and abs(angle_rotated_in_timestep) * 5 <= self.target_bearing_threshold:
             return True
 
         velocities = MotionControlStrategies.combined_pid(current_r_velocity=r_velocity, current_angle=angle_difference,
                                                           required_r_velocity=rotation_rate, pid_angle=self.pid_angle,
-                                                          pid_r_velocity=self.pid_r_velocity, switch_angle=np.pi/10)
+                                                          pid_r_velocity=self.pid_r_velocity, switch_angle=np.pi*10)
         self.motors.velocities = velocities
         return False
 
