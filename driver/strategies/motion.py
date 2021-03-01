@@ -14,7 +14,7 @@ class MotionControlStrategies:
     """
 
     @staticmethod
-    def _combine_and_scale(forward, rotation, angle=None):
+    def combine_and_scale(forward, rotation, angle=None):
         # Reverse rotation if angle is negative for symmetric strategies
         if angle is not None:
             rotation *= np.sign(angle)
@@ -35,58 +35,91 @@ class MotionControlStrategies:
         return np.array([left_speed, right_speed])
 
     @staticmethod
-    def combined_pid(current_f_velocity=None, current_distance=None, current_r_velocity=None, current_angle=None,
-                     pid_f_velocity=None, pid_distance=None, pid_r_velocity=None, pid_angle=None,
-                     required_f_velocity=0.4, required_distance=0.0, required_r_velocity=8.0, required_angle=0.0,
-                     switch_distance=0.2, switch_angle=np.pi):
-        """This method uses PID control for four different quantities based on thresholds. If some quantities aren't
-        given then it will try and use the other quantity for that velocity type. If that quantity is also not given it
-        assumes that no velocity of that type is required. As a result this strategy can be used for any situation.
+    def dual_pid(prime_quantity=None, derivative_quantity=None, prime_pid=None, derivative_pid=None,
+                 required_prime_quantity=None, required_derivative_quantity=None, derivative_extra_term_scale_factor=0):
+        """This method uses 2 PID's to control a quantity based on a threshold. If only one of the required measurements
+        is given it just uses a single PID.
 
-        For virtually all use cases the default value of required_distance and required_angle will suffice.
+        The PID takes a quantity and its derivative (i.e. distance and velocity). When close to closing the error it
+        uses the prime quantity but when it's far it uses the derivative quantity and an extra term in the control. Note
+        the extra term only applies when controlling via the derivative quantity.
 
-        The required velocities are defaulted to maximum possible for the robot
+        The extra term is simply the required derivative quantity multiplied by a scale factor, if you want to know why
+        this is useful, consider the result of a proportional velocity controller who's input is velocity error and
+        output is motor velocity. If this still does not clear things after thinking about it for a while then stop
+        reading this and pick up a colouring book - it may be more your speed (Pun definitely intended).
+
+        It switches quantity when the proportional output of the prime quantity controller is equal to the total output
+        of the derivative quantity controller.
+
+        This function should most likely NOT be called directly, instead call angular_dual_pid or linear_dual_pid which
+        act as wrappers for this function that make function args clearer and have useful defaults.
+
+        Note on the robot:
+            Max turn rate: 8.0 rad/s
+            Max forward velocity: 0.04 m/s
 
         Args:
-            current_f_velocity (float): Our current forward velocity, m/s
-            current_distance (float): Our current distance from the target, m
-            current_r_velocity (float): Our current rotational velocity, rad/s
-            current_angle (float): Our current angle from the target, rad
-            pid_f_velocity (PID): Forward velocity PID controller
-            pid_distance (PID): Distance PID controller
-            pid_r_velocity (PID): Rotational velocity PID controller
-            pid_angle (PID): Angle PID controller
-            required_f_velocity (float): Required forward velocity, m/s
-            required_distance (float): Required distance from the target, m
-            required_r_velocity (float): Required rotational velocity, rad/s
-            required_angle (float): Required angle from target, rad
-            switch_distance (float): Within this distance from target use distance error, else forward velocity, m
-            switch_angle (float): Within this angle from target use angle error, else rotational velocity, rad
+            prime_quantity (float): Our current prime quantity. E.g. distance, m or angle, rad
+            derivative_quantity (float): Our current derivative quantity. E.g. forward speed, m/s or
+                rotational speed, rad/s
+            prime_pid (PID): Prime quantity PID controller
+            derivative_pid (PID): Derivative quantity PID controller
+            required_prime_quantity (float): Required prime quantity
+            required_derivative_quantity (float): Required derivative quantity
+            derivative_extra_term_scale_factor (float): The multiplier for our extra term when controlling via the error
+                on derivative control. For forward speed this should be 25, rotational 0.125.
 
         Returns:
             np.array(float, float): The speed for the left and right motors respectively. Fraction of max speed.
         """
 
-        if current_distance is None and current_f_velocity is None:
-            forward_speed = 0
+        if prime_quantity is None and derivative_quantity is None:
+            speed = 0
         else:
-            if (current_distance is None or current_distance > switch_distance) and current_f_velocity is not None:
-                forward_speed = pid_f_velocity.step(required_f_velocity - current_f_velocity)
+            if derivative_quantity is not None:
+                speed = derivative_pid.step(required_derivative_quantity - derivative_quantity)\
+                        + (derivative_extra_term_scale_factor * required_derivative_quantity)
+                if prime_quantity is not None:
+                    distance_proportional_output = prime_pid.k_p * prime_quantity
+                    if distance_proportional_output <= speed:
+                        speed = prime_pid.step(prime_quantity - required_prime_quantity)
+                        derivative_pid.un_step()
             else:
-                forward_speed = pid_distance.step(current_distance - required_distance)
+                speed = prime_pid.step(prime_quantity - required_prime_quantity)
 
-        if current_angle is None and current_r_velocity is None:
-            rotation_speed = 0
-        else:
-            if (current_angle is None or current_angle > switch_angle) and current_r_velocity is not None:
-                rotation_speed = pid_r_velocity.step(required_r_velocity - current_r_velocity)
-            else:
-                rotation_speed = pid_angle.step(current_angle - required_angle)
-
-        return MotionControlStrategies._combine_and_scale(forward_speed, rotation_speed)
+        return speed
 
     @staticmethod
-    def angle_based(distance: float, angle: float, r_speed_profile_power=0.5, f_speed_profile_power=3.0) -> np.array:
+    def angular_dual_pid(angle=None, rotation_rate=None, angle_pid=None, rotational_speed_pid=None, required_angle=0,
+                         required_rotation_rate=8.0):
+        """Wrapper for dual_pid to make angular control simpler"""
+        return MotionControlStrategies.dual_pid(prime_quantity=angle, derivative_quantity=rotation_rate,
+                                                prime_pid=angle_pid, derivative_pid=rotational_speed_pid,
+                                                required_prime_quantity=required_angle,
+                                                required_derivative_quantity=required_rotation_rate,
+                                                derivative_extra_term_scale_factor=0.125)
+
+    @staticmethod
+    def linear_dual_pid(distance=None, forward_speed=None, distance_pid=None, forward_speed_pid=None,
+                        required_distance=0, required_forward_speed=0.04, angle_attenuation=True, angle=None):
+        """Wrapper for dual_pid to make linear control simpler"""
+
+        if angle_attenuation and angle is not None:
+            attenuation_factor = (np.cos(angle) ** 2) if abs(angle) <= np.pi / 2 else 0
+            distance *= attenuation_factor
+            required_distance *= attenuation_factor
+            required_forward_speed *= attenuation_factor
+
+        return MotionControlStrategies.dual_pid(prime_quantity=distance, derivative_quantity=forward_speed,
+                                                prime_pid=distance_pid, derivative_pid=forward_speed_pid,
+                                                required_prime_quantity=required_distance,
+                                                required_derivative_quantity=required_forward_speed,
+                                                derivative_extra_term_scale_factor=25)
+
+    @staticmethod
+    def angle_based(distance: float, angle: float, r_speed_profile_power=0.5, f_speed_profile_power=3.0,
+                    combine_speeds=True) -> np.array:
         """Determine wheels speeds based on the current angle to target, designed to quickly turn to target and then go
         at max forward speed. Could outperform PID control for when a robot doesn't need to stop in an exact spot.
 
@@ -95,16 +128,13 @@ class MotionControlStrategies:
             angle (float): Angle to target, rad
             r_speed_profile_power (float): Exponent of rotation speed profile, [0, inf]
             f_speed_profile_power (float): How 'tight' to make the velocity profile, [0, inf]
+            combine_speeds (bool): Whether to combine the speeds and return motor velocities or just give the raw speeds
 
         Returns:
             np.array(float, float): The speed for the left and right motors respectively. Fraction of max speed.
         """
-        # For some reason (probably floating point errors), we occasionally get warnings about requested speed exceeding
-        # max velocity even though they are equal. We shall subtract a small quantity to avoid this annoyance.
-        small_speed = 1e-5
-
         # Forward speed calculation - aimed to be maximised when facing forward
-        forward_speed = (np.cos(angle)**f_speed_profile_power) - small_speed if abs(angle) <= np.pi / 2 else 0
+        forward_speed = (np.cos(angle)**f_speed_profile_power) if abs(angle) <= np.pi / 2 else 0
 
         # Use up the rest of our wheel speed for turning, attenuate to reduce aggressive turning
         rotation_speed = 1 - forward_speed
@@ -113,4 +143,7 @@ class MotionControlStrategies:
         # Zero forward speed if we're not actually needing to move forward
         forward_speed *= np.sign(distance)
 
-        return MotionControlStrategies._combine_and_scale(forward_speed, rotation_speed, angle)
+        if not combine_speeds:
+            return forward_speed, rotation_speed
+        else:
+            return MotionControlStrategies.combine_and_scale(forward_speed, rotation_speed, angle)

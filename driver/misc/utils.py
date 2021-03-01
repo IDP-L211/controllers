@@ -7,6 +7,11 @@
 from functools import partial
 
 import numpy as np
+import math
+
+
+def round_to_n(x, n):
+    return x if x == 0 else round(x, -int(math.floor(math.log10(abs(x)))) + (n - 1))
 
 
 def get_rotation_matrix(angle: float) -> np.ndarray:

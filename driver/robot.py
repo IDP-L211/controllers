@@ -90,12 +90,12 @@ class IDPRobot(Robot):
         # For getting stuck
         self.stuck_last_step = False
 
-        # Motion control
+        # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers
         self.timestep_actual = self.timestep / 1000  # Webots timestep is in ms
-        self.pid_f_velocity = PID(1, 0, 0, self.timestep_actual)
-        self.pid_r_velocity = PID(1, 0, 0, self.timestep_actual)
-        self.pid_distance = PID(1, 0, 0, self.timestep_actual)
-        self.pid_angle = PID(1.8, 0, 0.1, self.timestep_actual)
+        self.pid_f_velocity = PID("Forward Velocity", 0.1, 1, 0, self.timestep_actual)
+        self.pid_r_velocity = PID("Rotational Velocity", 1, 0, 0, self.timestep_actual)
+        self.pid_distance = PID("Distance", 10, 0, 0, self.timestep_actual)
+        self.pid_angle = PID("Angle", 1.8, 0, 0.1, self.timestep_actual)
 
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
@@ -330,8 +330,7 @@ class IDPRobot(Robot):
         distance = self.distance_from_bot(target_pos)
         angle = self.angle_from_bot_from_position(target_pos)
 
-        reached_target = distance <= self.target_distance_threshold
-        if reached_target:
+        if distance <= self.target_distance_threshold and self.speed * self.timestep_actual * 5 <= self.target_distance_threshold:
             return True
 
         # If we're reversing we change the angle so it mimics the bot facing the opposite way
@@ -339,10 +338,11 @@ class IDPRobot(Robot):
         if reverse:
             angle = (np.sign(angle) * np.pi) - angle
 
-        # raw_velocities = MotionControlStrategies.angle_based_control(distance, angle)
-        raw_velocities = MotionControlStrategies.combined_pid(current_f_velocity=self.speed, current_distance=distance,
-                                                              current_angle=angle, pid_f_velocity=self.pid_f_velocity,
-                                                              pid_distance=self.pid_distance, pid_angle=self.pid_angle)
+        forward_speed = MotionControlStrategies.linear_dual_pid(distance=distance, distance_pid=self.pid_distance,
+                                                                forward_speed=self.speed, angle=angle,
+                                                                forward_speed_pid=self.pid_f_velocity)
+        rotation_speed = MotionControlStrategies.angular_dual_pid(angle=angle, angle_pid=self.pid_angle)
+        raw_velocities = MotionControlStrategies.combine_and_scale(forward_speed, rotation_speed)
         self.motors.velocities = raw_velocities if not reverse else -raw_velocities
         return False
 
@@ -382,10 +382,8 @@ class IDPRobot(Robot):
         if abs(angle_difference) <= self.target_bearing_threshold and abs(angle_rotated_in_timestep) * 5 <= self.target_bearing_threshold:
             return True
 
-        velocities = MotionControlStrategies.combined_pid(current_r_velocity=r_velocity, current_angle=angle_difference,
-                                                          required_r_velocity=rotation_rate, pid_angle=self.pid_angle,
-                                                          pid_r_velocity=self.pid_r_velocity, switch_angle=np.pi*10)
-        self.motors.velocities = velocities
+        rotation_speed = MotionControlStrategies.angular_dual_pid(angle=angle_difference, angle_pid=self.pid_angle)
+        self.motors.velocities = MotionControlStrategies.combine_and_scale(0, rotation_speed)
         return False
 
     def face_bearing(self, target_bearing: float) -> bool:
