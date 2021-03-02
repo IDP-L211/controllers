@@ -27,7 +27,7 @@ class Target:
         return self.profit < other.profit
 
     def __eq__(self, other):
-        return self.profit < other.profit
+        return self.profit == other.profit
 
 
 class ObjectDetectionHandler:
