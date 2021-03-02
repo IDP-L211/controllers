@@ -421,11 +421,6 @@ class IDPRobot(Robot):
         """Small wrapper to make telling robot to do something a little cleaner"""
         self.action_queue = [args]
 
-    @property
-    def idle(self):
-        """To make checking if the robot is busy a little cleaner"""
-        return self.action_queue == []
-
     def execute_next_action(self) -> bool:
         """Execute the next action in self.action_queue
 
@@ -440,7 +435,7 @@ class IDPRobot(Robot):
         # Check if action list is empty i.e. 'complete'
         if len(self.action_queue) == 0:
             self.motors.velocities = np.zeros(2)
-            return False
+            return True
 
         # Execute action
         action_type = self.action_queue[0][0]
@@ -488,7 +483,7 @@ class IDPRobot(Robot):
             else:
                 self.stuck_last_step = True
 
-        return completed
+        return False
 
     def log_object_detection(self, position, classification="unknown"):
         """Take an object detected a certain distance away and store its detection
@@ -512,7 +507,7 @@ class IDPRobot(Robot):
         """
         valid_classes = ["box", f"{self.colour}_box"]
         object_list = self.object_detection_handler.get_sorted_objects(valid_classes=valid_classes,
-                                                                       sort_quantity="position",
-                                                                       sort_algorithm=self.distance_from_bot)
+                                                                       key=lambda v: self.distance_from_bot(v["position"]))
+
         object_position_list = [d["position"] for d in object_list]
         return object_position_list[0]

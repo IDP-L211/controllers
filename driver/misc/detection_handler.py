@@ -50,7 +50,7 @@ class ObjectDetectionHandler:
         """
         del self.objects[identity]
 
-    def get_sorted_objects(self, valid_classes: list, sort_quantity="position", sort_algorithm=None) -> list:
+    def get_sorted_objects(self, valid_classes: list, key=None) -> list:
         """Returns a list of object dicts based on a sorting algorithm
 
         Args:
@@ -62,5 +62,4 @@ class ObjectDetectionHandler:
             list: The object positions sorted by the algorithm
         """
 
-        return sorted([v for v in self.objects.values() if v["class"] in valid_classes],
-                      key=lambda v: sort_algorithm(v[sort_quantity]))
+        return sorted([v for v in self.objects.values() if v["class"] in valid_classes], key=key)
