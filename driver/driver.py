@@ -20,5 +20,5 @@ if __name__ == '__main__':
     # camera_test(robot)
     # object_processing_test(robot)
     # sensor_dist_calc_test(robot)
-    # sensor_bounds_ultrasonic_test(robot)
-    sensor_bounds_ir_test(robot)
+    sensor_bounds_ultrasonic_test(robot)
+    # sensor_bounds_ir_test(robot)
