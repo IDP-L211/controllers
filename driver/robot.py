@@ -416,7 +416,6 @@ class IDPRobot(Robot):
         self.action_queue = [self.action_queue[0]] + actions + self.action_queue[1:]
         return True
 
-
     def do(self, *args):
         """Small wrapper to make telling robot to do something a little cleaner"""
         self.action_queue = [args]
@@ -506,8 +505,9 @@ class IDPRobot(Robot):
             [float, float]: Targets co-ordinates, East-North, m
         """
         valid_classes = ["box", f"{self.colour}_box"]
-        object_list = self.object_detection_handler.get_sorted_objects(valid_classes=valid_classes,
-                                                                       key=lambda v: self.distance_from_bot(v["position"]))
+        object_list = self.object_detection_handler.get_sorted_objects(
+            valid_classes=valid_classes,
+            key=lambda target: self.distance_from_bot(target.postion)
+        )
 
-        object_position_list = [d["position"] for d in object_list]
-        return object_position_list[0]
+        return object_list[0].position
