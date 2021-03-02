@@ -1,18 +1,44 @@
-# Copyright (C) 2021 Jason Brown
+# Copyright (C) 2021 Jason Brown, Weixuan Zhang
 #
 # SPDX-License-Identifier: MIT
 """Class file for detected objects handler"""
 
+from itertools import starmap
+
+
+class Target:
+    """Class representing the target"""
+
+    def __init__(self, position: list, classification: str):
+        self.position = position
+        self.classification = classification
+
+    @property
+    def profit(self):
+        return 1
+
+    def is_near(self, position: list, threshold: float = 0.2):
+        return all(starmap(lambda rp, p: abs(rp - p) < threshold, zip(self.position, position)))
+
+    def __repr__(self):
+        return f'{self.classification} at {self.position}'
+
+    def __lt__(self, other):
+        return self.profit < other.profit
+
+    def __eq__(self, other):
+        return self.profit == other.profit
+
 
 class ObjectDetectionHandler:
+    """Class for handling object detections"""
+
     def __init__(self):
-        """Class for handling object detections"""
-        self.last_object_id = 0
-        self.objects = {}
+        self.objects = []
 
     def clear_all_objects(self):
         """Removes all detections but leaves id counter alone"""
-        self.objects = {}
+        self.objects = []
 
     @property
     def num_objects(self):
@@ -24,7 +50,8 @@ class ObjectDetectionHandler:
 
         Args:
             position ([float, float]): Objects co-ordinates, East-North, m
-            classification (string): The kind of object this is (Word 'kind' used to avoid confusion with programming type)
+            classification (string): The kind of object this is
+                (Word 'kind' used to avoid confusion with programming type)
         """
 
         # Validation on classification string
@@ -34,31 +61,29 @@ class ObjectDetectionHandler:
             raise Exception(f"{classification} is an invalid classification for a detected object\n"
                             f"Valid: {', '.join(valid_classifications)}")
 
-        self.objects[self.last_object_id] = {
-            "position": position,
-            "class": classification
-        }
+        self.objects.append(Target(position, classification))
 
-        self.last_object_id += 1
-
-    def remove_detection(self, identity: int):
+    def remove_detection(self, target: Target):
         """Remove a detected object via its identity
 
         Args:
-            identity (int): Identity of object to remove
+            target: The target object to be removed
         """
-        del self.objects[identity]
+        self.objects.remove(target)
 
-    def get_box_positions_list(self, robot) -> list:
-        """Returns a list of box positions sorted by distance, smallest first
+    def get_sorted_objects(self, valid_classes: list, key=None) -> list:
+        """Returns a list of object dicts based on a sorting algorithm
 
         Args:
-            robot: The robot which this instance is attached to
-                This is to use it's distance_from_bot method for the sorting
+            valid_classes (list): The valid classes of objects to return
+            valid_classes (string): The quantity of the object to give the algorithm
+            key (Callable): Callable that returns the key used to sort
 
         Returns:
-            list: The object positions sorted by distance from bot
+            list: The object positions sorted by the algorithm
         """
 
-        return sorted([v["position"] for v in self.objects.values() if v["class"] in ["box", "red_box", "green_box"]],
-                      key=robot.distance_from_bot)
+        return sorted(
+            filter(lambda target: target.classification in valid_classes, self.objects),
+            key=key
+        )

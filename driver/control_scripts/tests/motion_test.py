@@ -19,7 +19,9 @@ def main(robot):
         ("rotate", -5)
     ]
 
+    robot.action_queue = action_queue
+
     # Main loop, perform simulation steps until Webots is stopping the controller
     while robot.step(timestep) != -1:
-        robot.execute_action(action_queue)
+        robot.execute_next_action()
         nav_map.update()
