@@ -7,8 +7,8 @@ from itertools import starmap
 
 
 class Target:
-    """Class representing the target
-    """
+    """Class representing the target"""
+
     def __init__(self, position: list, classification: str):
         self.position = position
         self.classification = classification
@@ -20,9 +20,19 @@ class Target:
     def is_near(self, position: list, threshold: float = 0.2):
         return all(starmap(lambda rp, p: abs(rp - p) < threshold, zip(self.position, position)))
 
+    def __repr__(self):
+        return f'{self.classification} at {self.position}'
+
+    def __lt__(self, other):
+        return self.profit < other.profit
+
+    def __eq__(self, other):
+        return self.profit < other.profit
+
 
 class ObjectDetectionHandler:
     """Class for handling object detections"""
+
     def __init__(self):
         self.objects = []
 

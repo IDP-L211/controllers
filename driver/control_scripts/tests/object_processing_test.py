@@ -22,8 +22,8 @@ def main(robot):
     print(robot.object_detection_handler.objects)
     print()
     object_list = robot.object_detection_handler.get_sorted_objects(valid_classes=["box"],
-                                                                    key=lambda v: robot.distance_from_bot(v["position"]))
-    object_position_list = [d["position"] for d in object_list]
+                                                                    key=lambda v: robot.distance_from_bot(v.position))
+    object_position_list = [d.position for d in object_list]
     print(object_position_list)
     print()
     print([robot.distance_from_bot(x) for x in object_position_list])
