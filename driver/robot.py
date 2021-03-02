@@ -31,8 +31,9 @@ class IDPRobot(Robot):
         target_bearing_threshold (float): Threshold determining whether the target bearing is reached
         target_distance_threshold (float): Threshold determining whether the target coordinate is reached
         timestep (float): Time step of the current world
-        ultrasonic (IDPDistanceSensor): The ultrasonic sensor
-        ir_long (IDPDistanceSensor): The IR sensor (long range)
+        ultrasonic_left (IDPDistanceSensor): The ultrasonic sensor on the left
+        ultrasonic_right (IDPDistanceSensor): The ultrasonic sensor on the right
+        infrared (IDPDistanceSensor): The IR sensor (long range)
         width (float): Width of the robot, perpendicular to the axis running back-to-front
     """
 
@@ -50,8 +51,9 @@ class IDPRobot(Robot):
         # Devices
         self.gps = IDPGPS('gps', self.timestep)
         self.compass = IDPCompass('compass', self.timestep)
-        self.ultrasonic = IDPDistanceSensor('ultrasonic', self.timestep)
-        self.ir_long = IDPDistanceSensor('ir_long', self.timestep,
+        self.ultrasonic_left = IDPDistanceSensor('ultrasonic_left', self.timestep)
+        self.ultrasonic_right = IDPDistanceSensor('ultrasonic_right', self.timestep)
+        self.infrared = IDPDistanceSensor('infrared', self.timestep,
                                          decreasing=True, min_range=0.15)
         self.motors = IDPMotorController('wheel1', 'wheel2')
 
@@ -76,7 +78,8 @@ class IDPRobot(Robot):
 
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
-        if name in ['gps', 'compass', 'wheel1', 'wheel2', 'ultrasonic', 'ir_long']:
+        if name in ['gps', 'compass', 'wheel1', 'wheel2', 'ultrasonic_left', \
+                    'ultrasonic_right', 'infrared']:
             raise RuntimeError('Please use the corresponding properties instead')
         return Robot.getDevice(self, name)
 
