@@ -1,5 +1,5 @@
 def main(robot):
-    nav_map = robot.get_map(robot.ir_long)
+    nav_map = robot.get_map(robot.infrared)
     action_queue = [
         ("rotate", 6.28 * 2, 2)
     ]
