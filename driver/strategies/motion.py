@@ -36,7 +36,7 @@ class MotionControlStrategies:
 
     @staticmethod
     def dual_pid(prime_quantity=None, derivative_quantity=None, prime_pid=None, derivative_pid=None,
-                 required_prime_quantity=None, required_derivative_quantity=None, derivative_extra_term_scale_factor=0):
+                 required_prime_quantity=None, required_derivative_quantity=None) -> float:
         """This method uses 2 PID's to control a quantity based on a threshold. If only one of the required measurements
         is given it just uses a single PID.
 
@@ -53,11 +53,12 @@ class MotionControlStrategies:
         of the derivative quantity controller.
 
         This function should most likely NOT be called directly, instead call angular_dual_pid or linear_dual_pid which
-        act as wrappers for this function that make function args clearer and have useful defaults.
+        act as wrappers for this function that make function args clearer and have useful defaults. These wrappers also
+        normalise the values going into the pid so the output is motor drives.
 
         Note on the robot:
             Max turn rate: 8.0 rad/s
-            Max forward velocity: 0.04 m/s
+            Max forward velocity: 0.4 m/s
 
         Args:
             prime_quantity (float): Our current prime quantity. E.g. distance, m or angle, rad
@@ -67,55 +68,61 @@ class MotionControlStrategies:
             derivative_pid (PID): Derivative quantity PID controller
             required_prime_quantity (float): Required prime quantity
             required_derivative_quantity (float): Required derivative quantity
-            derivative_extra_term_scale_factor (float): The multiplier for our extra term when controlling via the error
-                on derivative control. For forward speed this should be 25, rotational 0.125.
 
         Returns:
-            np.array(float, float): The speed for the left and right motors respectively. Fraction of max speed.
+            float: The drive fraction for the given inputs
         """
 
         if prime_quantity is None and derivative_quantity is None:
-            speed = 0
+            drive = 0
         else:
             if derivative_quantity is not None:
-                speed = derivative_pid.step(required_derivative_quantity - derivative_quantity)\
-                        + (derivative_extra_term_scale_factor * required_derivative_quantity)
+                drive = derivative_pid.step(required_derivative_quantity - derivative_quantity)\
+                        + required_derivative_quantity
                 if prime_quantity is not None:
                     distance_proportional_output = prime_pid.k_p * prime_quantity
-                    if distance_proportional_output <= speed:
-                        speed = prime_pid.step(prime_quantity - required_prime_quantity)
+                    if abs(distance_proportional_output) <= drive:
+                        drive = prime_pid.step(prime_quantity - required_prime_quantity)
                         derivative_pid.un_step()
             else:
-                speed = prime_pid.step(prime_quantity - required_prime_quantity)
+                drive = prime_pid.step(prime_quantity - required_prime_quantity)
 
-        return speed
+        return drive
 
     @staticmethod
     def angular_dual_pid(angle=None, rotation_rate=None, angle_pid=None, rotational_speed_pid=None, required_angle=0,
                          required_rotation_rate=8.0):
         """Wrapper for dual_pid to make angular control simpler"""
-        return MotionControlStrategies.dual_pid(prime_quantity=angle, derivative_quantity=rotation_rate,
+
+        # Convert from actual robot velocities to drive fraction equivalent
+        required_rotational_drive = 0.125 * required_rotation_rate
+        rotational_drive_equivalent = 0.125 * rotation_rate if rotation_rate is not None else None
+
+        return MotionControlStrategies.dual_pid(prime_quantity=angle, derivative_quantity=rotational_drive_equivalent,
                                                 prime_pid=angle_pid, derivative_pid=rotational_speed_pid,
                                                 required_prime_quantity=required_angle,
-                                                required_derivative_quantity=required_rotation_rate,
-                                                derivative_extra_term_scale_factor=0.125)
+                                                required_derivative_quantity=required_rotational_drive)
 
     @staticmethod
     def linear_dual_pid(distance=None, forward_speed=None, distance_pid=None, forward_speed_pid=None,
-                        required_distance=0, required_forward_speed=0.04, angle_attenuation=True, angle=None):
+                        required_distance=0, required_forward_speed=0.4, angle_attenuation=True, angle=None):
         """Wrapper for dual_pid to make linear control simpler"""
 
+        # Attenuate speeds and distance based on angle so robot doesn't zoom off when not facing target
         if angle_attenuation and angle is not None:
-            attenuation_factor = (np.cos(angle) ** 2) if abs(angle) <= np.pi / 2 else 0
+            attenuation_factor = (np.cos(angle) ** 3) if abs(angle) <= np.pi / 2 else 0
             distance *= attenuation_factor
             required_distance *= attenuation_factor
             required_forward_speed *= attenuation_factor
 
-        return MotionControlStrategies.dual_pid(prime_quantity=distance, derivative_quantity=forward_speed,
+        # Convert from actual robot velocities to drive fraction equivalent
+        required_forward_drive = 2.5 * required_forward_speed
+        forward_speed_drive_eq = 2.5 * forward_speed if forward_speed is not None else None
+
+        return MotionControlStrategies.dual_pid(prime_quantity=distance, derivative_quantity=forward_speed_drive_eq,
                                                 prime_pid=distance_pid, derivative_pid=forward_speed_pid,
                                                 required_prime_quantity=required_distance,
-                                                required_derivative_quantity=required_forward_speed,
-                                                derivative_extra_term_scale_factor=25)
+                                                required_derivative_quantity=required_forward_drive)
 
     @staticmethod
     def angle_based(distance: float, angle: float, r_speed_profile_power=0.5, f_speed_profile_power=3.0,

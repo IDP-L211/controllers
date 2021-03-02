@@ -90,7 +90,7 @@ class IDPRobot(Robot):
         # For getting stuck
         self.stuck_last_step = False
 
-        # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers
+        # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers due to noise in acceleration
         self.timestep_actual = self.timestep / 1000  # Webots timestep is in ms
         self.pid_f_velocity = PID("Forward Velocity", 0.1, 1, 0, self.timestep_actual)
         self.pid_r_velocity = PID("Rotational Velocity", 1, 0, 0, self.timestep_actual)

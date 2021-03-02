@@ -25,16 +25,16 @@ class IDPMotorController:
         return np.array(self.left_motor.getVelocity(), self.right_motor.getVelocity())
 
     @velocities.setter
-    def velocities(self, values: np.array):
+    def velocities(self, drive_fractions: np.array):
         """Set the velocities for each motor
 
         Args:
-            values (np.array): Speeds for left and right wheel respectively,
+            drive_fractions (np.array): Speeds for left and right wheel respectively,
             as fractions of max speed (-1 -> 1), [left, right]
         """
-        if len(values) != 2:
+        if len(drive_fractions) != 2:
             raise Exception("Velocities should be set by a 2 element list")
 
-        values *= self.max_motor_speed
+        values = self.max_motor_speed * drive_fractions
         self.left_motor.setVelocity(values[0])
         self.right_motor.setVelocity(values[1])
