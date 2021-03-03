@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 """Class file for detected objects handler"""
 
+from typing import Union
 from itertools import starmap
 from collections import defaultdict
 
@@ -56,22 +57,22 @@ class Target:
         return self.profit == other.profit
 
 
-class ObjectDetectionHandler:
+class TargetCache:
     """Class for handling object detections"""
 
     def __init__(self):
-        self.objects = []
+        self.targets = []
 
-    def clear_all_objects(self):
+    def clear_targets(self):
         """Removes all detections but leaves id counter alone"""
-        self.objects = []
+        self.targets = []
 
     @property
-    def num_objects(self):
+    def num_targets(self):
         """How many objects we currently have stored"""
-        return len(self.objects)
+        return len(self.targets)
 
-    def new_detection(self, position: list, classification: str):
+    def new_target(self, position: list, classification: str):
         """Add a new detected object to the handler
 
         Args:
@@ -87,17 +88,17 @@ class ObjectDetectionHandler:
             raise Exception(f"{classification} is an invalid classification for a detected object\n"
                             f"Valid: {', '.join(valid_classifications)}")
 
-        self.objects.append(Target(position, classification))
+        self.targets.append(Target(position, classification))
 
-    def remove_detection(self, target: Target):
+    def remove_target(self, target: Target):
         """Remove a detected object via its identity
 
         Args:
             target: The target object to be removed
         """
-        self.objects.remove(target)
+        self.targets.remove(target)
 
-    def get_sorted_objects(self, valid_classes: list, key=None) -> list:
+    def get_targets(self, valid_classes: list, key=None) -> list:
         """Returns a list of object dicts based on a sorting algorithm
 
         Args:
@@ -110,6 +111,15 @@ class ObjectDetectionHandler:
         """
 
         return sorted(
-            filter(lambda target: target.classification in valid_classes, self.objects),
+            filter(lambda target: target.classification in valid_classes, self.targets),
             key=key
         )
+
+    def pop_target(self, valid_class: list, key=None) -> Union[Target, None]:
+        if len(self.targets) == 0:
+            return None
+
+        popped = self.get_targets(valid_class, key)[0]
+        self.remove_target(popped)
+
+        return popped

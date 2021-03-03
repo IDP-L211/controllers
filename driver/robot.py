@@ -4,6 +4,8 @@
 """This module contains a class representing the robot.
 """
 
+from typing import Union
+
 from controller import Robot
 import numpy as np
 import warnings
@@ -15,7 +17,7 @@ from strategies.motion import MotionControlStrategies
 
 from misc.utils import rotate_vector, get_min_distance_rectangles, print_if_debug
 from misc.mapping import Map
-from misc.targeting import TargetingHandler, ObjectDetectionHandler
+from misc.targeting import TargetingHandler, Target, TargetCache
 
 DEBUG = False
 
@@ -60,7 +62,7 @@ class IDPRobot(Robot):
 
         # To store and process detections
         self.targeting_handler = TargetingHandler()
-        self.object_detection_handler = ObjectDetectionHandler()
+        self.target_cache = TargetCache()
 
         # Store internal action queue
         self.action_queue = []
@@ -80,7 +82,7 @@ class IDPRobot(Robot):
         self.last_action_value = None
 
         # Thresholds for finishing actions
-        self.target_distance_threshold = 0.05
+        self.target_distance_threshold = 0.2
         self.target_bearing_threshold = np.pi / 100
 
         # For rotations
@@ -390,32 +392,27 @@ class IDPRobot(Robot):
         """
         return self.rotate(self.angle_from_bot_from_bearing(target_bearing))
 
-    def collect_block(self, block_pos):
+    def collect_block(self, target: Target):
         """Collect block at position
 
         Args:
-            block_pos ([float, float]): The East-North co-ords of the blocks position
+            target (Target): The target object
         Returns:
             bool: If we are at our target
         """
-
-        # Update these variables when we have more info
-        distance_from_block_to_stop = 0.3
-        rotate_angle = np.pi
-
-        # Calculate pos to got to to be near block not on it
-        distance = self.distance_from_bot(block_pos) - distance_from_block_to_stop
-        target_pos = self.coordtransform_bot_polar_to_world(distance, self.angle_from_bot_from_position(block_pos))
+        rotate_angle = np.pi / 2
 
         # Need to add action that deposits block
         actions = [
-            ("move", target_pos),
-            # ("rotate", rotate_angle)
+            ("move", target.position),
+            ("rotate", rotate_angle)
         ]
 
-        self.action_queue = [self.action_queue[0]] + actions + self.action_queue[1:]
+        self.action_queue = actions
 
-        return True
+        if self.distance_from_bot(target.position) < self.target_distance_threshold:
+            self.target_cache.remove_target(target)
+            return True
 
     def scan(self) -> bool:
         complete = self.rotate(np.pi * 2, 1)
@@ -430,9 +427,6 @@ class IDPRobot(Robot):
             self.targeting_handler.bounds.append(bound)
 
         if complete:
-            print(self.targeting_handler.positions)
-            print(self.targeting_handler.get_targets())
-
             for target in self.targeting_handler.get_targets():
                 self.log_object_detection(target)
 
@@ -517,9 +511,9 @@ class IDPRobot(Robot):
             position ([float, float]):  Positions co-ordinates in world, East-North, m
             classification (string): What we think the object is
         """
-        self.object_detection_handler.new_detection(position, classification)
+        self.target_cache.new_target(position, classification)
 
-    def get_target(self) -> list:
+    def get_target(self) -> Union[Target, None]:
         """Decide on a new target block for robot
 
         If targeting is not just get closest block there could be more logic here, potentially calls to a script in
@@ -531,9 +525,9 @@ class IDPRobot(Robot):
             [float, float]: Targets co-ordinates, East-North, m
         """
         valid_classes = ["box", f"{self.colour}_box"]
-        object_list = self.object_detection_handler.get_sorted_objects(
+        object_list = self.target_cache.get_targets(
             valid_classes=valid_classes,
             key=lambda target: self.distance_from_bot(target.position)
         )
 
-        return object_list[0].position if len(object_list) > 0 else []
+        return object_list[0] if len(object_list) > 0 else None

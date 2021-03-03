@@ -19,10 +19,10 @@ def main(robot):
     for detection in example_detections:
         robot.log_object_detection(detection, classification="box")
 
-    print(robot.object_detection_handler.objects)
+    print(robot.target_cache.targets)
     print()
-    object_list = robot.object_detection_handler.get_sorted_objects(valid_classes=["box"],
-                                                                    key=lambda v: robot.distance_from_bot(v.position))
+    object_list = robot.target_cache.get_targets(valid_classes=["box"],
+                                                 key=lambda v: robot.distance_from_bot(v.position))
     object_position_list = [d.position for d in object_list]
     print(object_position_list)
     print()
