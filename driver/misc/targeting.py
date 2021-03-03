@@ -4,6 +4,32 @@
 """Class file for detected objects handler"""
 
 from itertools import starmap
+from collections import defaultdict
+
+from sklearn.cluster import DBSCAN
+
+
+class TargetingHandler:
+    def __init__(self):
+        self.positions = []
+        self.bounds = []
+
+    def clear_sensor_cache(self) -> None:
+        self.positions = []
+        self.bounds = []
+
+    def get_targets(self) -> list:
+        targets = defaultdict(list)
+        labels = DBSCAN(eps=0.05, min_samples=3).fit(self.positions).labels_
+        for i, label in enumerate(labels):
+            if label == -1:
+                continue
+            targets[label].append(self.positions[i])
+
+        return list(map(
+            lambda lc: [sum(c) / len(c) for c in zip(*lc)],
+            targets.values()
+        ))
 
 
 class Target:

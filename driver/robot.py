@@ -15,7 +15,7 @@ from strategies.motion import MotionControlStrategies
 
 from misc.utils import rotate_vector, get_min_distance_rectangles, print_if_debug
 from misc.mapping import Map
-from misc.detection_handler import ObjectDetectionHandler
+from misc.targeting import TargetingHandler, ObjectDetectionHandler
 
 DEBUG = False
 
@@ -55,10 +55,11 @@ class IDPRobot(Robot):
         self.ultrasonic_left = IDPDistanceSensor('ultrasonic_left', self.timestep)
         self.ultrasonic_right = IDPDistanceSensor('ultrasonic_right', self.timestep)
         self.infrared = IDPDistanceSensor('infrared', self.timestep,
-                                         decreasing=True, min_range=0.15)
+                                          decreasing=True, min_range=0.15)
         self.motors = IDPMotorController('wheel1', 'wheel2')
 
         # To store and process detections
+        self.targeting_handler = TargetingHandler()
         self.object_detection_handler = ObjectDetectionHandler()
 
         # Store internal action queue
@@ -70,7 +71,8 @@ class IDPRobot(Robot):
             "face": self.face_bearing,
             "rotate": self.rotate,
             "reverse": self.reverse_to_position,
-            "collect": self.collect_block
+            "collect": self.collect_block,
+            "scan": self.scan
         }
 
         # So we can cleanup if we change our action
@@ -91,7 +93,7 @@ class IDPRobot(Robot):
 
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
-        if name in ['gps', 'compass', 'wheel1', 'wheel2', 'ultrasonic_left', \
+        if name in ['gps', 'compass', 'wheel1', 'wheel2', 'ultrasonic_left',
                     'ultrasonic_right', 'infrared']:
             raise RuntimeError('Please use the corresponding properties instead')
         return Robot.getDevice(self, name)
@@ -398,9 +400,8 @@ class IDPRobot(Robot):
         """
 
         # Update these variables when we have more info
-        distance_from_block_to_stop = 0.1
+        distance_from_block_to_stop = 0.3
         rotate_angle = np.pi
-        home_pos = [0, 0]
 
         # Calculate pos to got to to be near block not on it
         distance = self.distance_from_bot(block_pos) - distance_from_block_to_stop
@@ -409,12 +410,35 @@ class IDPRobot(Robot):
         # Need to add action that deposits block
         actions = [
             ("move", target_pos),
-            ("rotate", rotate_angle),
-            ("move", home_pos)
+            # ("rotate", rotate_angle)
         ]
 
         self.action_queue = [self.action_queue[0]] + actions + self.action_queue[1:]
+
         return True
+
+    def scan(self) -> bool:
+        complete = self.rotate(np.pi * 2, 1)
+
+        distance = self.infrared.getValue()
+        d_min, d_max = self.infrared.getBounds()
+        bound = (d_max - d_min)
+
+        if abs(self.get_sensor_distance_to_wall() - distance) > bound \
+                and abs(self.infrared.max_range - distance) > bound:
+            self.targeting_handler.positions.append(self.get_bot_front(distance))
+            self.targeting_handler.bounds.append(bound)
+
+        if complete:
+            print(self.targeting_handler.positions)
+            print(self.targeting_handler.get_targets())
+
+            for target in self.targeting_handler.get_targets():
+                self.log_object_detection(target)
+
+            self.targeting_handler.clear_sensor_cache()
+
+        return complete
 
     def do(self, *args):
         """Small wrapper to make telling robot to do something a little cleaner"""
@@ -426,6 +450,7 @@ class IDPRobot(Robot):
         When each action is completed it's removed from the list. Using list mutability this allows us to alter / check
         the action list elsewhere in the code to see the bots progress and also change its objectives.
         If people have better ideas on how to do this I'm all ears.
+        Execute_action was only ever supposed to be about motion
 
         Returns:
             bool: Whether action list is completed or not
@@ -470,7 +495,7 @@ class IDPRobot(Robot):
                 return True
 
             print_if_debug('\n'.join(str(x) for x in self.action_queue), debug_flag=DEBUG)
-
+        """
         # Check if bot is stuck, note we only reach here if action not completed
         if abs(self.speed) <= 0.001:
             if self.stuck_last_step:
@@ -481,10 +506,11 @@ class IDPRobot(Robot):
                 self.stuck_last_step = False
             else:
                 self.stuck_last_step = True
+        """
 
         return False
 
-    def log_object_detection(self, position, classification="unknown"):
+    def log_object_detection(self, position, classification="box"):
         """Take an object detected a certain distance away and store its detection
 
         Args:
@@ -507,7 +533,7 @@ class IDPRobot(Robot):
         valid_classes = ["box", f"{self.colour}_box"]
         object_list = self.object_detection_handler.get_sorted_objects(
             valid_classes=valid_classes,
-            key=lambda target: self.distance_from_bot(target.postion)
+            key=lambda target: self.distance_from_bot(target.position)
         )
 
-        return object_list[0].position
+        return object_list[0].position if len(object_list) > 0 else []
