@@ -15,12 +15,11 @@ from control_scripts.tests.sensor_dist_calc_test import main as sensor_dist_calc
 from control_scripts.tests.sensor_bounds_ir_test import main as sensor_bounds_ir_test
 from control_scripts.tests.sensor_bounds_ultrasonic_test import main as sensor_bounds_ultrasonic_test
 from control_scripts.greedy_collect import main as greedy_collect
-from control_scripts.pid_tuning import manual as pid_tuning
+from pid_tuning import manual as pid_tuning
 
 
 if __name__ == '__main__':
-    # robot = IDPRobot()
-    supervisor = IDPSupervisor()
+    robot = IDPSupervisor()
     # motion_test(robot)
     # camera_test(robot)
     # object_processing_test(robot)
@@ -29,4 +28,4 @@ if __name__ == '__main__':
     # sensor_bounds_ultrasonic_test(robot)
     # sensor_bounds_ir_test(robot)
     # greedy_collect(robot)
-    pid_tuning(supervisor)
+    pid_tuning(robot)

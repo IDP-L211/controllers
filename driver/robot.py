@@ -7,16 +7,17 @@
 from controller import Robot
 import numpy as np
 import warnings
+import matplotlib.pyplot as plt
 
 from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor
 from devices.motors import IDPMotorController
 
 from strategies.motion import MotionControlStrategies
 
-from misc.utils import rotate_vector, get_min_distance_rectangles, print_if_debug
+from misc.utils import rotate_vector, get_min_distance_rectangles, print_if_debug, ensure_list_or_tuple
 from misc.mapping import Map
 from misc.detection_handler import ObjectDetectionHandler
-from misc.pid import PID
+from misc.pid import PID, DataRecorder
 
 DEBUG = False
 
@@ -49,6 +50,8 @@ class IDPRobot(Robot):
 
         self.arena_length = 2.4
         self.timestep = int(self.getBasicTimeStep())
+        self.timestep_actual = self.timestep / 1000  # Webots timestep is in ms
+        self.time = 0
 
         # Devices
         self.gps = IDPGPS('gps', self.timestep)
@@ -79,7 +82,7 @@ class IDPRobot(Robot):
         self.last_action_value = None
 
         # Thresholds for finishing actions
-        self.target_distance_threshold = 0.01
+        self.target_distance_threshold = 0.05
         self.target_bearing_threshold = np.pi / 1000
 
         # For rotations
@@ -91,15 +94,20 @@ class IDPRobot(Robot):
         self.stuck_last_step = False
 
         # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers due to noise in acceleration
-        self.timestep_actual = self.timestep / 1000  # Webots timestep is in ms
-        self.pid_f_velocity = PID("Forward Velocity", 0.1, 1, 0, self.timestep_actual)
+        self.pid_f_velocity = PID("Forward Velocity", 1, 0, 0, self.timestep_actual)
         self.pid_r_velocity = PID("Rotational Velocity", 1, 0, 0, self.timestep_actual)
         self.pid_distance = PID("Distance", 10, 0, 0, self.timestep_actual)
-        self.pid_angle = PID("Angle", 1.8, 0, 0.1, self.timestep_actual)
+        self.pid_angle = PID("Angle", 1.5, 1, 0.2, self.timestep_actual, integral_wind_up_speed=0.1)
+        self.motor_history = DataRecorder("time", "distance", "angle", "forward_speed", "rotation_speed", "left_motor",
+                                          "right_motor")
+
+    def step(self, timestep):
+        self.time += self.timestep_actual
+        return super().step(timestep)
 
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
-        if name in ['gps', 'compass', 'wheel1', 'wheel2', 'ultrasonic_left', \
+        if name in ['gps', 'compass', 'wheel1', 'wheel2', 'ultrasonic_left',
                     'ultrasonic_right', 'infrared']:
             raise RuntimeError('Please use the corresponding properties instead')
         return Robot.getDevice(self, name)
@@ -303,6 +311,18 @@ class IDPRobot(Robot):
         """
         return Map(self, sensor, self.arena_length, name)
 
+    def evaluate(self):
+        styles = {
+            "distance": 'b-',
+            "angle": 'r-',
+            "forward_speed": 'b--',
+            "rotation_speed": 'r--',
+            "left_motor": 'b-.',
+            "right_motor": 'r-.'
+        }
+
+        self.motor_history.plot("time", styles=styles, title="Robot motor graph")
+
     def reset_action_variables(self):
         """Cleanup method to be called when the current action changes. If executing bot commands manually
         (i.e. robot.drive_to_position), call this first.
@@ -338,11 +358,20 @@ class IDPRobot(Robot):
         if reverse:
             angle = (np.sign(angle) * np.pi) - angle
 
-        forward_speed = MotionControlStrategies.linear_dual_pid(distance=distance, distance_pid=self.pid_distance,
-                                                                forward_speed=self.speed, angle=angle,
-                                                                forward_speed_pid=self.pid_f_velocity)
-        rotation_speed = MotionControlStrategies.angular_dual_pid(angle=angle, angle_pid=self.pid_angle)
+        pid = True
+        if pid:
+            forward_speed = MotionControlStrategies.linear_dual_pid(distance=distance, distance_pid=self.pid_distance,
+                                                                    forward_speed=self.speed, angle=angle,
+                                                                    forward_speed_pid=self.pid_f_velocity)
+            rotation_speed = MotionControlStrategies.angular_dual_pid(angle=angle, angle_pid=self.pid_angle)
+        else:
+            forward_speed, rotation_speed = MotionControlStrategies.angle_based(distance, angle, combine_speeds=False)
         raw_velocities = MotionControlStrategies.combine_and_scale(forward_speed, rotation_speed)
+
+        self.motor_history.update(time=self.time, distance=distance, angle=angle,
+                                  forward_speed=forward_speed, rotation_speed=rotation_speed,
+                                  left_motor=raw_velocities[0], right_motor=raw_velocities[1])
+
         self.motors.velocities = raw_velocities if not reverse else -raw_velocities
         return False
 
@@ -383,7 +412,10 @@ class IDPRobot(Robot):
             return True
 
         rotation_speed = MotionControlStrategies.angular_dual_pid(angle=angle_difference, angle_pid=self.pid_angle)
-        self.motors.velocities = MotionControlStrategies.combine_and_scale(0, rotation_speed)
+        raw_velocities = MotionControlStrategies.combine_and_scale(0, rotation_speed)
+        self.motor_history.update(time=self.time, angle=angle_difference, rotation_speed=rotation_speed,
+                                  left_motor=raw_velocities[0], right_motor=raw_velocities[1])
+        self.motors.velocities = raw_velocities
         return False
 
     def face_bearing(self, target_bearing: float) -> bool:
@@ -445,8 +477,9 @@ class IDPRobot(Robot):
             return True
 
         # Execute action
-        action_type = self.action_queue[0][0]
-        action_value = self.action_queue[0][1:]
+        action_item = ensure_list_or_tuple(self.action_queue[0])
+        action_type = action_item[0]
+        action_value = action_item[1:]
 
         # Check action is valid
         if action_type not in self.action_functions.keys():
@@ -464,6 +497,7 @@ class IDPRobot(Robot):
         # Execute action
         completed = self.action_functions[action_type](*action_value)
 
+
         # If we completed this action we should remove it from our list
         if completed:
             self.reset_action_variables()
@@ -479,7 +513,7 @@ class IDPRobot(Robot):
 
             print_if_debug('\n'.join(str(x) for x in self.action_queue), debug_flag=DEBUG)
 
-        # Check if bot is stuck, note we only reach here if action not completed
+        """# Check if bot is stuck, note we only reach here if action not completed
         if abs(self.speed) <= 0.001:
             if self.stuck_last_step:
                 print_if_debug("BOT STUCK - REVERSING", debug_flag=DEBUG)
@@ -488,7 +522,7 @@ class IDPRobot(Robot):
                                              list(self.coordtransform_bot_cartesian_to_world(np.array([0, -0.1])))))
                 self.stuck_last_step = False
             else:
-                self.stuck_last_step = True
+                self.stuck_last_step = True"""
 
         return False
 

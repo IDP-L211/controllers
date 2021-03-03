@@ -3,14 +3,52 @@
 # SPDX-License-Identifier: MIT
 """Class file for PID controller"""
 
-
 import matplotlib.pyplot as plt
 import numpy as np
-from .utils import round_to_n
+
+
+class DataRecorder:
+    def __init__(self, *args):
+        self.dict = {}
+        for arg in args:
+            self.dict[arg] = []
+
+    def update(self, **kwargs):
+        for k in self.dict.keys():
+            self.dict[k].append(kwargs[k] if k in kwargs.keys() else 0)
+
+    def reset(self):
+        for k in self.dict.keys():
+            self.dict[k] = []
+
+    def clear_last(self):
+        for k in self.dict.keys():
+            self.dict[k] = self.dict[k][:-1]
+
+    def plot(self, x_axis_arg, *args, styles=None, title=None):
+        if not self.dict[x_axis_arg]:
+            return
+
+        if not args:
+            args = list(self.dict.keys())
+            args.remove(x_axis_arg)
+
+        for k in args:
+            try:
+                plt.plot(self.dict[x_axis_arg], self.dict[k], styles[k], label=k)
+            except KeyError:
+                plt.plot(self.dict[x_axis_arg], self.dict[k], label=k)
+
+        plt.title(title)
+        plt.grid()
+        plt.legend()
+        plt.xlabel(x_axis_arg)
+        plt.ylabel("Quanta")
+        plt.show()
 
 
 class PID:
-    def __init__(self, quantity, k_p=0, k_i=0, k_d=0, time_step=None):
+    def __init__(self, quantity, k_p=0, k_i=0, k_d=0, time_step=None, integral_wind_up_speed=np.inf):
         self.quantity = quantity
 
         self.k_p = k_p
@@ -21,19 +59,24 @@ class PID:
         self.cum_error = 0
         self.time_step = time_step
 
-        # Each history item will be a dict of quanta
-        self.history = []
+        self.i_wind_up_speed = integral_wind_up_speed
+        self.total_time = 0
+
+        self.history = DataRecorder("time", "error", "cumulative_error", "error_change",
+                                    "k_p", "k_i", "k_d", "p", "i", "d", "output")
 
         # For rolling back the pid a step
         self.old_cum_error = 0
         self.old_prev_error = None
-        self.old_history = []
+        self.old_total_time = 0
 
     def reset(self):
         self.prev_error = None
         self.cum_error = 0
+        self.total_time = 0
         self.old_prev_error = None
         self.old_cum_error = 0
+        self.old_total_time = 0
 
     def step(self, error, time_step=None):
         time_step = time_step if time_step is not None else self.time_step
@@ -42,10 +85,12 @@ class PID:
 
         self.old_cum_error = self.cum_error
         self.old_prev_error = self.prev_error
-        self.old_history = self.history
+        self.old_total_time = self.total_time
 
-        self.cum_error += error * time_step
-        error_change = (error - self.prev_error) / time_step if self.prev_error is not None else 0
+        self.cum_error += error * time_step * np.tanh(self.total_time * self.i_wind_up_speed)
+        first_error_change = (error - self.prev_error) / time_step if self.prev_error is not None else 0
+        second_error_change = (self.prev_error - self.old_prev_error) / time_step if self.prev_error is not None and self.old_prev_error is not None else 0
+        error_change = 0.5 * first_error_change + 0.5 * second_error_change
 
         p = self.k_p * error
         i = self.k_i * self.cum_error
@@ -53,75 +98,50 @@ class PID:
 
         output = p + i + d
 
-        self.history.append({
-            "timestep": time_step,
-            "error": error,
-            "cumulative_error": self.cum_error,
-            "error_change": error_change,
-            "k_p": self.k_p,
-            "k_i": self.k_i,
-            "k_d": self.k_d,
-            "p": p,
-            "i": i,
-            "d": d,
-            "output": output
-        })
+        self.history.update(time=self.total_time, error=error, cumulative_error=self.cum_error,
+                            error_change=error_change, k_p=self.k_p, k_i=self.k_i, k_d=self.k_d, p=p, i=i, d=d,
+                            output=output)
 
         self.prev_error = error
+        self.total_time += time_step
 
         return output
 
     def un_step(self):
         self.cum_error = self.old_cum_error
         self.prev_error = self.old_prev_error
-        self.history = self.old_history
+        self.total_time = self.old_total_time
+        self.history.clear_last()
 
+    def evaluate(self, *args):
+        # Mild deuteranopia go brrrr
+        styles = {
+            "output": 'k-',
+            "error": 'r-',
+            "cumulative_error": 'b-',
+            "error_change": 'y-',
+            "p": 'r--',
+            "i": 'b--',
+            "d": 'y--',
+            "k_p": 'r:',
+            "k_i": 'b:',
+            "k_d": 'y:',
+        }
 
-    def evaluate(self, *args, plt_show=True, settle_value=0, settle_threshold=0, analysis_arg="error",
-                 show_settle_threshold=False):
-        x_axis = np.array([0])
-        y_axis_quanta = {}
-
-        # From the given args, assemble lists of data to graph
-        for entry in self.history:
-            x_axis = np.append(x_axis, x_axis[-1] + entry["timestep"])
-            for arg in args:
-                if arg not in y_axis_quanta.keys():
-                    y_axis_quanta[arg] = np.array([])
-                y_axis_quanta[arg] = np.append(y_axis_quanta[arg], entry[arg])
-
-        x_axis = x_axis[:-1]
-
-        adjusted_values = y_axis_quanta[analysis_arg] - settle_value
-        max_overshoot = round_to_n(min(adjusted_values) if adjusted_values[0] > 0 else max(adjusted_values), 3)
-
-        settled_time = 0
-        for i, t in enumerate(x_axis[::-1]):
-            if abs(adjusted_values[-(i+1)]) <= settle_threshold:
-                settled_time = t
-            else:
-                break
-        settle_time = round_to_n(x_axis[-1] - settled_time, 3)
-
-        if plt_show:
-            # Plot
-            for arg in args:
-                plt.plot(x_axis, y_axis_quanta[arg], label=arg)
-
-            if show_settle_threshold:
-                plt.axhline(y=settle_value + settle_threshold, color='b', linestyle='--')
-                plt.axhline(y=settle_value - settle_threshold, color='b', linestyle='--')
-
-            plt.title(f"""{self.quantity} PID
+        title = f"""{self.quantity} PID
 {f" K_p={self.k_p} " if self.k_p != 0 else ""}\
 {f" K_i={self.k_i} " if self.k_i != 0 else ""}\
-{f" K_d={self.k_d} " if self.k_d != 0 else ""}
-{settle_time=}s, {max_overshoot=}""")
+{f" K_d={self.k_d} " if self.k_d != 0 else ""}"""
 
-            plt.grid()
-            plt.legend()
-            plt.xlabel("Time")
-            plt.ylabel("Quanta")
-            plt.show()
+        if not args:
+            plot_args = ["output", "error"]
+            if self.k_p != 0:
+                plot_args.append("p")
+            if self.k_i != 0:
+                plot_args.extend(["cumulative_error", "i"])
+            if self.k_d != 0:
+                plot_args.extend(["error_change", "d"])
+        else:
+            plot_args = args
 
-        return max_overshoot, settle_time
+        self.history.plot("time", *plot_args, styles=styles, title=title)
