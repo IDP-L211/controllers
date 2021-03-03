@@ -82,7 +82,7 @@ class IDPRobot(Robot):
         self.last_action_value = None
 
         # Thresholds for finishing actions
-        self.target_distance_threshold = 0.2
+        self.target_distance_threshold = 0.05
         self.target_bearing_threshold = np.pi / 100
 
         # For rotations
@@ -400,19 +400,13 @@ class IDPRobot(Robot):
         Returns:
             bool: If we are at our target
         """
+        distance_from_block_to_stop = 0.2
         rotate_angle = np.pi / 2
 
-        # Need to add action that deposits block
-        actions = [
-            ("move", target.position),
-            ("rotate", rotate_angle)
-        ]
-
-        self.action_queue = actions
-
-        if self.distance_from_bot(target.position) < self.target_distance_threshold:
-            self.target_cache.remove_target(target)
-            return True
+        if self.distance_from_bot(target.position) - distance_from_block_to_stop >= 0:
+            return self.drive_to_position(target.position)
+        else:
+            return self.rotate(rotate_angle)
 
     def scan(self) -> bool:
         complete = self.rotate(np.pi * 2, 1)
