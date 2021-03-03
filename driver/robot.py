@@ -407,7 +407,10 @@ class IDPRobot(Robot):
             self.drive_to_position(target.position)
             return False
         else:
-            return self.rotate(rotate_angle)
+            finished = self.rotate(rotate_angle)
+            if finished:
+                self.target_cache.remove_target(target)
+            return finished
 
     def scan(self) -> bool:
         complete = self.rotate(np.pi * 2, 1)
