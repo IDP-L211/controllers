@@ -41,7 +41,7 @@ class Target:
         self.classification = classification
 
     @property
-    def profit(self):
+    def profit(self):  # Not implemented
         return 1
 
     def is_near(self, position: list, threshold: float = 0.2):
@@ -50,11 +50,11 @@ class Target:
     def __repr__(self):
         return f'{self.classification} at {self.position}'
 
-    def __lt__(self, other):
+    def __lt__(self, other):  # Not implemented
         return self.profit < other.profit
 
     def __eq__(self, other):
-        return self.profit == other.profit
+        return self.is_near(other.position, 0)
 
 
 class TargetCache:
