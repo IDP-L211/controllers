@@ -404,7 +404,8 @@ class IDPRobot(Robot):
         rotate_angle = np.pi / 2
 
         if self.distance_from_bot(target.position) - distance_from_block_to_stop >= 0:
-            return self.drive_to_position(target.position)
+            self.drive_to_position(target.position)
+            return False
         else:
             return self.rotate(rotate_angle)
 
