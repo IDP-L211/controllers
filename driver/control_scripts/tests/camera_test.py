@@ -11,6 +11,6 @@ def main(robot):
     while robot.step(timestep) != -1:
         robot.motors.velocities = [0.5, 0.25]
 
-        print(robot.position, robot.speed, robot.bearing)
+        print(robot.position, robot.linear_speed, robot.bearing)
         # print(camera.getImageArray())
         nav_map.update()

@@ -16,6 +16,7 @@ from control_scripts.tests.sensor_bounds_ir_test import main as sensor_bounds_ir
 from control_scripts.tests.sensor_bounds_ultrasonic_test import main as sensor_bounds_ultrasonic_test
 from control_scripts.greedy_collect import main as greedy_collect
 from pid_tuning import manual as pid_tuning
+from control_scripts.tests.manual_test import main as manual_test
 
 
 if __name__ == '__main__':
@@ -29,3 +30,4 @@ if __name__ == '__main__':
     # sensor_bounds_ir_test(robot)
     # greedy_collect(robot)
     pid_tuning(robot)
+    # manual_test(robot)

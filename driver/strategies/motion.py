@@ -57,8 +57,8 @@ class MotionControlStrategies:
         normalise the values going into the pid so the output is motor drives.
 
         Note on the robot:
-            Max turn rate: 8.0 rad/s
-            Max forward velocity: 0.4 m/s
+            Max turn rate: 5.3 rad/s
+            Max forward velocity: 0.50 m/s
 
         Args:
             prime_quantity (float): Our current prime quantity. E.g. distance, m or angle, rad
@@ -81,7 +81,7 @@ class MotionControlStrategies:
                         + required_derivative_quantity
                 if prime_quantity is not None:
                     distance_proportional_output = prime_pid.k_p * prime_quantity
-                    if abs(distance_proportional_output) <= drive:
+                    if abs(distance_proportional_output) <= abs(drive):
                         drive = prime_pid.step(prime_quantity - required_prime_quantity)
                         derivative_pid.un_step()
             else:
@@ -91,12 +91,12 @@ class MotionControlStrategies:
 
     @staticmethod
     def angular_dual_pid(angle=None, rotation_rate=None, angle_pid=None, rotational_speed_pid=None, required_angle=0,
-                         required_rotation_rate=8.0):
+                         required_rotation_rate=5.3):
         """Wrapper for dual_pid to make angular control simpler"""
 
         # Convert from actual robot velocities to drive fraction equivalent
-        required_rotational_drive = 0.125 * required_rotation_rate
-        rotational_drive_equivalent = 0.125 * rotation_rate if rotation_rate is not None else None
+        required_rotational_drive = 0.189 * required_rotation_rate
+        rotational_drive_equivalent = 0.189 * rotation_rate if rotation_rate is not None else None
 
         return MotionControlStrategies.dual_pid(prime_quantity=angle, derivative_quantity=rotational_drive_equivalent,
                                                 prime_pid=angle_pid, derivative_pid=rotational_speed_pid,
@@ -105,7 +105,7 @@ class MotionControlStrategies:
 
     @staticmethod
     def linear_dual_pid(distance=None, forward_speed=None, distance_pid=None, forward_speed_pid=None,
-                        required_distance=0, required_forward_speed=0.4, angle_attenuation=True, angle=None):
+                        required_distance=0, required_forward_speed=0.5, angle_attenuation=True, angle=None):
         """Wrapper for dual_pid to make linear control simpler"""
 
         # Attenuate speeds and distance based on angle so robot doesn't zoom off when not facing target
@@ -116,8 +116,8 @@ class MotionControlStrategies:
             required_forward_speed *= attenuation_factor
 
         # Convert from actual robot velocities to drive fraction equivalent
-        required_forward_drive = 2.5 * required_forward_speed
-        forward_speed_drive_eq = 2.5 * forward_speed if forward_speed is not None else None
+        required_forward_drive = 2.0 * required_forward_speed
+        forward_speed_drive_eq = 2.0 * forward_speed if forward_speed is not None else None
 
         return MotionControlStrategies.dual_pid(prime_quantity=distance, derivative_quantity=forward_speed_drive_eq,
                                                 prime_pid=distance_pid, derivative_pid=forward_speed_pid,

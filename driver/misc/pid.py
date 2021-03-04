@@ -8,8 +8,15 @@ import numpy as np
 
 
 class DataRecorder:
-    def __init__(self, *args):
+    """Class used to help record PID and motor behaviour
+
+    Attributes:
+        dict (dict): The dictionary of lists that contain the data
+    """
+
+    def __init__(self, *args, styles=None):
         self.dict = {}
+        self.styles = styles
         for arg in args:
             self.dict[arg] = []
 
@@ -25,18 +32,18 @@ class DataRecorder:
         for k in self.dict.keys():
             self.dict[k] = self.dict[k][:-1]
 
-    def plot(self, x_axis_arg, *args, styles=None, title=None):
-        if not self.dict[x_axis_arg]:
-            return
-
+    def plot(self, x_axis_arg, *args, title=None):
         if not args:
             args = list(self.dict.keys())
             args.remove(x_axis_arg)
 
+        if not self.dict[x_axis_arg] or np.isnan(self.dict[args[0]]).all():
+            return
+
         for k in args:
-            try:
-                plt.plot(self.dict[x_axis_arg], self.dict[k], styles[k], label=k)
-            except KeyError:
+            if self.styles is not None:
+                plt.plot(self.dict[x_axis_arg], self.dict[k], self.styles[k], label=k)
+            else:
                 plt.plot(self.dict[x_axis_arg], self.dict[k], label=k)
 
         plt.title(title)
@@ -48,8 +55,8 @@ class DataRecorder:
 
 
 class PID:
-    def __init__(self, quantity, k_p=0, k_i=0, k_d=0, time_step=None,
-                 integral_wind_up_speed=None, integral_decay_time=None):
+    def __init__(self, quantity, timer_func, k_p=0, k_i=0, k_d=0, time_step=None,
+                 integral_wind_up_speed=None):
         self.quantity = quantity
 
         self.k_p = k_p
@@ -60,42 +67,51 @@ class PID:
         self.cum_error = 0
 
         self.i_wind_up_speed = integral_wind_up_speed
-        self.i_decay_constant = integral_decay_time
 
-        self.total_time = 0
         self.time_step = time_step
-        self.last_on_time = 0
+        self.timer_func = timer_func
+        self.active_time = 0
+        self.last_time_called = 0
 
-        self.history = DataRecorder("time", "error", "cumulative_error", "error_change",
-                                    "k_p", "k_i", "k_d", "p", "i", "d", "output")
+        # Mild deuteranopia go brrrr
+        pid_graph_styles = {"output": 'k-', "error": 'r-', "cumulative_error": 'b-', "error_change": 'y-', "p": 'r--',
+                            "i": 'b--', "d": 'y--'}
+        self.history = DataRecorder("time", "error", "cumulative_error", "error_change", "p", "i", "d", "output",
+                                    styles=pid_graph_styles)
 
         # For rolling back the pid a step
         self.old_cum_error = 0
         self.old_prev_error = None
-        self.old_total_time = 0
+        self.old_last_time_called = 0
 
     def reset(self):
-        self.last_on_time += self.total_time
         self.prev_error = None
         self.cum_error = 0
-        self.total_time = 0
         self.old_prev_error = None
         self.old_cum_error = 0
-        self.old_total_time = 0
+        self.active_time = 0
+        self.last_time_called = -1
+        self.old_last_time_called = 0
 
-    def step(self, error, time_step=None):
-        time_step = time_step if time_step is not None else self.time_step
-        if time_step is None:
-            raise Exception("No time step provided in step() or init()")
-
+    def step(self, error):
         self.old_cum_error = self.cum_error
         self.old_prev_error = self.prev_error
-        self.old_total_time = self.total_time
+        time = self.timer_func()
 
-        i_windup_term = 1 if self.i_wind_up_speed is None else np.tanh(self.total_time * self.i_wind_up_speed)
-        self.cum_error += error * time_step * i_windup_term
-        first_error_change = (error - self.prev_error) / time_step if self.prev_error is not None else 0
-        second_error_change = (self.prev_error - self.old_prev_error) / time_step if self.prev_error is not None and self.old_prev_error is not None else 0
+        # Check if there was a gap in being called
+        if self.last_time_called + self.time_step < time:
+            self.history.update(time=self.last_time_called, error=np.nan, cumulative_error=np.nan, error_change=np.nan,
+                                p=np.nan, i=np.nan, d=np.nan, output=np.nan)
+        self.old_last_time_called = self.last_time_called
+        self.last_time_called = time
+
+        i_windup_term = 1 if self.i_wind_up_speed is None else np.tanh(self.active_time * self.i_wind_up_speed)
+        self.cum_error += error * self.time_step * i_windup_term
+
+        # This reduces the chance the derivative terms gets high frequency oscillations
+        first_error_change = (error - self.prev_error) / self.time_step if self.prev_error is not None else 0
+        second_error_change = (self.prev_error - self.old_prev_error) / self.time_step \
+            if self.prev_error is not None and self.old_prev_error is not None else 0
         error_change = 0.5 * first_error_change + 0.5 * second_error_change
 
         p = self.k_p * error
@@ -104,37 +120,22 @@ class PID:
 
         output = p + i + d
 
-        self.history.update(time=(self.last_on_time + self.total_time), error=error, cumulative_error=self.cum_error,
-                            error_change=error_change, k_p=self.k_p, k_i=self.k_i, k_d=self.k_d, p=p, i=i, d=d,
-                            output=output)
+        self.history.update(time=time, error=error, cumulative_error=self.cum_error, error_change=error_change, p=p,
+                            i=i, d=d, output=output)
 
         self.prev_error = error
-        self.total_time += time_step
-        self.cum_error -= 0 if self.i_decay_constant is None else self.cum_error * time_step / self.i_decay_constant
+        self.active_time += self.time_step
 
         return output
 
     def un_step(self):
         self.cum_error = self.old_cum_error
         self.prev_error = self.old_prev_error
-        self.total_time = self.old_total_time
         self.history.clear_last()
+        self.active_time -= self.time_step
+        self.last_time_called = self.old_last_time_called
 
     def evaluate(self, *args):
-        # Mild deuteranopia go brrrr
-        styles = {
-            "output": 'k-',
-            "error": 'r-',
-            "cumulative_error": 'b-',
-            "error_change": 'y-',
-            "p": 'r--',
-            "i": 'b--',
-            "d": 'y--',
-            "k_p": 'r:',
-            "k_i": 'b:',
-            "k_d": 'y:',
-        }
-
         title = f"""{self.quantity} PID
 {f" K_p={self.k_p} " if self.k_p != 0 else ""}\
 {f" K_i={self.k_i} " if self.k_i != 0 else ""}\
@@ -152,4 +153,4 @@ class PID:
         else:
             plot_args = args
 
-        self.history.plot("time", *plot_args, styles=styles, title=title)
+        self.history.plot("time", *plot_args, title=title)

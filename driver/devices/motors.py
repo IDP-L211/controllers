@@ -35,6 +35,7 @@ class IDPMotorController:
         if len(drive_fractions) != 2:
             raise Exception("Velocities should be set by a 2 element list")
 
+        # TODO - Put these back when model changes
         values = self.max_motor_speed * drive_fractions
-        self.left_motor.setVelocity(values[0])
-        self.right_motor.setVelocity(values[1])
+        self.left_motor.setVelocity(values[1])
+        self.right_motor.setVelocity(values[0])
