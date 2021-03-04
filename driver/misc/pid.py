@@ -48,7 +48,8 @@ class DataRecorder:
 
 
 class PID:
-    def __init__(self, quantity, k_p=0, k_i=0, k_d=0, time_step=None, integral_wind_up_speed=np.inf):
+    def __init__(self, quantity, k_p=0, k_i=0, k_d=0, time_step=None,
+                 integral_wind_up_speed=None, integral_decay_time=None):
         self.quantity = quantity
 
         self.k_p = k_p
@@ -57,10 +58,13 @@ class PID:
 
         self.prev_error = None
         self.cum_error = 0
-        self.time_step = time_step
 
         self.i_wind_up_speed = integral_wind_up_speed
+        self.i_decay_constant = integral_decay_time
+
         self.total_time = 0
+        self.time_step = time_step
+        self.last_on_time = 0
 
         self.history = DataRecorder("time", "error", "cumulative_error", "error_change",
                                     "k_p", "k_i", "k_d", "p", "i", "d", "output")
@@ -71,6 +75,7 @@ class PID:
         self.old_total_time = 0
 
     def reset(self):
+        self.last_on_time += self.total_time
         self.prev_error = None
         self.cum_error = 0
         self.total_time = 0
@@ -87,7 +92,8 @@ class PID:
         self.old_prev_error = self.prev_error
         self.old_total_time = self.total_time
 
-        self.cum_error += error * time_step * np.tanh(self.total_time * self.i_wind_up_speed)
+        i_windup_term = 1 if self.i_wind_up_speed is None else np.tanh(self.total_time * self.i_wind_up_speed)
+        self.cum_error += error * time_step * i_windup_term
         first_error_change = (error - self.prev_error) / time_step if self.prev_error is not None else 0
         second_error_change = (self.prev_error - self.old_prev_error) / time_step if self.prev_error is not None and self.old_prev_error is not None else 0
         error_change = 0.5 * first_error_change + 0.5 * second_error_change
@@ -98,12 +104,13 @@ class PID:
 
         output = p + i + d
 
-        self.history.update(time=self.total_time, error=error, cumulative_error=self.cum_error,
+        self.history.update(time=(self.last_on_time + self.total_time), error=error, cumulative_error=self.cum_error,
                             error_change=error_change, k_p=self.k_p, k_i=self.k_i, k_d=self.k_d, p=p, i=i, d=d,
                             output=output)
 
         self.prev_error = error
         self.total_time += time_step
+        self.cum_error -= 0 if self.i_decay_constant is None else self.cum_error * time_step / self.i_decay_constant
 
         return output
 
@@ -131,7 +138,8 @@ class PID:
         title = f"""{self.quantity} PID
 {f" K_p={self.k_p} " if self.k_p != 0 else ""}\
 {f" K_i={self.k_i} " if self.k_i != 0 else ""}\
-{f" K_d={self.k_d} " if self.k_d != 0 else ""}"""
+{f" K_d={self.k_d} " if self.k_d != 0 else ""}\
+{f" i_windup={self.i_wind_up_speed} " if self.i_wind_up_speed is not None else ""}"""
 
         if not args:
             plot_args = ["output", "error"]

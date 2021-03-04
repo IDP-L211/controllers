@@ -82,7 +82,7 @@ class IDPRobot(Robot):
         self.last_action_value = None
 
         # Thresholds for finishing actions
-        self.target_distance_threshold = 0.05
+        self.target_distance_threshold = 0.02
         self.target_bearing_threshold = np.pi / 1000
 
         # For rotations
@@ -96,8 +96,9 @@ class IDPRobot(Robot):
         # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers due to noise in acceleration
         self.pid_f_velocity = PID("Forward Velocity", 1, 0, 0, self.timestep_actual)
         self.pid_r_velocity = PID("Rotational Velocity", 1, 0, 0, self.timestep_actual)
-        self.pid_distance = PID("Distance", 10, 0, 0, self.timestep_actual)
-        self.pid_angle = PID("Angle", 1.5, 1, 0.2, self.timestep_actual, integral_wind_up_speed=0.1)
+        self.pid_distance = PID("Distance", 5, 0, 0, self.timestep_actual)
+        self.pid_angle = PID("Angle", 1.5, 1, 0.1, self.timestep_actual,
+                             integral_wind_up_speed=0.1, integral_decay_time=2)
         self.motor_history = DataRecorder("time", "distance", "angle", "forward_speed", "rotation_speed", "left_motor",
                                           "right_motor")
 

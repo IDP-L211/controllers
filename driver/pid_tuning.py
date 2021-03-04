@@ -49,8 +49,8 @@ def manual(robot):
 
     # Actions for our robot
     action_queue = [
-        # ("move", [0.5, 0])
-        ("rotate", tau/4)
+        ("face", 0),
+        ("move", [0.5, 0])
     ]
 
     robot.action_queue = action_queue
@@ -59,7 +59,7 @@ def manual(robot):
     while robot.step(timestep) != -1:
         robot.execute_next_action()
 
-    # fire_and_forget(robot.evaluate)
+    fire_and_forget(robot.evaluate)
     fire_and_forget(robot.pid_f_velocity.evaluate)
     fire_and_forget(robot.pid_distance.evaluate)
     fire_and_forget(robot.pid_angle.evaluate)
