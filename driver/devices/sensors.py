@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 """Sensors used on the robot"""
-from controller import GPS, Compass, DistanceSensor
+from controller import GPS, Compass, DistanceSensor, Emitter, Receiver
 from scipy.interpolate import interp1d
 from scipy.optimize import root_scalar as root
 from warnings import warn
@@ -148,4 +148,13 @@ class IDPGPS(GPS):
         super().__init__(name)  # default to infinite resolution
         if self.getCoordinateSystem() != 0:
             raise RuntimeWarning('Need to set GPS coordinate system in WorldInfo to local')
+        self.enable(sampling_rate)
+
+class IDPEmitter(Emitter):
+    def __init__(self, name):
+        super().__init__(name)
+
+class IDPReceiver(Receiver):
+    def __init__(self, name, sampling_rate):
+        super().__init__(name)
         self.enable(sampling_rate)

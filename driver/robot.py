@@ -8,7 +8,7 @@ from controller import Robot
 import numpy as np
 import warnings
 
-from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor
+from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor, IDPEmitter, IDPReceiver
 from devices.motors import IDPMotorController
 
 from strategies.motion import MotionControlStrategies
@@ -57,6 +57,11 @@ class IDPRobot(Robot):
         self.infrared = IDPDistanceSensor('infrared', self.timestep,
                                          decreasing=True, min_range=0.15)
         self.motors = IDPMotorController('wheel1', 'wheel2')
+
+        if self.getName() == 'optimal':
+            self.emitter = IDPEmitter('emitter')
+        else:
+            self.receiver = IDPReceiver('receiver', self.timestep)
 
         # To store and process detections
         self.object_detection_handler = ObjectDetectionHandler()

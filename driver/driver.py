@@ -7,6 +7,7 @@ from robot import IDPRobot
 
 # Change which script you want to run here
 from control_scripts.tests.motion_test import main as motion_test
+from control_scripts.tests.com_test import main as com_test
 from control_scripts.tests.camera_test import main as camera_test
 from control_scripts.tests.object_processing_test import main as object_processing_test
 from control_scripts.tests.block_collect_test import main as block_collect_test
@@ -18,9 +19,10 @@ from control_scripts.greedy_collect import main as greedy_collect
 
 if __name__ == '__main__':
     robot = IDPRobot()
-    # motion_test(robot)
+    com_test(robot)
+    #motion_test(robot)
     # camera_test(robot)
-    object_processing_test(robot)
+    # object_processing_test(robot)
     # block_collect_test(robot)
     # sensor_dist_calc_test(robot)
     # sensor_bounds_ultrasonic_test(robot)
