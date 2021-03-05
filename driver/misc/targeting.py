@@ -65,10 +65,16 @@ class TargetingHandler:
         if self.num_scans < 1:
             raise RuntimeError('No scan completed, do a scan first')
 
+        def clipped(pos):
+            return list(map(
+                lambda x: min(max(-clip, x), clip),
+                pos
+            ))
+
         curr_position = self.scan_positions[-1]
         # very unlikely to get no targets on the first two scans
         if self.num_scans < 3:
-            return curr_position - sensor_max_range * curr_position / np.linalg.norm(curr_position)
+            return clipped(curr_position - sensor_max_range * curr_position / np.linalg.norm(curr_position))
 
         scan_centroid = TargetingHandler.get_centroid(self.scan_positions)
 
@@ -76,12 +82,6 @@ class TargetingHandler:
         diff = curr_position - prev_position
         diff_norm = np.linalg.norm(diff)
         diff_unit = diff / diff_norm
-
-        def clipped(pos):
-            return list(map(
-                lambda x: min(max(-clip, x), clip),
-                pos
-            ))
 
         dist = np.sqrt(sensor_max_range ** 2 - diff_norm ** 2 / 4)
         a = clipped(prev_position + 0.5 * diff + np.array([-1, 1]) * np.flip(diff_unit) * dist)
