@@ -369,8 +369,7 @@ class IDPRobot(Robot):
 
         # If we're reversing we change the angle so it mimics the bot facing the opposite way
         # When we apply the wheel velocities we negative them and voila we tricked the bot into reversing
-        if reverse:
-            angle = (np.sign(angle) * np.pi) - angle
+        angle = (np.sign(angle) * np.pi) - angle if reverse else angle
 
         forward_speed = MotionCS.linear_dual_pid(distance=distance, distance_pid=self.pid_distance, angle=angle,
                                                  forward_speed=self.linear_speed, forward_speed_pid=self.pid_f_velocity)
@@ -379,7 +378,6 @@ class IDPRobot(Robot):
                                                    rotational_speed_pid=self.pid_r_velocity)
         raw_velocities = MotionCS.combine_and_scale(forward_speed, rotation_speed)
         self.motors.velocities = raw_velocities if not reverse else -raw_velocities
-
         self.update_motion_history(time=self.time, distance=distance, angle=angle, forward_speed=forward_speed,
                                    rotation_speed=rotation_speed, linear_speed=self.linear_speed,
                                    angular_velocity=self.angular_velocity)
@@ -404,10 +402,8 @@ class IDPRobot(Robot):
             bool: If we completed rotation
         """
 
-        # If this is a new rotation
+        # Check if it's a new rotation and update how far we've rotated
         self.rotation_angle = angle if self.rotation_angle == 0 else self.rotation_angle
-
-        # Update how far we've rotated
         self.angle_rotated += self.angular_velocity * self.timestep_actual
 
         # Check if we're done

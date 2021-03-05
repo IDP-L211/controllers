@@ -47,34 +47,13 @@ class MotionCS:
         is given it just uses a single PID.
 
         The PID takes a quantity and its derivative (i.e. distance and velocity). When close to closing the error it
-        uses the prime quantity but when it's far it uses the derivative quantity and an extra term in the control. Note
-        the extra term only applies when controlling via the derivative quantity.
+        uses the prime quantity but when it's far it uses the derivative quantity
 
-        The extra term is simply the required derivative quantity as a feed-forward PID (open loop + closed loop
-        control) is a powerful and responsive control method for situations such as these.
+        With derivative control it acts as a feed-forward PID (open loop + closed loop) as this is a powerful and
+        responsive control method for situations such as these.
 
         It switches quantity when the output of the prime quantity controller is equal to the output of the derivative
-        quantity controller.
-
-        This function should most likely NOT be called directly, instead call angular_dual_pid or linear_dual_pid which
-        act as wrappers for this function that make function args clearer and have useful defaults. These wrappers also
-        normalise the values going into the pid so the output is motor drives.
-
-        Notes on the robot:
-            Wheel radius: 0.05 m
-            Wheel base radius: 0.094 m
-            Max turn rate: 5.3 rad/s
-            Max forward velocity: 0.50 m/s
-            Max rotational acceleration: 2.5 rad/s^2
-            Max forward acceleration: 7.9 m/s^2
-            Max forward acceleration that produces negligible rotation: 5.0 m/s^2
-                Ramp up time: 0.1s
-            Max rotational acceleration that produces negligible distance change: 2.4 rad/s^2
-                Ramp up time: 2.2s
-            Angle rotated stopping at max rotation velocity: 4.8 rad
-
-        Note that calling pid.query simply asks what the output would be if called, whilst pid.step properly calls and
-            updates the pid's state
+        quantity controller, this is found using pid.query which gets output without affecting pid state.
 
         Args:
             prime_quantity (float): Our current prime quantity. E.g. distance, m or angle, rad
@@ -122,8 +101,7 @@ class MotionCS:
         # Return the result from the dual controller
         return MotionCS.dual_pid(prime_quantity=angle, deriv_quantity=rotational_drive_equivalent,
                                  prime_pid=angle_pid, derivative_pid=rotational_speed_pid,
-                                 req_prime_quantity=required_angle,
-                                 req_deriv_quantity=required_rotational_drive)
+                                 req_prime_quantity=required_angle, req_deriv_quantity=required_rotational_drive)
 
     @staticmethod
     def linear_dual_pid(distance=None, forward_speed=None, distance_pid=None, forward_speed_pid=None,
@@ -146,5 +124,4 @@ class MotionCS:
 
         return MotionCS.dual_pid(prime_quantity=distance, deriv_quantity=forward_speed_drive_eq,
                                  prime_pid=distance_pid, derivative_pid=forward_speed_pid,
-                                 req_prime_quantity=required_distance,
-                                 req_deriv_quantity=required_forward_drive)
+                                 req_prime_quantity=required_distance, req_deriv_quantity=required_forward_drive)

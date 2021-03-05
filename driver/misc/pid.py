@@ -86,7 +86,7 @@ class PID:
         if return_only_output:
             return output
         else:
-            return error_change, p, i, d, output
+            return output, p, i, d, error_change
 
     def step(self, error):
         """Get the output and move the controller through a time step, updating logs"""
@@ -98,7 +98,7 @@ class PID:
                                 p=np.nan, i=np.nan, d=np.nan, output=np.nan)
         self.last_time_called = time
 
-        error_change, p, i, d, output = self.query(error, False)
+        output, p, i, d, error_change = self.query(error, False)
 
         self.history.update(time=time, error=error, cumulative_error=self.cum_error, error_change=error_change, p=p,
                             i=i, d=d, output=output)
@@ -112,20 +112,13 @@ class PID:
         return output
 
     def plot_history(self, *args):
-        title = f"""{self.quantity} PID
-{f" K_p={self.k_p} " if self.k_p != 0 else ""}\
-{f" K_i={self.k_i} " if self.k_i != 0 else ""}\
-{f" K_d={self.k_d} " if self.k_d != 0 else ""}\
+        title = f"""{self.quantity} PID\n{f" K_p={self.k_p} " if self.k_p != 0 else ""}\
+{f" K_i={self.k_i} " if self.k_i != 0 else ""}{f" K_d={self.k_d} " if self.k_d != 0 else ""}\
 {f" i_windup={self.i_wind_up_speed} " if self.i_wind_up_speed is not None else ""}"""
 
         if not args:
-            plot_args = ["output", "error"]
-            if self.k_p != 0:
-                plot_args.append("p")
-            if self.k_i != 0:
-                plot_args.extend(["cumulative_error", "i"])
-            if self.k_d != 0:
-                plot_args.extend(["error_change", "d"])
+            plot_args = ["output", "error"] + (["p"] * bool(self.k_p)) + (["cumulative_error", "i"] * bool(self.k_i))\
+                + (["error_change", "d"] * bool(self.k_d))  # Now this is pod-racing
         else:
             plot_args = args
 
