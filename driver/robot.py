@@ -46,7 +46,8 @@ class IDPRobot(Robot):
         self.length = 0.2
         self.width = 0.1
         self.wheel_radius = 0.04
-        self.colour = "red"
+        self.color = "red"
+        self.home_position = [0.5, 0]
 
         self.arena_length = 2.4
         self.timestep = int(self.getBasicTimeStep())
@@ -413,22 +414,29 @@ class IDPRobot(Robot):
             return finished
 
     def scan(self) -> bool:
+        """Rotate 360 degrees to scan for blocks
+
+        Returns:
+            bool: Whether the scan is completed
+        """
         complete = self.rotate(np.pi * 2, 1)
 
         distance = self.infrared.getValue()
         d_min, d_max = self.infrared.getBounds()
-        bound = (d_max - d_min)
+        bound = (d_max - d_min) * 2
 
-        if abs(self.get_sensor_distance_to_wall() - distance) > bound \
+        if abs(self.get_sensor_distance_to_wall() - distance) > bound * 1.5 \
                 and abs(self.infrared.max_range - distance) > bound:
             self.targeting_handler.positions.append(self.get_bot_front(distance))
             self.targeting_handler.bounds.append(bound)
 
         if complete:
             for target in self.targeting_handler.get_targets():
-                self.log_object_detection(target)
+                self.target_cache.add_target(target)
 
-            self.targeting_handler.clear_sensor_cache()
+                # TODO check target not the other robot
+
+            # TODO random dir if no detection
 
         return complete
 
@@ -502,16 +510,7 @@ class IDPRobot(Robot):
 
         return False
 
-    def log_object_detection(self, position, classification="box"):
-        """Take an object detected a certain distance away and store its detection
-
-        Args:
-            position ([float, float]):  Positions co-ordinates in world, East-North, m
-            classification (string): What we think the object is
-        """
-        self.target_cache.new_target(position, classification)
-
-    def get_target(self) -> Union[Target, None]:
+    def get_best_target(self) -> Union[Target, None]:
         """Decide on a new target block for robot
 
         If targeting is not just get closest block there could be more logic here, potentially calls to a script in
@@ -522,7 +521,7 @@ class IDPRobot(Robot):
         Returns:
             [float, float]: Targets co-ordinates, East-North, m
         """
-        valid_classes = ["box", f"{self.colour}_box"]
+        valid_classes = ["box", f"{self.color}_box"]
         object_list = self.target_cache.get_targets(
             valid_classes=valid_classes,
             key=lambda target: self.distance_from_bot(target.position)

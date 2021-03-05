@@ -11,21 +11,35 @@ from sklearn.cluster import DBSCAN
 
 
 class TargetingHandler:
+    """Class for targeting, finding potential block positions from sensor data"""
+
     def __init__(self):
         self.positions = []
         self.bounds = []
+        self.num_scans = 0
 
-    def clear_sensor_cache(self) -> None:
+    def clear_cache(self) -> None:
         self.positions = []
         self.bounds = []
 
     def get_targets(self) -> list:
+        """Calculate potential target positions from a list of position data points.
+
+        DBSCAN clustering algorithms is used, and the average positions of points within
+        a cluster is taken to be the target position.
+
+        Returns:
+            [[x,y],...]: List of target positions
+        """
         targets = defaultdict(list)
         labels = DBSCAN(eps=0.05, min_samples=3).fit(self.positions).labels_
         for i, label in enumerate(labels):
             if label == -1:
                 continue
             targets[label].append(self.positions[i])
+
+        self.clear_cache()
+        self.num_scans += 1
 
         return list(map(
             lambda lc: [sum(c) / len(c) for c in zip(*lc)],
@@ -44,7 +58,7 @@ class Target:
     def profit(self):  # Not implemented
         return 1
 
-    def is_near(self, position: list, threshold: float = 0.2):
+    def is_near(self, position: list, threshold: float = 0.1):
         return all(starmap(lambda rp, p: abs(rp - p) < threshold, zip(self.position, position)))
 
     def __repr__(self):
@@ -72,7 +86,7 @@ class TargetCache:
         """How many objects we currently have stored"""
         return len(self.targets)
 
-    def new_target(self, position: list, classification: str):
+    def add_target(self, position: list, classification: str = 'box'):
         """Add a new detected object to the handler
 
         Args:
@@ -88,7 +102,12 @@ class TargetCache:
             raise Exception(f"{classification} is an invalid classification for a detected object\n"
                             f"Valid: {', '.join(valid_classifications)}")
 
-        self.targets.append(Target(position, classification))
+        for t in self.targets:  # check if the same target already exist in cache
+            if t.is_near(position):
+                t.classification = classification  # updates its classification
+                break
+        else:
+            self.targets.append(Target(position, classification))
 
     def remove_target(self, target: Target):
         """Remove a detected object via its identity
@@ -103,7 +122,6 @@ class TargetCache:
 
         Args:
             valid_classes (list): The valid classes of objects to return
-            valid_classes (string): The quantity of the object to give the algorithm
             key (Callable): Callable that returns the key used to sort
 
         Returns:
@@ -115,11 +133,23 @@ class TargetCache:
             key=key
         )
 
-    def pop_target(self, valid_class: list, key=None) -> Union[Target, None]:
+    def pop_target(self, valid_classes: list, key=None) -> Union[Target, None]:
+        """Pops the best target
+
+        Similar to get_targets, the targets are sorted, but only the best one is returned.
+        The returned target is also popped off the target list.
+
+        Args:
+            valid_classes (list): The valid classes of objects to return
+            key (Callable): Callable that returns the key used to sort
+
+        Returns:
+            list: The object positions sorted by the algorithm
+        """
         if len(self.targets) == 0:
             return None
 
-        popped = self.get_targets(valid_class, key)[0]
+        popped = self.get_targets(valid_classes, key)[0]
         self.remove_target(popped)
 
         return popped

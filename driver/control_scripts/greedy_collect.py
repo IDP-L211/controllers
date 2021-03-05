@@ -18,7 +18,7 @@ def main(robot):
         # If we have no action
         if robot.execute_next_action():
             # Update target
-            target = robot.get_target()
+            target = robot.get_best_target()
 
             # If we have a target go to it, else scan
             if target:
