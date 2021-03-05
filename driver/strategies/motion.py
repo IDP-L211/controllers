@@ -148,34 +148,3 @@ class MotionCS:
                                  prime_pid=distance_pid, derivative_pid=forward_speed_pid,
                                  req_prime_quantity=required_distance,
                                  req_deriv_quantity=required_forward_drive)
-
-    @staticmethod
-    def angle_based(distance: float, angle: float, r_speed_profile_power=0.5, f_speed_profile_power=3.0,
-                    combine_speeds=True) -> np.array:
-        """Determine wheels speeds based on the current angle to target, designed to quickly turn to target and then go
-        at max forward speed. Could outperform PID control for when a robot doesn't need to stop in an exact spot.
-
-        Args:
-            distance (float): Distance from target, m. For this method only matters if it is 0 or not
-            angle (float): Angle to target, rad
-            r_speed_profile_power (float): Exponent of rotation speed profile, [0, inf]
-            f_speed_profile_power (float): How 'tight' to make the velocity profile, [0, inf]
-            combine_speeds (bool): Whether to combine the speeds and return motor velocities or just give the raw speeds
-
-        Returns:
-            np.array(float, float): The speed for the left and right motors respectively. Fraction of max speed.
-        """
-        # Forward speed calculation - aimed to be maximised when facing forward
-        forward_speed = (np.cos(angle)**f_speed_profile_power) if abs(angle) <= np.pi / 2 else 0
-
-        # Use up the rest of our wheel speed for turning, attenuate to reduce aggressive turning
-        rotation_speed = 1 - forward_speed
-        rotation_speed = ((abs(rotation_speed))/np.pi)**r_speed_profile_power
-
-        # Zero forward speed if we're not actually needing to move forward
-        forward_speed *= np.sign(distance)
-
-        if not combine_speeds:
-            return forward_speed, rotation_speed
-        else:
-            return MotionCS.combine_and_scale(forward_speed, rotation_speed, angle)

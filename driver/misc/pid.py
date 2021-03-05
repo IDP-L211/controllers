@@ -24,14 +24,6 @@ class DataRecorder:
         for k in self.dict.keys():
             self.dict[k].append(kwargs[k] if k in kwargs.keys() else 0)
 
-    def reset(self):
-        for k in self.dict.keys():
-            self.dict[k] = []
-
-    def clear_last(self):
-        for k in self.dict.keys():
-            self.dict[k] = self.dict[k][:-1]
-
     def plot(self, x_axis_arg, *args, title=None):
         if not args:
             args = list(self.dict.keys())
@@ -82,7 +74,7 @@ class PID:
         self.prev_error = None
         self.cum_error = 0
         self.active_time = 0
-        self.last_time_called = -1
+        self.last_time_called = 0
 
     def query(self, error, return_only_output=True):
         """Get the output of the pid without affecting its state"""
