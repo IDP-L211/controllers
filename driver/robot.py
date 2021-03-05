@@ -7,6 +7,7 @@
 from controller import Robot
 import numpy as np
 import warnings
+import struct
 
 from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor, IDPEmitter, IDPReceiver
 from devices.motors import IDPMotorController
@@ -74,6 +75,14 @@ class IDPRobot(Robot):
             "rotate": self.rotate,
             "reverse": self.reverse_to_position,
             "collect": self.collect_block
+        }
+
+        self.message_meaning = {
+            'p': self.send_position,
+            'c': self.get_other_pos,
+            #'t': send 'r' or 'b' + coordinates of block
+            #'b': send bearings
+
         }
 
         # So we can cleanup if we change our action
@@ -514,3 +523,61 @@ class IDPRobot(Robot):
         )
 
         return object_list[0].position
+
+    def ask_position(self):
+        message = struct.pack('s', b'p')
+        self.emitter.send(message)
+
+    def check_receiver(self) -> bool:
+        # Function to check if robot has received a packet.
+        # Should be called every time before getting data from receiver
+
+        return self.receiver.getQueueLength() > 0
+
+    def get_and_decode(self):
+        receiver = self.receiver
+        if receiver.getDataSize() == 1:
+            message = struct.unpack('s', receiver.getData())[0].decode("utf-8")
+            receiver.nextPacket()
+            print(message)
+            self.message_meaning[message]()
+            return True
+
+        else:
+
+            # If data received was not a character to decode, clear packets
+            while receiver.getQueueLength() != 0:
+                receiver.nextPacket()
+            return False
+
+    def send_position(self):
+        packets = 0
+        #print("send position")
+        message = struct.pack('s', b'c')
+        self.emitter.send(message)
+        packets += 1
+
+        for i in self.position:
+            message = struct.pack('d', i)
+            self.emitter.send(message)
+            packets += 1
+
+        return packets == 2
+
+    def get_other_pos(self) -> list:
+        receiver = self.receiver
+        position = []
+
+        if receiver.getQueueLength() >= 2:
+            print("Received coordinates")
+            for i in range(2):
+                data = receiver.getData()
+                coord = float(struct.unpack('d', data)[0])
+                position.append(coord)
+                receiver.nextPacket()
+        else:
+            if receiver.getQueueLength() == 1:
+                receiver.nextPacket()
+
+        return position if len(position) == 2 else self.position
+
