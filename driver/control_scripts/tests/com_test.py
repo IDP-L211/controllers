@@ -2,17 +2,27 @@
 import struct
 
 def main(robot):
-    #message = "h"
+    message = 5.123456789123456789
     timestep = int(robot.getBasicTimeStep())
-    format = "4s h d"
+    format = "d"
+    sent = False
 
     while robot.step(timestep) != -1:
         if robot.getName() == 'optimal':
-            message = struct.pack(format, b'babc', 45, 120.08)
-            robot.emitter.send(message)
+            if sent == False:
+                message = struct.pack(format, message)
+                robot.emitter.send(message)
+                '''coords = robot.position
+                print(coords)
+                for i in coords:
+                    message = struct.pack(format, i)
+                    robot.emitter.send(message)'''
+                sent = True
         else:
             receiver = robot.receiver
             if receiver.getQueueLength() > 0:
                 data = receiver.getData()
-                print(struct.unpack(format, data)[0])
+                #print(struct.unpack(format, data)[0].decode('utf-8'))
+                print(float(struct.unpack(format, data)[0]))
+                print(receiver.getDataSize())
                 receiver.nextPacket()

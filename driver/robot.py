@@ -58,10 +58,8 @@ class IDPRobot(Robot):
                                          decreasing=True, min_range=0.15)
         self.motors = IDPMotorController('wheel1', 'wheel2')
 
-        if self.getName() == 'optimal':
-            self.emitter = IDPEmitter('emitter')
-        else:
-            self.receiver = IDPReceiver('receiver', self.timestep)
+        self.emitter = IDPEmitter('emitter')
+        self.receiver = IDPReceiver('receiver', self.timestep)
 
         # To store and process detections
         self.object_detection_handler = ObjectDetectionHandler()
