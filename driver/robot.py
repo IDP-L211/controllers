@@ -10,14 +10,14 @@ import numpy as np
 from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor
 from devices.motors import IDPMotorController
 
-from strategies.motion import MotionControlStrategies
+from strategies.motion import MotionCS
 
 from misc.utils import rotate_vector, get_min_distance_rectangles, print_if_debug, ensure_list_or_tuple
 from misc.mapping import Map
 from misc.detection_handler import ObjectDetectionHandler
 from misc.pid import PID, DataRecorder
 
-DEBUG = False
+DEBUG = True
 
 
 class IDPRobot(Robot):
@@ -58,7 +58,7 @@ class IDPRobot(Robot):
         self.ultrasonic_right = IDPDistanceSensor('ultrasonic_right', self.timestep)
         self.infrared = IDPDistanceSensor('infrared', self.timestep,
                                           decreasing=True, min_range=0.15)
-        self.motors = IDPMotorController('wheel1', 'wheel2')
+        self.motors = IDPMotorController('wheel1', 'wheel2', self)
 
         # To store and process detections
         self.object_detection_handler = ObjectDetectionHandler()
@@ -79,11 +79,12 @@ class IDPRobot(Robot):
         self.last_action_type = None
         self.last_action_value = None
 
-        # Thresholds for finishing actions
+        # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
+        hold_time = 0.5  # s
         self.target_distance_threshold = 0.01
-        self.linear_speed_threshold = 0.125
-        self.target_bearing_threshold = np.pi / 200
-        self.angular_speed_threshold = 0.1
+        self.linear_speed_threshold = self.target_distance_threshold / hold_time
+        self.target_bearing_threshold = np.pi / 180
+        self.angular_speed_threshold = self.target_bearing_threshold / hold_time
 
         # For rotations
         self.rotation_angle = 0
@@ -94,11 +95,12 @@ class IDPRobot(Robot):
         self.stuck_last_step = False
 
         # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers due to noise in acceleration
-        self.pid_f_velocity = PID("Forward Velocity", self.getTime, 1, 0, 0, self.timestep_actual)
-        self.pid_r_velocity = PID("Rotational Velocity", self.getTime, 1, 0, 0, self.timestep_actual)
+        self.max_forward_speed = 0.5
+        self.max_rotation_speed = 5.3
+        self.pid_f_velocity = PID("Forward Velocity", self.getTime, 0.1, 0, 0, self.timestep_actual)
+        self.pid_r_velocity = PID("Rotational Velocity", self.getTime, 0.1, 0, 0, self.timestep_actual)
         self.pid_distance = PID("Distance", self.getTime, 5, 0, 0, self.timestep_actual)
-        self.pid_angle = PID("Angle", self.getTime, 1.5, 1, 0.1, self.timestep_actual, integral_wind_up_speed=0.1)
-
+        self.pid_angle = PID("Angle", self.getTime, 0.4, 0.0, 0.05, self.timestep_actual, integral_wind_up_speed=2)
 
         motor_graph_styles = {"distance": 'k-', "angle": 'r-', "forward_speed": 'k--', "rotation_speed": 'r--',
                               "linear_speed": "k:", "angular_velocity": "r:", "left_motor": 'b-', "right_motor": 'y-'}
@@ -368,21 +370,18 @@ class IDPRobot(Robot):
         if reverse:
             angle = (np.sign(angle) * np.pi) - angle
 
-        forward_speed = MotionControlStrategies.linear_dual_pid(distance=distance, distance_pid=self.pid_distance,
-                                                                forward_speed=self.linear_speed, angle=angle,
-                                                                forward_speed_pid=self.pid_f_velocity)
-        rotation_speed = MotionControlStrategies.angular_dual_pid(angle=angle, angle_pid=self.pid_angle,
-                                                                  rotation_rate=self.angular_velocity,
-                                                                  rotational_speed_pid=self.pid_r_velocity)
-
-        raw_velocities = MotionControlStrategies.combine_and_scale(forward_speed, rotation_speed)
+        forward_speed = MotionCS.linear_dual_pid(distance=distance, distance_pid=self.pid_distance, angle=angle,
+                                                 forward_speed=self.linear_speed, forward_speed_pid=self.pid_f_velocity)
+        rotation_speed = MotionCS.angular_dual_pid(angle=angle, angle_pid=self.pid_angle,
+                                                   rotation_rate=self.angular_velocity,
+                                                   rotational_speed_pid=self.pid_r_velocity)
+        raw_velocities = MotionCS.combine_and_scale(forward_speed, rotation_speed)
+        self.motors.velocities = raw_velocities if not reverse else -raw_velocities
 
         self.motor_history.update(time=self.time, distance=distance, angle=angle, forward_speed=forward_speed,
-                                  rotation_speed=rotation_speed, left_motor=raw_velocities[0],
-                                  linear_speed=self.linear_speed, right_motor=raw_velocities[1],
+                                  rotation_speed=rotation_speed, left_motor=self.motors.velocities[1],
+                                  linear_speed=self.linear_speed, right_motor=self.motors.velocities[0],
                                   angular_velocity=self.angular_velocity)
-
-        self.motors.velocities = raw_velocities if not reverse else -raw_velocities
         return False
 
     def reverse_to_position(self, target_pos: list) -> bool:
@@ -395,12 +394,11 @@ class IDPRobot(Robot):
         """
         return self.drive_to_position(target_pos, reverse=True)
 
-    def rotate(self, angle: float, rotation_rate=None) -> bool:
+    def rotate(self, angle: float) -> bool:
         """Rotate the bot a fixed angle at a fixed rate of rotation
 
         Args:
             angle (float): Angle to rotate in radians, positive is clockwise
-            rotation_rate (float): Rate of rotation in radians per second, [0, 1], None will cause PID to use max (8.0)
         Returns:
             bool: If we completed rotation
         """
@@ -417,18 +415,13 @@ class IDPRobot(Robot):
                 abs(self.angular_velocity) <= self.angular_speed_threshold:
             return True
 
-        rotation_rate = 5.3 if rotation_rate is None else rotation_rate
-        req_rotation_rate = rotation_rate * np.sign(angle_difference)
-
-        rotation_speed = MotionControlStrategies.angular_dual_pid(angle=angle_difference, angle_pid=self.pid_angle,
-                                                                  rotation_rate=self.angular_velocity,
-                                                                  required_rotation_rate=req_rotation_rate,
-                                                                  rotational_speed_pid=self.pid_r_velocity)
-        raw_velocities = MotionControlStrategies.combine_and_scale(0, rotation_speed)
+        rotation_speed = MotionCS.angular_dual_pid(angle=angle_difference, angle_pid=self.pid_angle,
+                                                   rotation_rate=self.angular_velocity,
+                                                   rotational_speed_pid=self.pid_r_velocity)
+        self.motors.velocities = MotionCS.combine_and_scale(0, rotation_speed)
         self.motor_history.update(time=self.time, angle=angle_difference, rotation_speed=rotation_speed,
-                                  left_motor=raw_velocities[0], right_motor=raw_velocities[1],
+                                  left_motor=self.motors.velocities[1], right_motor=self.motors.velocities[0],
                                   linear_speed=self.linear_speed, angular_velocity=self.angular_velocity)
-        self.motors.velocities = raw_velocities
         return False
 
     def face_bearing(self, target_bearing: float) -> bool:
@@ -526,8 +519,8 @@ class IDPRobot(Robot):
             print_if_debug('\n'.join(str(x) for x in self.action_queue), debug_flag=DEBUG)
 
         # Check if bot is stuck, note we only reach here if action not completed
-        if abs(self.linear_speed) <= self.linear_speed_threshold / 100 \
-                and abs(self.angular_velocity) <= self.angular_speed_threshold / 100:
+        if abs(self.linear_speed) <= self.linear_speed_threshold / 1000 \
+                and abs(self.angular_velocity) <= self.angular_speed_threshold / 1000:
             if self.stuck_last_step:
                 print_if_debug(f"BOT STUCK - Attempting unstuck {self.linear_speed}", debug_flag=DEBUG)
                 if action_type != "reverse":

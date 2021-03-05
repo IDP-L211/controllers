@@ -7,11 +7,17 @@
 import numpy as np
 
 
-class MotionControlStrategies:
+class MotionCS:
     """
     All MotionCS methods will return an array of left and right motor velocities
     To be used via robot.motors.velocities = MotionControlStrategies.some_method(*args)
     """
+
+    # Some characteristics of the robot used for motion calcs
+    max_f_speed = 0.5
+    max_r_speed = 5.3
+    f_drive_speed_ratio = 1 / max_f_speed
+    r_drive_speed_ratio = 1 / max_r_speed
 
     @staticmethod
     def combine_and_scale(forward, rotation, angle=None):
@@ -44,21 +50,28 @@ class MotionControlStrategies:
         uses the prime quantity but when it's far it uses the derivative quantity and an extra term in the control. Note
         the extra term only applies when controlling via the derivative quantity.
 
-        The extra term is simply the required derivative quantity multiplied by a scale factor, if you want to know why
-        this is useful, consider the result of a proportional velocity controller who's input is velocity error and
-        output is motor velocity. If this still does not clear things after thinking about it for a while then stop
-        reading this and pick up a colouring book - it may be more your speed (Pun definitely intended).
+        The extra term is simply the required derivative quantity as a feed-forward PID (open loop + closed loop
+        control) is a powerful and responsive control method for situations such as these.
 
-        It switches quantity when the proportional output of the prime quantity controller is equal to the total output
-        of the derivative quantity controller.
+        It switches quantity when the output of the prime quantity controller is equal to the output of the derivative
+        quantity controller.
 
         This function should most likely NOT be called directly, instead call angular_dual_pid or linear_dual_pid which
         act as wrappers for this function that make function args clearer and have useful defaults. These wrappers also
         normalise the values going into the pid so the output is motor drives.
 
-        Note on the robot:
+        Notes on the robot:
+            Wheel radius: 0.05 m
+            Wheel base radius: 0.094 m
             Max turn rate: 5.3 rad/s
             Max forward velocity: 0.50 m/s
+            Max rotational acceleration: 2.5 rad/s^2
+            Max forward acceleration: 7.9 m/s^2
+            Max forward acceleration that produces negligible rotation: 5.0 m/s^2
+                Ramp up time: 0.1s
+            Max rotational acceleration that produces negligible distance change: 2.4 rad/s^2
+                Ramp up time: 2.2s
+            Angle rotated stopping at max rotation velocity: 4.8 rad
 
         Args:
             prime_quantity (float): Our current prime quantity. E.g. distance, m or angle, rad
@@ -77,13 +90,18 @@ class MotionControlStrategies:
             drive = 0
         else:
             if derivative_quantity is not None:
-                drive = derivative_pid.step(required_derivative_quantity - derivative_quantity)\
+                derivative_based_drive = derivative_pid.step(required_derivative_quantity - derivative_quantity)\
                         + required_derivative_quantity
                 if prime_quantity is not None:
-                    distance_proportional_output = prime_pid.k_p * prime_quantity
-                    if abs(distance_proportional_output) <= abs(drive):
-                        drive = prime_pid.step(prime_quantity - required_prime_quantity)
+                    prime_based_drive = prime_pid.step(prime_quantity - required_prime_quantity)
+                    if abs(prime_based_drive) <= abs(derivative_based_drive):
+                        drive = prime_based_drive
                         derivative_pid.un_step()
+                    else:
+                        drive = derivative_based_drive
+                        prime_pid.un_step()
+                else:
+                    drive = derivative_based_drive
             else:
                 drive = prime_pid.step(prime_quantity - required_prime_quantity)
 
@@ -91,38 +109,46 @@ class MotionControlStrategies:
 
     @staticmethod
     def angular_dual_pid(angle=None, rotation_rate=None, angle_pid=None, rotational_speed_pid=None, required_angle=0,
-                         required_rotation_rate=5.3):
+                         required_rotation_rate=None):
         """Wrapper for dual_pid to make angular control simpler"""
 
-        # Convert from actual robot velocities to drive fraction equivalent
-        required_rotational_drive = 0.189 * required_rotation_rate
-        rotational_drive_equivalent = 0.189 * rotation_rate if rotation_rate is not None else None
+        # If required_rotation_rate is not specified, use max and then correct for sign of angle
+        req_rotation_rate = MotionCS.max_r_speed if required_rotation_rate is None else required_rotation_rate
+        req_rotation_rate *= np.sign(angle)
 
-        return MotionControlStrategies.dual_pid(prime_quantity=angle, derivative_quantity=rotational_drive_equivalent,
-                                                prime_pid=angle_pid, derivative_pid=rotational_speed_pid,
-                                                required_prime_quantity=required_angle,
-                                                required_derivative_quantity=required_rotational_drive)
+        # Convert from actual robot velocities to drive fraction equivalent
+        required_rotational_drive = MotionCS.r_drive_speed_ratio * req_rotation_rate
+        rotational_drive_equivalent = None if rotation_rate is None else MotionCS.r_drive_speed_ratio * rotation_rate
+
+        # Return the result from the dual controller
+        return MotionCS.dual_pid(prime_quantity=angle, derivative_quantity=rotational_drive_equivalent,
+                                 prime_pid=angle_pid, derivative_pid=rotational_speed_pid,
+                                 required_prime_quantity=required_angle,
+                                 required_derivative_quantity=required_rotational_drive)
 
     @staticmethod
     def linear_dual_pid(distance=None, forward_speed=None, distance_pid=None, forward_speed_pid=None,
-                        required_distance=0, required_forward_speed=0.5, angle_attenuation=True, angle=None):
+                        required_distance=0, required_forward_speed=None, angle_attenuation=True, angle=None):
         """Wrapper for dual_pid to make linear control simpler"""
+
+        # If required_forward_speed is not specified use max
+        req_forward_speed = MotionCS.max_f_speed if required_forward_speed is None else required_forward_speed
 
         # Attenuate speeds and distance based on angle so robot doesn't zoom off when not facing target
         if angle_attenuation and angle is not None:
             attenuation_factor = (np.cos(angle) ** 3) if abs(angle) <= np.pi / 2 else 0
             distance *= attenuation_factor
             required_distance *= attenuation_factor
-            required_forward_speed *= attenuation_factor
+            req_forward_speed *= attenuation_factor
 
         # Convert from actual robot velocities to drive fraction equivalent
-        required_forward_drive = 2.0 * required_forward_speed
-        forward_speed_drive_eq = 2.0 * forward_speed if forward_speed is not None else None
+        required_forward_drive = MotionCS.f_drive_speed_ratio * req_forward_speed
+        forward_speed_drive_eq = None if forward_speed is None else MotionCS.f_drive_speed_ratio * forward_speed
 
-        return MotionControlStrategies.dual_pid(prime_quantity=distance, derivative_quantity=forward_speed_drive_eq,
-                                                prime_pid=distance_pid, derivative_pid=forward_speed_pid,
-                                                required_prime_quantity=required_distance,
-                                                required_derivative_quantity=required_forward_drive)
+        return MotionCS.dual_pid(prime_quantity=distance, derivative_quantity=forward_speed_drive_eq,
+                                 prime_pid=distance_pid, derivative_pid=forward_speed_pid,
+                                 required_prime_quantity=required_distance,
+                                 required_derivative_quantity=required_forward_drive)
 
     @staticmethod
     def angle_based(distance: float, angle: float, r_speed_profile_power=0.5, f_speed_profile_power=3.0,
@@ -153,4 +179,4 @@ class MotionControlStrategies:
         if not combine_speeds:
             return forward_speed, rotation_speed
         else:
-            return MotionControlStrategies.combine_and_scale(forward_speed, rotation_speed, angle)
+            return MotionCS.combine_and_scale(forward_speed, rotation_speed, angle)

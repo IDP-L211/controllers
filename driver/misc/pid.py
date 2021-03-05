@@ -55,8 +55,7 @@ class DataRecorder:
 
 
 class PID:
-    def __init__(self, quantity, timer_func, k_p=0, k_i=0, k_d=0, time_step=None,
-                 integral_wind_up_speed=None):
+    def __init__(self, quantity, timer_func, k_p=0, k_i=0, k_d=0, time_step=None, integral_wind_up_speed=None):
         self.quantity = quantity
 
         self.k_p = k_p

@@ -15,14 +15,21 @@ class IDPMotor(Motor):
 
 
 class IDPMotorController:
-    def __init__(self, left_motor_name: str, right_motor_name: str):
+
+    max_f_speed = 0.5
+    max_r_speed = 5.3
+    max_f_acc = 5.0
+    max_r_acc = 40
+
+    def __init__(self, left_motor_name: str, right_motor_name: str, robot):
+        self.robot = robot
         self.left_motor = IDPMotor(left_motor_name)
         self.right_motor = IDPMotor(right_motor_name)
         self.max_motor_speed = min(self.left_motor.getMaxVelocity(), self.right_motor.getMaxVelocity())
 
     @property
     def velocities(self):
-        return np.array(self.left_motor.getVelocity(), self.right_motor.getVelocity())
+        return np.array([self.left_motor.getVelocity(), self.right_motor.getVelocity()]) / self.max_motor_speed
 
     @velocities.setter
     def velocities(self, drive_fractions: np.array):
@@ -33,9 +40,29 @@ class IDPMotorController:
             as fractions of max speed (-1 -> 1), [left, right]
         """
         if len(drive_fractions) != 2:
-            raise Exception("Velocities should be set by a 2 element list")
+            raise Exception("Velocities should be set by a 2 element array")
+
+        # Limit motor velocities to avoid slip
+        # Derive forward and rotational speeds
+        f_speed = 0.5 * sum(drive_fractions) * self.max_f_speed
+        r_speed = 0.5 * (drive_fractions[0] - drive_fractions[1]) * self.max_r_speed
+
+        # Limit forward speed
+        max_f_speed = self.robot.linear_speed + (self.max_f_acc * self.robot.timestep_actual)
+        min_f_speed = self.robot.linear_speed - (self.max_f_acc * self.robot.timestep_actual)
+        f_speed = max(min(f_speed, max_f_speed), min_f_speed) / self.max_f_speed
+
+        # Limit rotational speed
+        max_r_speed = self.robot.angular_velocity + (self.max_r_acc * self.robot.timestep_actual)
+        min_r_speed = self.robot.angular_velocity - (self.max_r_acc * self.robot.timestep_actual)
+        r_speed = max(min(r_speed, max_r_speed), min_r_speed) / self.max_r_speed
+
+        # Recombine to get drive fractions
+        drive_fractions = np.array([f_speed + r_speed, f_speed - r_speed])
+
+        # Scale values
+        values = self.max_motor_speed * drive_fractions
 
         # TODO - Put these back when model changes
-        values = self.max_motor_speed * drive_fractions
         self.left_motor.setVelocity(values[1])
         self.right_motor.setVelocity(values[0])
