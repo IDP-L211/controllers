@@ -7,6 +7,7 @@ from typing import Union
 from itertools import starmap
 from collections import defaultdict
 
+import numpy as np
 from sklearn.cluster import DBSCAN
 
 
@@ -15,14 +16,25 @@ class TargetingHandler:
 
     def __init__(self):
         self.positions = []
-        self.bounds = []
-        self.num_scans = 0
+        # self.bounds = []
+        self.scan_positions = []
+
+        self.relocating = False
+        self.next_scan_position = []
+
+    @property
+    def num_scans(self) -> int:
+        return len(self.scan_positions)
+
+    @staticmethod
+    def get_centroid(coord_list) -> np.ndarray:
+        return np.array([sum(c) / len(c) for c in zip(*coord_list)])
 
     def clear_cache(self) -> None:
         self.positions = []
-        self.bounds = []
+        # self.bounds = []
 
-    def get_targets(self) -> list:
+    def get_targets(self, curr_position: list) -> list:
         """Calculate potential target positions from a list of position data points.
 
         DBSCAN clustering algorithms is used, and the average positions of points within
@@ -31,6 +43,10 @@ class TargetingHandler:
         Returns:
             [[x,y],...]: List of target positions
         """
+        self.scan_positions.append(np.asarray(curr_position))
+        if len(self.positions) == 0:  # no data, prevent DBSCAN from giving error
+            return []
+
         targets = defaultdict(list)
         labels = DBSCAN(eps=0.05, min_samples=3).fit(self.positions).labels_
         for i, label in enumerate(labels):
@@ -39,12 +55,39 @@ class TargetingHandler:
             targets[label].append(self.positions[i])
 
         self.clear_cache()
-        self.num_scans += 1
 
         return list(map(
-            lambda lc: [sum(c) / len(c) for c in zip(*lc)],
+            TargetingHandler.get_centroid,
             targets.values()
         ))
+
+    def get_fallback_scan_position(self, sensor_max_range: float, clip: float = 0.6) -> list:
+        if self.num_scans < 1:
+            raise RuntimeError('No scan completed, do a scan first')
+
+        curr_position = self.scan_positions[-1]
+        # very unlikely to get no targets on the first two scans
+        if self.num_scans < 3:
+            return curr_position - sensor_max_range * curr_position / np.linalg.norm(curr_position)
+
+        scan_centroid = TargetingHandler.get_centroid(self.scan_positions)
+
+        prev_position = self.scan_positions[-2]
+        diff = curr_position - prev_position
+        diff_norm = np.linalg.norm(diff)
+        diff_unit = diff / diff_norm
+
+        def clipped(pos):
+            return list(map(
+                lambda x: min(max(-clip, x), clip),
+                pos
+            ))
+
+        dist = np.sqrt(sensor_max_range ** 2 - diff_norm ** 2 / 4)
+        a = clipped(prev_position + 0.5 * diff + np.array([-1, 1]) * np.flip(diff_unit) * dist)
+        b = clipped(prev_position + 0.5 * diff + np.array([1, -1]) * np.flip(diff_unit) * dist)
+
+        return sorted([a, b], key=lambda p: np.linalg.norm(scan_centroid - p))[1]
 
 
 class Target:

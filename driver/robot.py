@@ -419,24 +419,33 @@ class IDPRobot(Robot):
         Returns:
             bool: Whether the scan is completed
         """
-        complete = self.rotate(np.pi * 2, 1)
+        if not self.targeting_handler.relocating:
+            complete = self.rotate(np.pi * 2, 1)
 
-        distance = self.infrared.getValue()
-        d_min, d_max = self.infrared.getBounds()
-        bound = (d_max - d_min) * 2
+            distance = self.infrared.getValue()
+            d_min, d_max = self.infrared.getBounds()
+            bound = (d_max - d_min) * 2
 
-        if abs(self.get_sensor_distance_to_wall() - distance) > bound * 1.5 \
-                and abs(self.infrared.max_range - distance) > bound:
-            self.targeting_handler.positions.append(self.get_bot_front(distance))
-            self.targeting_handler.bounds.append(bound)
+            if abs(self.get_sensor_distance_to_wall() - distance) > bound * 1.5 \
+                    and abs(self.infrared.max_range - distance) > bound:
+                self.targeting_handler.positions.append(self.get_bot_front(distance))
+                # self.targeting_handler.bounds.append(bound)
 
-        if complete:
-            for target in self.targeting_handler.get_targets():
-                self.target_cache.add_target(target)
+            if complete:
+                for target in self.targeting_handler.get_targets(self.position):
+                    self.target_cache.add_target(target)
 
-                # TODO check target not the other robot
+                    # TODO check target not the other robot
 
-            # TODO random dir if no detection
+                if self.get_best_target() is None:
+                    self.targeting_handler.next_scan_position = self.targeting_handler.get_fallback_scan_position(self.infrared.max_range)
+                    self.targeting_handler.relocating = True
+
+                    # TODO too many scans, probably has collected all the targets, return home
+
+        else:
+            complete = self.drive_to_position(self.targeting_handler.next_scan_position)
+            self.targeting_handler.relocating = not complete
 
         return complete
 
