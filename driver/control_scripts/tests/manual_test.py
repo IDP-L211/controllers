@@ -22,7 +22,7 @@ def main(robot):
             motor_velocities = np.zeros(2)
 
         robot.motors.velocities = motor_velocities
-        robot.motor_history.update(time=robot.time, left_motor=motor_velocities[0], linear_speed=robot.linear_speed,
-                                   right_motor=motor_velocities[1], angular_velocity=robot.angular_velocity)
+        robot.update_motion_history(time=robot.time, linear_speed=robot.linear_speed,
+                                    angular_velocity=robot.angular_velocity)
 
-    robot.evaluate()
+    robot.plot_motion_history()

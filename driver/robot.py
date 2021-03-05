@@ -104,8 +104,8 @@ class IDPRobot(Robot):
 
         motor_graph_styles = {"distance": 'k-', "angle": 'r-', "forward_speed": 'k--', "rotation_speed": 'r--',
                               "linear_speed": "k:", "angular_velocity": "r:", "left_motor": 'b-', "right_motor": 'y-'}
-        self.motor_history = DataRecorder("time", "distance", "angle", "forward_speed", "rotation_speed", "left_motor",
-                                          "right_motor", "linear_speed", "angular_velocity", styles=motor_graph_styles)
+        self.motion_history = DataRecorder("time", "distance", "angle", "forward_speed", "rotation_speed", "left_motor",
+                                           "right_motor", "linear_speed", "angular_velocity", styles=motor_graph_styles)
 
     def step(self, timestep):
         """A wrapper for the step call that allows us to keep our last bearing and keep track of time"""
@@ -333,8 +333,12 @@ class IDPRobot(Robot):
         """
         return Map(self, sensor, self.arena_length, name)
 
-    def evaluate(self):
-        self.motor_history.plot("time", title="Robot motor graph")
+    def plot_motion_history(self):
+        self.motion_history.plot("time", title="Robot motor graph")
+
+    def update_motion_history(self, **kwargs):
+        self.motion_history.update(left_motor=self.motors.velocities[0], right_motor=self.motors.velocities[1],
+                                   **kwargs)
 
     def reset_action_variables(self):
         """Cleanup method to be called when the current action changes. If executing bot commands manually
@@ -378,10 +382,9 @@ class IDPRobot(Robot):
         raw_velocities = MotionCS.combine_and_scale(forward_speed, rotation_speed)
         self.motors.velocities = raw_velocities if not reverse else -raw_velocities
 
-        self.motor_history.update(time=self.time, distance=distance, angle=angle, forward_speed=forward_speed,
-                                  rotation_speed=rotation_speed, left_motor=self.motors.velocities[1],
-                                  linear_speed=self.linear_speed, right_motor=self.motors.velocities[0],
-                                  angular_velocity=self.angular_velocity)
+        self.update_motion_history(time=self.time, distance=distance, angle=angle, forward_speed=forward_speed,
+                                   rotation_speed=rotation_speed, linear_speed=self.linear_speed,
+                                   angular_velocity=self.angular_velocity)
         return False
 
     def reverse_to_position(self, target_pos: list) -> bool:
@@ -419,9 +422,8 @@ class IDPRobot(Robot):
                                                    rotation_rate=self.angular_velocity,
                                                    rotational_speed_pid=self.pid_r_velocity)
         self.motors.velocities = MotionCS.combine_and_scale(0, rotation_speed)
-        self.motor_history.update(time=self.time, angle=angle_difference, rotation_speed=rotation_speed,
-                                  left_motor=self.motors.velocities[1], right_motor=self.motors.velocities[0],
-                                  linear_speed=self.linear_speed, angular_velocity=self.angular_velocity)
+        self.update_motion_history(time=self.time, angle=angle_difference, rotation_speed=rotation_speed,
+                                   linear_speed=self.linear_speed, angular_velocity=self.angular_velocity)
         return False
 
     def face_bearing(self, target_bearing: float) -> bool:

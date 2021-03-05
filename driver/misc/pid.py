@@ -134,7 +134,7 @@ class PID:
         self.active_time -= self.time_step
         self.last_time_called = self.old_last_time_called
 
-    def evaluate(self, *args):
+    def plot_history(self, *args):
         title = f"""{self.quantity} PID
 {f" K_p={self.k_p} " if self.k_p != 0 else ""}\
 {f" K_i={self.k_i} " if self.k_i != 0 else ""}\
