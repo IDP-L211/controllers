@@ -62,8 +62,8 @@ class PID:
         self.k_i = k_i
         self.k_d = k_d
 
-        self.prev_error = None
         self.cum_error = 0
+        self.prev_error = None
 
         self.i_wind_up_speed = integral_wind_up_speed
 
@@ -78,61 +78,46 @@ class PID:
         self.history = DataRecorder("time", "error", "cumulative_error", "error_change", "p", "i", "d", "output",
                                     styles=pid_graph_styles)
 
-        # For rolling back the pid a step
-        self.old_cum_error = 0
-        self.old_prev_error = None
-        self.old_last_time_called = 0
-
     def reset(self):
         self.prev_error = None
         self.cum_error = 0
-        self.old_prev_error = None
-        self.old_cum_error = 0
         self.active_time = 0
         self.last_time_called = -1
-        self.old_last_time_called = 0
 
-    def step(self, error):
-        self.old_cum_error = self.cum_error
-        self.old_prev_error = self.prev_error
-        time = self.timer_func()
-
-        # Check if there was a gap in being called
-        if self.last_time_called + self.time_step < time:
-            self.history.update(time=self.last_time_called, error=np.nan, cumulative_error=np.nan, error_change=np.nan,
-                                p=np.nan, i=np.nan, d=np.nan, output=np.nan)
-        self.old_last_time_called = self.last_time_called
-        self.last_time_called = time
-
-        i_windup_term = 1 if self.i_wind_up_speed is None else np.tanh(self.active_time * self.i_wind_up_speed)
-        self.cum_error += error * self.time_step * i_windup_term
-
-        # This reduces the chance the derivative terms gets high frequency oscillations
-        first_error_change = (error - self.prev_error) / self.time_step if self.prev_error is not None else 0
-        second_error_change = (self.prev_error - self.old_prev_error) / self.time_step \
-            if self.prev_error is not None and self.old_prev_error is not None else 0
-        error_change = 0.5 * first_error_change + 0.5 * second_error_change
-
+    def query(self, error, return_only_output=True):
+        """Get the output of the pid without affecting its state"""
+        error_change = (error - self.prev_error) / self.time_step if self.prev_error is not None else 0
         p = self.k_p * error
         i = self.k_i * self.cum_error
         d = self.k_d * error_change
-
         output = p + i + d
+        if return_only_output:
+            return output
+        else:
+            return error_change, p, i, d, output
+
+    def step(self, error):
+        """Get the output and move the controller through a time step, updating logs"""
+        time = self.timer_func()
+
+        # Check if there was a gap in being called, if so make sure the logs and graphs reflect this
+        if self.last_time_called + self.time_step < time:
+            self.history.update(time=self.last_time_called, error=np.nan, cumulative_error=np.nan, error_change=np.nan,
+                                p=np.nan, i=np.nan, d=np.nan, output=np.nan)
+        self.last_time_called = time
+
+        error_change, p, i, d, output = self.query(error, False)
 
         self.history.update(time=time, error=error, cumulative_error=self.cum_error, error_change=error_change, p=p,
                             i=i, d=d, output=output)
 
+        # Update our state variables
+        i_windup_term = 1 if self.i_wind_up_speed is None else np.tanh(self.active_time * self.i_wind_up_speed)
+        self.cum_error += error * self.time_step * i_windup_term
         self.prev_error = error
         self.active_time += self.time_step
 
         return output
-
-    def un_step(self):
-        self.cum_error = self.old_cum_error
-        self.prev_error = self.old_prev_error
-        self.history.clear_last()
-        self.active_time -= self.time_step
-        self.last_time_called = self.old_last_time_called
 
     def plot_history(self, *args):
         title = f"""{self.quantity} PID

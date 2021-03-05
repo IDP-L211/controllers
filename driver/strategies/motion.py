@@ -41,8 +41,8 @@ class MotionCS:
         return np.array([left_speed, right_speed])
 
     @staticmethod
-    def dual_pid(prime_quantity=None, derivative_quantity=None, prime_pid=None, derivative_pid=None,
-                 required_prime_quantity=None, required_derivative_quantity=None) -> float:
+    def dual_pid(prime_quantity=None, deriv_quantity=None, prime_pid=None, derivative_pid=None,
+                 req_prime_quantity=None, req_deriv_quantity=None) -> float:
         """This method uses 2 PID's to control a quantity based on a threshold. If only one of the required measurements
         is given it just uses a single PID.
 
@@ -73,37 +73,36 @@ class MotionCS:
                 Ramp up time: 2.2s
             Angle rotated stopping at max rotation velocity: 4.8 rad
 
+        Note that calling pid.query simply asks what the output would be if called, whilst pid.step properly calls and
+            updates the pid's state
+
         Args:
             prime_quantity (float): Our current prime quantity. E.g. distance, m or angle, rad
-            derivative_quantity (float): Our current derivative quantity. E.g. forward speed, m/s or
+            deriv_quantity (float): Our current derivative quantity. E.g. forward speed, m/s or
                 rotational speed, rad/s
             prime_pid (PID): Prime quantity PID controller
             derivative_pid (PID): Derivative quantity PID controller
-            required_prime_quantity (float): Required prime quantity
-            required_derivative_quantity (float): Required derivative quantity
+            req_prime_quantity (float): Required prime quantity
+            req_deriv_quantity (float): Required derivative quantity
 
         Returns:
             float: The drive fraction for the given inputs
         """
 
-        if prime_quantity is None and derivative_quantity is None:
+        if prime_quantity is None and deriv_quantity is None:
             drive = 0
         else:
-            if derivative_quantity is not None:
-                derivative_based_drive = derivative_pid.step(required_derivative_quantity - derivative_quantity)\
-                        + required_derivative_quantity
+            if deriv_quantity is not None:
+                derivative_based_drive = derivative_pid.query(req_deriv_quantity - deriv_quantity) + req_deriv_quantity
                 if prime_quantity is not None:
-                    prime_based_drive = prime_pid.step(prime_quantity - required_prime_quantity)
-                    if abs(prime_based_drive) <= abs(derivative_based_drive):
-                        drive = prime_based_drive
-                        derivative_pid.un_step()
+                    if abs(prime_pid.query(prime_quantity - req_prime_quantity)) <= abs(derivative_based_drive):
+                        drive = prime_pid.step(prime_quantity - req_prime_quantity)
                     else:
-                        drive = derivative_based_drive
-                        prime_pid.un_step()
+                        drive = derivative_pid.step(req_deriv_quantity - deriv_quantity) + req_deriv_quantity
                 else:
-                    drive = derivative_based_drive
+                    drive = derivative_pid.step(req_deriv_quantity - deriv_quantity) + req_deriv_quantity
             else:
-                drive = prime_pid.step(prime_quantity - required_prime_quantity)
+                drive = prime_pid.step(prime_quantity - req_prime_quantity)
 
         return drive
 
@@ -121,10 +120,10 @@ class MotionCS:
         rotational_drive_equivalent = None if rotation_rate is None else MotionCS.r_drive_speed_ratio * rotation_rate
 
         # Return the result from the dual controller
-        return MotionCS.dual_pid(prime_quantity=angle, derivative_quantity=rotational_drive_equivalent,
+        return MotionCS.dual_pid(prime_quantity=angle, deriv_quantity=rotational_drive_equivalent,
                                  prime_pid=angle_pid, derivative_pid=rotational_speed_pid,
-                                 required_prime_quantity=required_angle,
-                                 required_derivative_quantity=required_rotational_drive)
+                                 req_prime_quantity=required_angle,
+                                 req_deriv_quantity=required_rotational_drive)
 
     @staticmethod
     def linear_dual_pid(distance=None, forward_speed=None, distance_pid=None, forward_speed_pid=None,
@@ -145,10 +144,10 @@ class MotionCS:
         required_forward_drive = MotionCS.f_drive_speed_ratio * req_forward_speed
         forward_speed_drive_eq = None if forward_speed is None else MotionCS.f_drive_speed_ratio * forward_speed
 
-        return MotionCS.dual_pid(prime_quantity=distance, derivative_quantity=forward_speed_drive_eq,
+        return MotionCS.dual_pid(prime_quantity=distance, deriv_quantity=forward_speed_drive_eq,
                                  prime_pid=distance_pid, derivative_pid=forward_speed_pid,
-                                 required_prime_quantity=required_distance,
-                                 required_derivative_quantity=required_forward_drive)
+                                 req_prime_quantity=required_distance,
+                                 req_deriv_quantity=required_forward_drive)
 
     @staticmethod
     def angle_based(distance: float, angle: float, r_speed_profile_power=0.5, f_speed_profile_power=3.0,

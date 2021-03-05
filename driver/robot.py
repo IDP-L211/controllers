@@ -17,7 +17,7 @@ from misc.mapping import Map
 from misc.detection_handler import ObjectDetectionHandler
 from misc.pid import PID, DataRecorder
 
-DEBUG = True
+DEBUG = False
 
 
 class IDPRobot(Robot):
@@ -95,8 +95,6 @@ class IDPRobot(Robot):
         self.stuck_last_step = False
 
         # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers due to noise in acceleration
-        self.max_forward_speed = 0.5
-        self.max_rotation_speed = 5.3
         self.pid_f_velocity = PID("Forward Velocity", self.getTime, 0.1, 0, 0, self.timestep_actual)
         self.pid_r_velocity = PID("Rotational Velocity", self.getTime, 0.1, 0, 0, self.timestep_actual)
         self.pid_distance = PID("Distance", self.getTime, 5, 0, 0, self.timestep_actual)
@@ -524,7 +522,7 @@ class IDPRobot(Robot):
         if abs(self.linear_speed) <= self.linear_speed_threshold / 1000 \
                 and abs(self.angular_velocity) <= self.angular_speed_threshold / 1000:
             if self.stuck_last_step:
-                print_if_debug(f"BOT STUCK - Attempting unstuck {self.linear_speed}", debug_flag=DEBUG)
+                print_if_debug(f"BOT STUCK - Attempting unstuck", debug_flag=DEBUG)
                 if action_type != "reverse":
                     self.action_queue.insert(0, ("reverse",
                                                  list(self.coordtransform_bot_cartesian_to_world(np.array([0, -0.1])))))

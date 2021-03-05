@@ -7,38 +7,16 @@
 from functools import partial
 from multiprocessing import Process
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 
 def ensure_list_or_tuple(item):
-    if isinstance(item, (list, tuple)):
-        return item
-    elif item is not None:
-        return [item]
-    else:
-        return None
-
-
-def flatten_iterable(x):
-    result = []
-    for item in x:
-        if hasattr(item, "__iter__") and not isinstance(item, str):
-            result.extend(flatten_iterable(item))
-        else:
-            result.append(item)
-    return result
+    return item if isinstance(item, (list, tuple)) else None if item is None else [item]
 
 
 def fire_and_forget(function, *args, **kwargs):
-    """
-    Execute a function separately whilst carrying on with the rest of the programs execution.
-    Function MUST be accessible from main scope i.e. is not nested in another function. It can be a method from a class.
-
-    :param function: Function to execute
-    :param args: Arguments for that function
-    :param kwargs: Keyword arguments for that function
-    """
+    """Execute a function separately whilst carrying on with the rest of the programs execution.
+    Function MUST be accessible from main scope (not nested in another function). It can be a class method"""
     process = Process(target=function, args=args, kwargs=kwargs)
     process.start()
 
