@@ -28,6 +28,14 @@ class TargetingHandler:
 
     @staticmethod
     def get_centroid(coord_list) -> np.ndarray:
+        """Get the centroid of a list of coordinates
+
+        Args:
+            coord_list (list): List of coordinates, [[x1,y1], ...]
+
+        Returns:
+            np.ndarray: The centroid
+        """
         return np.array([sum(c) / len(c) for c in zip(*coord_list)])
 
     def clear_cache(self) -> None:
@@ -62,6 +70,20 @@ class TargetingHandler:
         ))
 
     def get_fallback_scan_position(self, sensor_max_range: float, clip: float = 0.6) -> list:
+        """Get the next scan position if the last scan returns no suitable target
+
+        The next scan position is determined by taking the perpendicular bisector, giving triangles with hypotenuse
+        equalling (the maximum range of the distance sensor - 0.1)m, either side of the line segment connecting
+        the latest two scanning positions. Then the coordinate of this position is clipped by a
+        specified value.
+
+        Args:
+            sensor_max_range (float): The maximum range of the distance sensor
+            clip (float): Maximum value of the x and y coordinates of the fallback position
+
+        Returns:
+            list: The fallback scan position
+        """
         if self.num_scans < 1:
             raise RuntimeError('No scan completed, do a scan first')
 
@@ -83,7 +105,7 @@ class TargetingHandler:
         diff_norm = np.linalg.norm(diff)
         diff_unit = diff / diff_norm
 
-        dist = np.sqrt(sensor_max_range ** 2 - diff_norm ** 2 / 4)
+        dist = np.sqrt((sensor_max_range - 0.1) ** 2 - diff_norm ** 2 / 4)
         a = clipped(prev_position + 0.5 * diff + np.array([-1, 1]) * np.flip(diff_unit) * dist)
         b = clipped(prev_position + 0.5 * diff + np.array([1, -1]) * np.flip(diff_unit) * dist)
 
@@ -101,7 +123,16 @@ class Target:
     def profit(self):  # Not implemented
         return 1
 
-    def is_near(self, position: list, threshold: float = 0.1):
+    def is_near(self, position: list, threshold: float = 0.1) -> bool:
+        """Check if the target is close to the specified position
+
+        Args:
+            position (list): Position to check against
+            threshold (float): The threshold
+
+        Returns:
+            bool: Whether the target is closeby
+        """
         return all(starmap(lambda rp, p: abs(rp - p) < threshold, zip(self.position, position)))
 
     def __repr__(self):
@@ -125,11 +156,11 @@ class TargetCache:
         self.targets = []
 
     @property
-    def num_targets(self):
+    def num_targets(self) -> int:
         """How many objects we currently have stored"""
         return len(self.targets)
 
-    def add_target(self, position: list, classification: str = 'box'):
+    def add_target(self, position: list, classification: str = 'box') -> None:
         """Add a new detected object to the handler
 
         Args:
@@ -152,7 +183,7 @@ class TargetCache:
         else:
             self.targets.append(Target(position, classification))
 
-    def remove_target(self, target: Target):
+    def remove_target(self, target: Target) -> None:
         """Remove a detected object via its identity
 
         Args:
