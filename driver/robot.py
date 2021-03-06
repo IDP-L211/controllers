@@ -101,7 +101,7 @@ class IDPRobot(Robot):
         self.pid_f_velocity = PID("Forward Velocity", self.getTime, 0.1, 0, 0, self.timestep_actual)
         self.pid_distance = PID("Distance", self.getTime, 4, 0, 0, self.timestep_actual)
         self.pid_angle = PID("Angle", self.getTime, 0.5, 0.5, 0.26, self.timestep_actual,
-                             integral_wind_up_speed=1, integral_delay_time=3)
+                             integral_wind_up_speed=1, integral_delay_time=3, integral_active_error_band=np.pi/2)
 
         motor_graph_styles = {"distance": 'k-', "angle": 'r-', "forward_speed": 'k--', "rotation_speed": 'r--',
                               "linear_speed": "k:", "angular_velocity": "r:", "left_motor": 'b-', "right_motor": 'y-'}
@@ -341,6 +341,16 @@ class IDPRobot(Robot):
         self.motion_history.update(left_motor=self.motors.velocities[0], right_motor=self.motors.velocities[1],
                                    **kwargs)
 
+    def reset_action_variables(self):
+        """Cleanup method to be called when the current action changes. If executing bot commands manually
+        (i.e. robot.drive_to_position), call this first.
+        """
+        self.rotation_angle = 0
+        self.angle_rotated = 0
+        self.rotating = False
+        self.last_action_type = None
+        self.last_action_value = None
+
     def drive_to_position(self, target_pos: list, reverse=False) -> bool:
         """Go to a position
 
@@ -480,9 +490,7 @@ class IDPRobot(Robot):
 
         # If we are changing our action we might need to reset some rotation stuff
         if action_type != self.last_action_type or action_value != self.last_action_value:
-            self.rotation_angle = 0
-            self.angle_rotated = 0
-            self.rotating = False
+            self.reset_action_variables()
 
         # Update log of last action
         self.last_action_type = action_type
@@ -493,6 +501,7 @@ class IDPRobot(Robot):
 
         # If we completed this action we should remove it from our list
         if completed:
+            self.reset_action_variables()
             print_if_debug(f"\nCompleted action: {self.action_queue[0]}", debug_flag=DEBUG)
             del self.action_queue[0]
             print_if_debug(f"Remaining actions:", debug_flag=DEBUG)

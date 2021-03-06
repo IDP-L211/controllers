@@ -49,8 +49,7 @@ def manual(robot):
 
     # Actions for our robot
     action_queue = [
-        ("rotate", tau/4),
-        ("move", [0.5, 0])
+        ("rotate", tau*4)
     ]
 
     robot.action_queue = action_queue
