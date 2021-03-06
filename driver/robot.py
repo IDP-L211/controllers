@@ -404,14 +404,24 @@ class IDPRobot(Robot):
         distance_from_block_to_stop = 0.2
         rotate_angle = np.pi / 2
 
+        # If not at block we need to drive to it
         if self.distance_from_bot(target.position) - distance_from_block_to_stop >= 0:
             self.drive_to_position(target.position)
             return False
-        else:
-            finished = self.rotate(rotate_angle)
-            if finished:
-                self.target_cache.remove_target(target)
-            return finished
+
+        # If we're not facing the block we need to face it
+        angle = self.angle_from_bot_from_position(target.position)
+        if abs(angle) > self.target_bearing_threshold:
+            completed_rotation = self.rotate(angle)
+            if completed_rotation:
+                self.reset_action_variables()  # Just to clean up rotation stuff
+            return False
+
+        # If we're facing target and at it we can rotate
+        finished = self.rotate(rotate_angle)
+        if finished:
+            self.target_cache.remove_target(target)
+        return finished
 
     def scan(self) -> bool:
         """Rotate 360 degrees to scan for blocks
