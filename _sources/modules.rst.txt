@@ -7,6 +7,7 @@ driver
    robot
    motors
    sensors
+   targeting
    mapping
    utils
    controller
