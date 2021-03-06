@@ -8,6 +8,7 @@ from supervisor import IDPSupervisor
 
 # Change which script you want to run here
 from control_scripts.tests.motion_test import main as motion_test
+from control_scripts.tests.com_test import main as com_test
 from control_scripts.tests.camera_test import main as camera_test
 from control_scripts.tests.object_processing_test import main as object_processing_test
 from control_scripts.tests.block_collect_test import main as block_collect_test
@@ -20,8 +21,10 @@ from control_scripts.tests.manual_test import main as manual_test
 
 
 if __name__ == '__main__':
-    robot = IDPSupervisor()
-    motion_test(robot)
+    # robot = IDPSupervisor()
+    robot = IDPRobot()
+    # com_test(robot)
+    # motion_test(robot)
     # camera_test(robot)
     # object_processing_test(robot)
     # block_collect_test(robot)
@@ -31,3 +34,4 @@ if __name__ == '__main__':
     # greedy_collect(robot)
     # pid_tuning(robot)
     # manual_test(robot)
+    greedy_collect(robot)

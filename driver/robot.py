@@ -4,11 +4,14 @@
 """This module contains a class representing the robot.
 """
 
+from typing import Union
+
 from controller import Robot
 import numpy as np
 
 from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor
 from devices.motors import IDPMotorController
+from devices.radio import IDPRadio
 
 from strategies.motion import MotionCS
 
@@ -16,6 +19,7 @@ from misc.utils import rotate_vector, get_min_distance_rectangles, print_if_debu
 from misc.mapping import Map
 from misc.detection_handler import ObjectDetectionHandler
 from misc.pid import PID, DataRecorder
+from misc.targeting import TargetingHandler, Target, TargetCache
 
 DEBUG = False
 
@@ -44,7 +48,9 @@ class IDPRobot(Robot):
         self.length = 0.2
         self.width = 0.1
         self.wheel_radius = 0.04
-        self.colour = "red"
+        self.color = self.getName()
+        if self.color not in ['red', 'green']:
+            raise Exception('Name the robot either red or green')
 
         self.last_bearing = None
 
@@ -62,9 +68,11 @@ class IDPRobot(Robot):
         self.infrared = IDPDistanceSensor('infrared', self.timestep,
                                           decreasing=True, min_range=0.15)
         self.motors = IDPMotorController('wheel1', 'wheel2', self)
+        self.radio = IDPRadio(self.timestep)
 
         # To store and process detections
-        self.object_detection_handler = ObjectDetectionHandler()
+        self.targeting_handler = TargetingHandler()
+        self.target_cache = TargetCache()
 
         # Store internal action queue
         self.action_queue = []
@@ -75,7 +83,8 @@ class IDPRobot(Robot):
             "face": self.face_bearing,
             "rotate": self.rotate,
             "reverse": self.reverse_to_position,
-            "collect": self.collect_block
+            "collect": self.collect_block,
+            "scan": self.scan
         }
 
         # So we can cleanup if we change our action
@@ -430,33 +439,71 @@ class IDPRobot(Robot):
         """
         return self.rotate(self.angle_from_bot_from_bearing(target_bearing))
 
-    def collect_block(self, block_pos):
+    def collect_block(self, target: Target):
         """Collect block at position
 
         Args:
-            block_pos ([float, float]): The East-North co-ords of the blocks position
+            target (Target): The target object
         Returns:
             bool: If we are at our target
         """
+        distance_from_block_to_stop = 0.2
+        rotate_angle = np.pi / 2
 
-        # Update these variables when we have more info
-        distance_from_block_to_stop = 0.1
-        rotate_angle = np.pi
-        home_pos = [0, 0]
+        # If not at block we need to drive to it
+        if self.distance_from_bot(target.position) - distance_from_block_to_stop >= 0:
+            self.drive_to_position(target.position)
+            return False
 
-        # Calculate pos to got to to be near block not on it
-        distance = self.distance_from_bot(block_pos) - distance_from_block_to_stop
-        target_pos = self.coordtransform_bot_polar_to_world(distance, self.angle_from_bot_from_position(block_pos))
+        # If we're not facing the block we need to face it
+        angle = self.angle_from_bot_from_position(target.position)
+        if abs(angle) > self.target_bearing_threshold:
+            completed_rotation = self.rotate(angle)
+            if completed_rotation:
+                self.reset_action_variables()  # Just to clean up rotation stuff
+            return False
 
-        # Need to add action that deposits block
-        actions = [
-            ("move", target_pos),
-            ("rotate", rotate_angle),
-            ("move", home_pos)
-        ]
+        # If we're facing target and at it we can rotate
+        finished = self.rotate(rotate_angle)
+        if finished:
+            self.target_cache.remove_target(target)
+        return finished
 
-        self.action_queue = [self.action_queue[0]] + actions + self.action_queue[1:]
-        return True
+    def scan(self) -> bool:
+        """Rotate 360 degrees to scan for blocks
+
+        Returns:
+            bool: Whether the scan is completed
+        """
+        if not self.targeting_handler.relocating:
+            complete = self.rotate(np.pi * 2, 1)
+
+            distance = self.infrared.getValue()
+            d_min, d_max = self.infrared.getBounds()
+            bound = (d_max - d_min) * 2
+
+            if abs(self.get_sensor_distance_to_wall() - distance) > bound * 1.5 \
+                    and abs(self.infrared.max_range - distance) > bound:
+                self.targeting_handler.positions.append(self.get_bot_front(distance))
+                # self.targeting_handler.bounds.append(bound)
+
+            if complete:
+                for target in self.targeting_handler.get_targets(self.position):
+                    self.target_cache.add_target(target)
+
+                    # TODO check target not the other robot
+
+                if self.get_best_target() is None:
+                    self.targeting_handler.next_scan_position = self.targeting_handler.get_fallback_scan_position(self.infrared.max_range)
+                    self.targeting_handler.relocating = True
+
+                    # TODO too many scans, probably has collected all the targets, return home
+
+        else:
+            complete = self.drive_to_position(self.targeting_handler.next_scan_position)
+            self.targeting_handler.relocating = not complete
+
+        return complete
 
     def do(self, *args):
         """Small wrapper to make telling robot to do something a little cleaner"""
@@ -468,6 +515,7 @@ class IDPRobot(Robot):
         When each action is completed it's removed from the list. Using list mutability this allows us to alter / check
         the action list elsewhere in the code to see the bots progress and also change its objectives.
         If people have better ideas on how to do this I'm all ears.
+        Execute_action was only ever supposed to be about motion
 
         Returns:
             bool: Whether action list is completed or not
@@ -513,7 +561,7 @@ class IDPRobot(Robot):
                 return True
 
             print_if_debug('\n'.join(str(x) for x in self.action_queue), debug_flag=DEBUG)
-
+        """
         # Check if bot is stuck, note we only reach here if action not completed
         if abs(self.linear_speed) <= self.linear_speed_threshold / 1000 \
                 and abs(self.angular_velocity) <= self.angular_speed_threshold / 1000:
@@ -528,19 +576,11 @@ class IDPRobot(Robot):
                 self.stuck_last_step = False
             else:
                 self.stuck_last_step = True
+        """
 
         return False
 
-    def log_object_detection(self, position, classification="unknown"):
-        """Take an object detected a certain distance away and store its detection
-
-        Args:
-            position ([float, float]):  Positions co-ordinates in world, East-North, m
-            classification (string): What we think the object is
-        """
-        self.object_detection_handler.new_detection(position, classification)
-
-    def get_target(self) -> list:
+    def get_best_target(self) -> Union[Target, None]:
         """Decide on a new target block for robot
 
         If targeting is not just get closest block there could be more logic here, potentially calls to a script in
@@ -551,10 +591,11 @@ class IDPRobot(Robot):
         Returns:
             [float, float]: Targets co-ordinates, East-North, m
         """
-        valid_classes = ["box", f"{self.colour}_box"]
-        object_list = self.object_detection_handler.get_sorted_objects(
+        valid_classes = ["box", f"{self.color}_box"]
+
+        object_list = self.target_cache.get_targets(
             valid_classes=valid_classes,
-            key=lambda target: self.distance_from_bot(target.postion)
+            key=lambda target: self.distance_from_bot(target.position)
         )
 
-        return object_list[0].position
+        return object_list[0] if len(object_list) > 0 else None
