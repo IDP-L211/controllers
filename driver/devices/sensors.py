@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: MIT
 """Sensors used on the robot"""
-from controller import GPS, Compass, DistanceSensor, Emitter, Receiver
+from controller import GPS, Compass, DistanceSensor
 from scipy.interpolate import interp1d
 from scipy.optimize import root_scalar as root
 from warnings import warn
 
-DEBUG=True
+DEBUG = True
+
 
 class IDPCompass(Compass):
     def __init__(self, name, sampling_rate):
@@ -74,7 +75,6 @@ class IDPDistanceSensor(DistanceSensor):
             map(lambda x: x[0] - x[1], zip(*self.betterLookupTable[1:]))
         )[0]
 
-
     def getValue(self):
         v = super().getValue()
 
@@ -86,25 +86,25 @@ class IDPDistanceSensor(DistanceSensor):
         try:
             sc_expectation_result = root(
                 lambda x: self.f_expectation(x) - v,
-                method = 'bisect',
-                bracket = sorted((
+                method='bisect',
+                bracket=sorted((
                     self.betterLookupTable[0][0],
                     self.betterLookupTable[0][-1],
-                )), x0 = (self.betterLookupTable[1][len(self.betterLookupTable)//2],),
+                )), x0=(self.betterLookupTable[1][len(self.betterLookupTable) // 2],),
             )
         except ValueError as e:
             # Shouldn't happen
             warn(f'WARNING: value out of bounds in {self.getName()}')
             if "f(a) and f(b) must have different signs" in str(e):
                 return self.max_range
-            else: raise e
+            else:
+                raise e
 
         if not sc_expectation_result.converged:
             warn(f'WARNING: Could not calculate {self.getName()} value')
             return self.max_range
 
         return sc_expectation_result.root
-
 
     def getBounds(self):
         v = super().getValue()
@@ -114,18 +114,18 @@ class IDPDistanceSensor(DistanceSensor):
             sc_bound_results = (
                 root(
                     lambda x: self.f_lower_bound(x) - v,
-                    method = 'bisect',
-                    bracket = sorted((
+                    method='bisect',
+                    bracket=sorted((
                         self.betterLookupTable[0][0],
                         self.betterLookupTable[0][-1],
-                    )), x0 = (self.getValue(),)
+                    )), x0=(self.getValue(),)
                 ), root(
                     lambda x: self.f_upper_bound(x) - v,
-                    method = 'bisect',
-                    bracket = sorted((
+                    method='bisect',
+                    bracket=sorted((
                         self.betterLookupTable[0][0],
                         self.betterLookupTable[0][-1],
-                    )), x0 = (self.getValue(),)
+                    )), x0=(self.getValue(),)
                 )
             )
         except ValueError as e:
@@ -133,12 +133,13 @@ class IDPDistanceSensor(DistanceSensor):
             # because the function could be increasing or decreasing
             # let's just rely on the ValueError
             if "f(a) and f(b) must have different signs" in str(e):
-                return (self.max_range, 3.5) # Roughly the maximum possible
-            else: raise e
+                return (self.max_range, 3.5)  # Roughly the maximum possible
+            else:
+                raise e
 
         if any(map(lambda x: not x.converged, sc_bound_results)):
             warn(f'WARNING: Could not calculate {self.getName()} bounds')
-            return (self.max_range, 3.5) # Roughly the maximum possible
+            return (self.max_range, 3.5)  # Roughly the maximum possible
         else:
             return sorted(tuple(map(lambda y: y.root, sc_bound_results)))
 
@@ -148,13 +149,4 @@ class IDPGPS(GPS):
         super().__init__(name)  # default to infinite resolution
         if self.getCoordinateSystem() != 0:
             raise RuntimeWarning('Need to set GPS coordinate system in WorldInfo to local')
-        self.enable(sampling_rate)
-
-class IDPEmitter(Emitter):
-    def __init__(self, name):
-        super().__init__(name)
-
-class IDPReceiver(Receiver):
-    def __init__(self, name, sampling_rate):
-        super().__init__(name)
         self.enable(sampling_rate)

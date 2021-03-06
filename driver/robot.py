@@ -7,10 +7,10 @@
 from controller import Robot
 import numpy as np
 import warnings
-import struct
 
-from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor, IDPEmitter, IDPReceiver
+from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor
 from devices.motors import IDPMotorController
+from devices.radio import IDPRadio
 
 from strategies.motion import MotionControlStrategies
 
@@ -45,7 +45,9 @@ class IDPRobot(Robot):
         self.length = 0.2
         self.width = 0.1
         self.wheel_radius = 0.04
-        self.colour = "red"
+        self.color = self.getName()
+        if self.color not in ['red', 'green']:
+            raise Exception('Name the robot either red or green')
 
         self.arena_length = 2.4
         self.timestep = int(self.getBasicTimeStep())
@@ -56,11 +58,9 @@ class IDPRobot(Robot):
         self.ultrasonic_left = IDPDistanceSensor('ultrasonic_left', self.timestep)
         self.ultrasonic_right = IDPDistanceSensor('ultrasonic_right', self.timestep)
         self.infrared = IDPDistanceSensor('infrared', self.timestep,
-                                         decreasing=True, min_range=0.15)
+                                          decreasing=True, min_range=0.15)
         self.motors = IDPMotorController('wheel1', 'wheel2')
-
-        self.emitter = IDPEmitter('emitter')
-        self.receiver = IDPReceiver('receiver', self.timestep)
+        self.radio = IDPRadio(self.timestep)
 
         # To store and process detections
         self.object_detection_handler = ObjectDetectionHandler()
@@ -75,14 +75,6 @@ class IDPRobot(Robot):
             "rotate": self.rotate,
             "reverse": self.reverse_to_position,
             "collect": self.collect_block
-        }
-
-        self.message_meaning = {
-            'p': self.send_position,
-            'c': self.get_other_pos,
-            #'t': send 'r' or 'b' + coordinates of block
-            #'b': send bearings
-
         }
 
         # So we can cleanup if we change our action
@@ -103,7 +95,7 @@ class IDPRobot(Robot):
 
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
-        if name in ['gps', 'compass', 'wheel1', 'wheel2', 'ultrasonic_left', \
+        if name in ['gps', 'compass', 'wheel1', 'wheel2', 'ultrasonic_left',
                     'ultrasonic_right', 'infrared']:
             raise RuntimeError('Please use the corresponding properties instead')
         return Robot.getDevice(self, name)
@@ -516,68 +508,10 @@ class IDPRobot(Robot):
         Returns:
             [float, float]: Targets co-ordinates, East-North, m
         """
-        valid_classes = ["box", f"{self.colour}_box"]
+        valid_classes = ["box", f"{self.color}_box"]
         object_list = self.object_detection_handler.get_sorted_objects(
             valid_classes=valid_classes,
             key=lambda target: self.distance_from_bot(target.postion)
         )
 
         return object_list[0].position
-
-    def ask_position(self):
-        message = struct.pack('s', b'p')
-        self.emitter.send(message)
-
-    def check_receiver(self) -> bool:
-        # Function to check if robot has received a packet.
-        # Should be called every time before getting data from receiver
-
-        return self.receiver.getQueueLength() > 0
-
-    def get_and_decode(self):
-        receiver = self.receiver
-        if receiver.getDataSize() == 1:
-            message = struct.unpack('s', receiver.getData())[0].decode("utf-8")
-            receiver.nextPacket()
-            print(message)
-            self.message_meaning[message]()
-            return True
-
-        else:
-
-            # If data received was not a character to decode, clear packets
-            while receiver.getQueueLength() != 0:
-                receiver.nextPacket()
-            return False
-
-    def send_position(self):
-        packets = 0
-        #print("send position")
-        message = struct.pack('s', b'c')
-        self.emitter.send(message)
-        packets += 1
-
-        for i in self.position:
-            message = struct.pack('d', i)
-            self.emitter.send(message)
-            packets += 1
-
-        return packets == 2
-
-    def get_other_pos(self) -> list:
-        receiver = self.receiver
-        position = []
-
-        if receiver.getQueueLength() >= 2:
-            print("Received coordinates")
-            for i in range(2):
-                data = receiver.getData()
-                coord = float(struct.unpack('d', data)[0])
-                position.append(coord)
-                receiver.nextPacket()
-        else:
-            if receiver.getQueueLength() == 1:
-                receiver.nextPacket()
-
-        return position if len(position) == 2 else self.position
-

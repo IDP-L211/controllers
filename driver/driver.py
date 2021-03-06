@@ -20,7 +20,7 @@ from control_scripts.greedy_collect import main as greedy_collect
 if __name__ == '__main__':
     robot = IDPRobot()
     com_test(robot)
-    #motion_test(robot)
+    # motion_test(robot)
     # camera_test(robot)
     # object_processing_test(robot)
     # block_collect_test(robot)
