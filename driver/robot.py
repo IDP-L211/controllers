@@ -17,7 +17,6 @@ from strategies.motion import MotionCS
 
 from misc.utils import rotate_vector, get_min_distance_rectangles, print_if_debug, ensure_list_or_tuple
 from misc.mapping import Map
-from misc.detection_handler import ObjectDetectionHandler
 from misc.pid import PID, DataRecorder
 from misc.targeting import TargetingHandler, Target, TargetCache
 
@@ -476,7 +475,7 @@ class IDPRobot(Robot):
             bool: Whether the scan is completed
         """
         if not self.targeting_handler.relocating:
-            complete = self.rotate(np.pi * 2, 1)
+            complete = self.rotate(np.pi * 2)
 
             distance = self.infrared.getValue()
             d_min, d_max = self.infrared.getBounds()
@@ -561,7 +560,7 @@ class IDPRobot(Robot):
                 return True
 
             print_if_debug('\n'.join(str(x) for x in self.action_queue), debug_flag=DEBUG)
-        """
+
         # Check if bot is stuck, note we only reach here if action not completed
         if abs(self.linear_speed) <= self.linear_speed_threshold / 1000 \
                 and abs(self.angular_velocity) <= self.angular_speed_threshold / 1000:
@@ -569,14 +568,13 @@ class IDPRobot(Robot):
                 print_if_debug(f"BOT STUCK - Attempting unstuck", debug_flag=DEBUG)
                 if action_type != "reverse":
                     self.action_queue.insert(0, ("reverse",
-                                                 list(self.coordtransform_bot_cartesian_to_world(np.array([0, -0.1])))))
+                                                 list(self.coordtransform_bot_cartesian_to_world(np.array([0, -0.5])))))
                 else:
                     self.action_queue.insert(0, ("move",
-                                                 list(self.coordtransform_bot_cartesian_to_world(np.array([0, 0.1])))))
+                                                 list(self.coordtransform_bot_cartesian_to_world(np.array([0, 0.5])))))
                 self.stuck_last_step = False
             else:
                 self.stuck_last_step = True
-        """
 
         return False
 
