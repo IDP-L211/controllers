@@ -8,12 +8,12 @@ def main(robot):
     # Actions for our robot
     action_queue = [
         ("rotate", 7),
-        ("move", [1, -1]),
-        ("reverse", [-1, -1]),
-        ("move", [1, 1]),
+        ("move", [0.75, -0.75]),
+        ("reverse", [-0.75, -0.75]),
+        ("move", [0.75, 0.75]),
         ("face", 3.141),
-        ("move", [-1, 1]),
-        ("move", [-1, -1]),
+        ("move", [-0.75, 0.75]),
+        ("move", [-0.75, -0.75]),
         ("move", [0, 0]),
         ("face", 0.0),
         ("rotate", -5)

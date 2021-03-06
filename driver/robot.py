@@ -17,7 +17,7 @@ from misc.mapping import Map
 from misc.detection_handler import ObjectDetectionHandler
 from misc.pid import PID, DataRecorder
 
-DEBUG = False
+DEBUG = True
 
 
 class IDPRobot(Robot):
@@ -97,8 +97,10 @@ class IDPRobot(Robot):
         # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers due to noise in acceleration
         self.pid_f_velocity = PID("Forward Velocity", self.getTime, 0.1, 0, 0, self.timestep_actual)
         self.pid_r_velocity = PID("Rotational Velocity", self.getTime, 0.1, 0, 0, self.timestep_actual)
-        self.pid_distance = PID("Distance", self.getTime, 5, 0, 0, self.timestep_actual)
-        self.pid_angle = PID("Angle", self.getTime, 0.25, 0.0, 0.03, self.timestep_actual, integral_wind_up_speed=2)
+        self.pid_distance = PID("Distance", self.getTime, 4, 0, 0, self.timestep_actual)
+        self.pid_angle_1 = PID("Angle 1", self.getTime, 0.35, 0.5, 0.03, self.timestep_actual,
+                               integral_wind_up_speed=1, integral_delay_time=2)
+        self.pid_angle_2 = PID("Angle 2", self.getTime, 0.25, 0, 0.03, self.timestep_actual)
 
         motor_graph_styles = {"distance": 'k-', "angle": 'r-', "forward_speed": 'k--', "rotation_speed": 'r--',
                               "linear_speed": "k:", "angular_velocity": "r:", "left_motor": 'b-', "right_motor": 'y-'}
@@ -338,15 +340,6 @@ class IDPRobot(Robot):
         self.motion_history.update(left_motor=self.motors.velocities[0], right_motor=self.motors.velocities[1],
                                    **kwargs)
 
-    def reset_action_variables(self):
-        """Cleanup method to be called when the current action changes. If executing bot commands manually
-        (i.e. robot.drive_to_position), call this first.
-        """
-        self.rotation_angle = 0
-        self.angle_rotated = 0
-        self.last_action_type = None
-        self.last_action_value = None
-
     def drive_to_position(self, target_pos: list, reverse=False) -> bool:
         """Go to a position
 
@@ -369,7 +362,7 @@ class IDPRobot(Robot):
 
         forward_speed = MotionCS.linear_dual_pid(distance=distance, distance_pid=self.pid_distance, angle=angle,
                                                  forward_speed=self.linear_speed, forward_speed_pid=self.pid_f_velocity)
-        rotation_speed = MotionCS.angular_dual_pid(angle=angle, angle_pid=self.pid_angle,
+        rotation_speed = MotionCS.angular_dual_pid(angle=angle, angle_pid=self.pid_angle_1,
                                                    rotation_rate=self.angular_velocity,
                                                    rotational_speed_pid=self.pid_r_velocity)
         raw_velocities = MotionCS.combine_and_scale(forward_speed, rotation_speed)
@@ -406,9 +399,13 @@ class IDPRobot(Robot):
         angle_difference = self.rotation_angle - self.angle_rotated
         if abs(angle_difference) <= self.target_bearing_threshold and \
                 abs(self.angular_velocity) <= self.angular_speed_threshold:
+            self.rotation_angle = 0
+            self.angle_rotated = 0
             return True
 
-        rotation_speed = MotionCS.angular_dual_pid(angle=angle_difference, angle_pid=self.pid_angle,
+        angle_pid = self.pid_angle_1 if angle < np.pi * 1.1 else self.pid_angle_2
+        rotation_speed = MotionCS.angular_dual_pid(angle=angle_difference,
+                                                   angle_pid=angle_pid,
                                                    rotation_rate=self.angular_velocity,
                                                    rotational_speed_pid=self.pid_r_velocity)
         self.motors.velocities = MotionCS.combine_and_scale(0, rotation_speed)
@@ -484,9 +481,10 @@ class IDPRobot(Robot):
             raise Exception(
                 f"Action {action_type} is not a valid action, valid actions: {', '.join(self.action_functions.keys())}")
 
-        # If we are changing our action we need to reset
+        # If we are changing our action we might need to reset some rotation stuff
         if action_type != self.last_action_type or action_value != self.last_action_value:
-            self.reset_action_variables()
+            self.rotation_angle = 0
+            self.angle_rotated = 0
 
         # Update log of last action
         self.last_action_type = action_type
@@ -497,7 +495,6 @@ class IDPRobot(Robot):
 
         # If we completed this action we should remove it from our list
         if completed:
-            self.reset_action_variables()
             print_if_debug(f"\nCompleted action: {self.action_queue[0]}", debug_flag=DEBUG)
             del self.action_queue[0]
             print_if_debug(f"Remaining actions:", debug_flag=DEBUG)

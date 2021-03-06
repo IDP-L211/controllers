@@ -113,7 +113,7 @@ class MotionCS:
 
         # Attenuate speeds and distance based on angle so robot doesn't zoom off when not facing target
         if angle_attenuation and angle is not None:
-            attenuation_factor = (np.cos(angle) ** 3) if abs(angle) <= np.pi / 2 else 0
+            attenuation_factor = (np.cos(angle) ** 4) if abs(angle) <= np.pi / 2 else 0
             distance *= attenuation_factor
             required_distance *= attenuation_factor
             req_forward_speed *= attenuation_factor
