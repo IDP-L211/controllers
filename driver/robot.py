@@ -12,6 +12,7 @@ import warnings
 
 from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor
 from devices.motors import IDPMotorController
+from devices.radio import IDPRadio
 
 from strategies.motion import MotionControlStrategies
 
@@ -46,8 +47,9 @@ class IDPRobot(Robot):
         self.length = 0.2
         self.width = 0.1
         self.wheel_radius = 0.04
-        self.color = "red"
-        self.home_position = [0.5, 0]
+        self.color = self.getName()
+        if self.color not in ['red', 'green']:
+            raise Exception('Name the robot either red or green')
 
         self.arena_length = 2.4
         self.timestep = int(self.getBasicTimeStep())
@@ -60,6 +62,7 @@ class IDPRobot(Robot):
         self.infrared = IDPDistanceSensor('infrared', self.timestep,
                                           decreasing=True, min_range=0.15)
         self.motors = IDPMotorController('wheel1', 'wheel2')
+        self.radio = IDPRadio(self.timestep)
 
         # To store and process detections
         self.targeting_handler = TargetingHandler()
@@ -541,6 +544,7 @@ class IDPRobot(Robot):
             [float, float]: Targets co-ordinates, East-North, m
         """
         valid_classes = ["box", f"{self.color}_box"]
+
         object_list = self.target_cache.get_targets(
             valid_classes=valid_classes,
             key=lambda target: self.distance_from_bot(target.position)
