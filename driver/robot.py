@@ -17,7 +17,7 @@ from misc.mapping import Map
 from misc.detection_handler import ObjectDetectionHandler
 from misc.pid import PID, DataRecorder
 
-DEBUG = True
+DEBUG = False
 
 
 class IDPRobot(Robot):
