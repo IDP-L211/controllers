@@ -36,7 +36,7 @@ class TargetingHandler:
         Returns:
             np.ndarray: The centroid
         """
-        return np.array([sum(c) / len(c) for c in zip(*coord_list)])
+        return np.mean(np.asarray(coord_list), axis=0)
 
     def clear_cache(self) -> None:
         self.positions = []
