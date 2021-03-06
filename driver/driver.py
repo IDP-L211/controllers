@@ -27,4 +27,4 @@ if __name__ == '__main__':
     # sensor_dist_calc_test(robot)
     # sensor_bounds_ultrasonic_test(robot)
     # sensor_bounds_ir_test(robot)
-    # greedy_collect(robot)
+    greedy_collect(robot)

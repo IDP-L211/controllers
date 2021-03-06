@@ -8,6 +8,7 @@ driver
    motors
    sensors
    radio
+   targeting
    mapping
    utils
    controller
