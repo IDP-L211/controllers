@@ -98,7 +98,7 @@ class IDPRobot(Robot):
         self.pid_f_velocity = PID("Forward Velocity", self.getTime, 0.1, 0, 0, self.timestep_actual)
         self.pid_r_velocity = PID("Rotational Velocity", self.getTime, 0.1, 0, 0, self.timestep_actual)
         self.pid_distance = PID("Distance", self.getTime, 5, 0, 0, self.timestep_actual)
-        self.pid_angle = PID("Angle", self.getTime, 0.4, 0.0, 0.05, self.timestep_actual, integral_wind_up_speed=2)
+        self.pid_angle = PID("Angle", self.getTime, 0.25, 0.0, 0.03, self.timestep_actual, integral_wind_up_speed=2)
 
         motor_graph_styles = {"distance": 'k-', "angle": 'r-', "forward_speed": 'k--', "rotation_speed": 'r--',
                               "linear_speed": "k:", "angular_velocity": "r:", "left_motor": 'b-', "right_motor": 'y-'}
@@ -346,10 +346,6 @@ class IDPRobot(Robot):
         self.angle_rotated = 0
         self.last_action_type = None
         self.last_action_value = None
-        self.pid_f_velocity.reset()
-        self.pid_r_velocity.reset()
-        self.pid_distance.reset()
-        self.pid_angle.reset()
 
     def drive_to_position(self, target_pos: list, reverse=False) -> bool:
         """Go to a position

@@ -47,7 +47,8 @@ class DataRecorder:
 
 
 class PID:
-    def __init__(self, quantity, timer_func, k_p=0, k_i=0, k_d=0, time_step=None, integral_wind_up_speed=None):
+    def __init__(self, quantity, timer_func, k_p=0, k_i=0, k_d=0, time_step=None, integral_wind_up_speed=None,
+                 integral_delay_time=0, integral_active_error_band=np.inf):
         self.quantity = quantity
 
         self.k_p = k_p
@@ -55,9 +56,12 @@ class PID:
         self.k_d = k_d
 
         self.cum_error = 0
-        self.prev_error = None
+        self.e_history = []  # Record the last set of errors for derivative calc
+        self.e_weights = [0.434, 0.260, 0.156, 0.094, 0.056]  # This helps stabilise the derivative error
 
         self.i_wind_up_speed = integral_wind_up_speed
+        self.i_delay_time = integral_delay_time
+        self.i_active_error_band = integral_active_error_band
 
         self.time_step = time_step
         self.timer_func = timer_func
@@ -70,43 +74,46 @@ class PID:
         self.history = DataRecorder("time", "error", "cumulative_error", "error_change", "p", "i", "d", "output",
                                     styles=pid_graph_styles)
 
-    def reset(self):
-        self.prev_error = None
-        self.cum_error = 0
-        self.active_time = 0
-        self.last_time_called = 0
-
-    def query(self, error, return_only_output=True):
+    def query(self, error, step_mode=False):
         """Get the output of the pid without affecting its state"""
-        error_change = (error - self.prev_error) / self.time_step if self.prev_error is not None else 0
+        time = self.timer_func()
+
+        # Check if there was a gap in being called, if so make sure the logs and graphs reflect this
+        # Whilst resetting here might go against the idea of query, it would get reset anyway if we waited for step
+        if self.last_time_called + self.time_step < time:
+            if step_mode:
+                self.history.update(time=self.last_time_called, error=np.nan, cumulative_error=np.nan, error_change=np.nan,
+                                    p=np.nan, i=np.nan, d=np.nan, output=np.nan)
+            self.e_history = []
+            self.cum_error = 0
+            self.active_time = 0
+
+        error_change = sum([(e1 - e2) * w / self.time_step
+                            for e1, e2, w in zip(self.e_history[::-1], self.e_history[-2::-1], self.e_weights)])
         p = self.k_p * error
         i = self.k_i * self.cum_error
         d = self.k_d * error_change
         output = p + i + d
-        if return_only_output:
-            return output
+
+        if step_mode:
+            return output, p, i, d, error_change, time
         else:
-            return output, p, i, d, error_change
+            return output
 
     def step(self, error):
         """Get the output and move the controller through a time step, updating logs"""
-        time = self.timer_func()
-
-        # Check if there was a gap in being called, if so make sure the logs and graphs reflect this
-        if self.last_time_called + self.time_step < time:
-            self.history.update(time=self.last_time_called, error=np.nan, cumulative_error=np.nan, error_change=np.nan,
-                                p=np.nan, i=np.nan, d=np.nan, output=np.nan)
+        output, p, i, d, error_change, time = self.query(error, True)
         self.last_time_called = time
-
-        output, p, i, d, error_change = self.query(error, False)
 
         self.history.update(time=time, error=error, cumulative_error=self.cum_error, error_change=error_change, p=p,
                             i=i, d=d, output=output)
 
         # Update our state variables
-        i_windup_term = 1 if self.i_wind_up_speed is None else np.tanh(self.active_time * self.i_wind_up_speed)
-        self.cum_error += error * self.time_step * i_windup_term
-        self.prev_error = error
+        i_control_term = max(0, np.tanh((self.active_time - self.i_delay_time) * self.i_wind_up_speed))\
+            if self.i_wind_up_speed is not None else max(0, np.sign(self.active_time - self.i_delay_time))
+        i_control_term = i_control_term if abs(error) <= self.i_active_error_band else 0
+        self.cum_error += error * self.time_step * i_control_term
+        self.e_history.append(error)
         self.active_time += self.time_step
 
         return output
