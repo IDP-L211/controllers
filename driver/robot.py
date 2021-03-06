@@ -46,7 +46,10 @@ class IDPRobot(Robot):
         self.wheel_radius = 0.04
         self.colour = "red"
 
+        self.last_bearing = None
+
         self.arena_length = 2.4
+
         self.timestep = int(self.getBasicTimeStep())
         self.timestep_actual = self.timestep / 1000  # Webots timestep is in ms
         self.time = 0
@@ -89,18 +92,16 @@ class IDPRobot(Robot):
         # For rotations
         self.rotation_angle = 0
         self.angle_rotated = 0
-        self.last_bearing = None
+        self.rotating = False
 
         # For getting stuck
         self.stuck_last_step = False
 
         # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers due to noise in acceleration
         self.pid_f_velocity = PID("Forward Velocity", self.getTime, 0.1, 0, 0, self.timestep_actual)
-        self.pid_r_velocity = PID("Rotational Velocity", self.getTime, 0.1, 0, 0, self.timestep_actual)
         self.pid_distance = PID("Distance", self.getTime, 4, 0, 0, self.timestep_actual)
-        self.pid_angle_1 = PID("Angle 1", self.getTime, 0.35, 0.5, 0.03, self.timestep_actual,
-                               integral_wind_up_speed=1, integral_delay_time=2)
-        self.pid_angle_2 = PID("Angle 2", self.getTime, 0.25, 0, 0.03, self.timestep_actual)
+        self.pid_angle = PID("Angle", self.getTime, 0.5, 0.5, 0.26, self.timestep_actual,
+                             integral_wind_up_speed=1, integral_delay_time=3)
 
         motor_graph_styles = {"distance": 'k-', "angle": 'r-', "forward_speed": 'k--', "rotation_speed": 'r--',
                               "linear_speed": "k:", "angular_velocity": "r:", "left_motor": 'b-', "right_motor": 'y-'}
@@ -362,9 +363,7 @@ class IDPRobot(Robot):
 
         forward_speed = MotionCS.linear_dual_pid(distance=distance, distance_pid=self.pid_distance, angle=angle,
                                                  forward_speed=self.linear_speed, forward_speed_pid=self.pid_f_velocity)
-        rotation_speed = MotionCS.angular_dual_pid(angle=angle, angle_pid=self.pid_angle_1,
-                                                   rotation_rate=self.angular_velocity,
-                                                   rotational_speed_pid=self.pid_r_velocity)
+        rotation_speed = self.pid_angle.step(angle)
         raw_velocities = MotionCS.combine_and_scale(forward_speed, rotation_speed)
         self.motors.velocities = raw_velocities if not reverse else -raw_velocities
         self.update_motion_history(time=self.time, distance=distance, angle=angle, forward_speed=forward_speed,
@@ -392,8 +391,9 @@ class IDPRobot(Robot):
         """
 
         # Check if it's a new rotation and update how far we've rotated
-        self.rotation_angle = angle if self.rotation_angle == 0 else self.rotation_angle
+        self.rotation_angle = self.rotation_angle if self.rotating else angle
         self.angle_rotated += self.angular_velocity * self.timestep_actual
+        self.rotating = True
 
         # Check if we're done
         angle_difference = self.rotation_angle - self.angle_rotated
@@ -401,13 +401,10 @@ class IDPRobot(Robot):
                 abs(self.angular_velocity) <= self.angular_speed_threshold:
             self.rotation_angle = 0
             self.angle_rotated = 0
+            self.rotating = False
             return True
 
-        angle_pid = self.pid_angle_1 if angle < np.pi * 1.1 else self.pid_angle_2
-        rotation_speed = MotionCS.angular_dual_pid(angle=angle_difference,
-                                                   angle_pid=angle_pid,
-                                                   rotation_rate=self.angular_velocity,
-                                                   rotational_speed_pid=self.pid_r_velocity)
+        rotation_speed = self.pid_angle.step(angle_difference)
         self.motors.velocities = MotionCS.combine_and_scale(0, rotation_speed)
         self.update_motion_history(time=self.time, angle=angle_difference, rotation_speed=rotation_speed,
                                    linear_speed=self.linear_speed, angular_velocity=self.angular_velocity)
@@ -485,6 +482,7 @@ class IDPRobot(Robot):
         if action_type != self.last_action_type or action_value != self.last_action_value:
             self.rotation_angle = 0
             self.angle_rotated = 0
+            self.rotating = False
 
         # Update log of last action
         self.last_action_type = action_type

@@ -121,7 +121,9 @@ class PID:
     def plot_history(self, *args):
         title = f"""{self.quantity} PID\n{f" K_p={self.k_p} " if self.k_p != 0 else ""}\
 {f" K_i={self.k_i} " if self.k_i != 0 else ""}{f" K_d={self.k_d} " if self.k_d != 0 else ""}\
-{f" i_windup={self.i_wind_up_speed} " if self.i_wind_up_speed is not None else ""}"""
+{f" i_windup={self.i_wind_up_speed} " if self.i_wind_up_speed is not None else ""}\
+{f" i_delay={self.i_delay_time} " if self.i_delay_time is not 0 else ""}\
+{f" i_active_error_band={self.i_active_error_band} " if self.i_active_error_band is not np.inf else ""}"""
 
         if not args:
             plot_args = ["output", "error"] + (["p"] * bool(self.k_p)) + (["cumulative_error", "i"] * bool(self.k_i))\

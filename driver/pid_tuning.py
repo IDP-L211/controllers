@@ -61,7 +61,5 @@ def manual(robot):
 
     fire_and_forget(robot.plot_motion_history)
     fire_and_forget(robot.pid_f_velocity.plot_history)
-    fire_and_forget(robot.pid_r_velocity.plot_history)
     fire_and_forget(robot.pid_distance.plot_history)
-    fire_and_forget(robot.pid_angle_1.plot_history)
-    fire_and_forget(robot.pid_angle_2.plot_history)
+    fire_and_forget(robot.pid_angle.plot_history)

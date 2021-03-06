@@ -74,7 +74,7 @@ class MotionCS:
             if deriv_quantity is not None:
                 derivative_based_drive = derivative_pid.query(req_deriv_quantity - deriv_quantity) + req_deriv_quantity
                 if prime_quantity is not None:
-                    if abs(prime_pid.query(prime_quantity - req_prime_quantity)) <= abs(derivative_based_drive):
+                    if np.sign(derivative_based_drive) * prime_pid.query(prime_quantity - req_prime_quantity) <= abs(derivative_based_drive):
                         drive = prime_pid.step(prime_quantity - req_prime_quantity)
                     else:
                         drive = derivative_pid.step(req_deriv_quantity - deriv_quantity) + req_deriv_quantity
@@ -86,24 +86,6 @@ class MotionCS:
         return drive
 
     @staticmethod
-    def angular_dual_pid(angle=None, rotation_rate=None, angle_pid=None, rotational_speed_pid=None, required_angle=0,
-                         required_rotation_rate=None):
-        """Wrapper for dual_pid to make angular control simpler"""
-
-        # If required_rotation_rate is not specified, use max and then correct for sign of angle
-        req_rotation_rate = MotionCS.max_r_speed if required_rotation_rate is None else required_rotation_rate
-        req_rotation_rate *= np.sign(angle)
-
-        # Convert from actual robot velocities to drive fraction equivalent
-        required_rotational_drive = MotionCS.r_drive_speed_ratio * req_rotation_rate
-        rotational_drive_equivalent = None if rotation_rate is None else MotionCS.r_drive_speed_ratio * rotation_rate
-
-        # Return the result from the dual controller
-        return MotionCS.dual_pid(prime_quantity=angle, deriv_quantity=rotational_drive_equivalent,
-                                 prime_pid=angle_pid, derivative_pid=rotational_speed_pid,
-                                 req_prime_quantity=required_angle, req_deriv_quantity=required_rotational_drive)
-
-    @staticmethod
     def linear_dual_pid(distance=None, forward_speed=None, distance_pid=None, forward_speed_pid=None,
                         required_distance=0, required_forward_speed=None, angle_attenuation=True, angle=None):
         """Wrapper for dual_pid to make linear control simpler"""
@@ -113,7 +95,7 @@ class MotionCS:
 
         # Attenuate speeds and distance based on angle so robot doesn't zoom off when not facing target
         if angle_attenuation and angle is not None:
-            attenuation_factor = (np.cos(angle) ** 4) if abs(angle) <= np.pi / 2 else 0
+            attenuation_factor = (np.cos(angle) ** 5) if abs(angle) <= np.pi / 2 else 0
             distance *= attenuation_factor
             required_distance *= attenuation_factor
             req_forward_speed *= attenuation_factor
