@@ -7,6 +7,10 @@ from controller import Motor
 import numpy as np
 
 
+class IDPGate(Motor):
+    def __init__(self, name):
+        super().__init__(name)
+
 class IDPMotor(Motor):
     def __init__(self, name):
         super().__init__(name)

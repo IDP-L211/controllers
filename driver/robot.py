@@ -9,7 +9,7 @@ import numpy as np
 import warnings
 
 from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor
-from devices.motors import IDPMotorController
+from devices.motors import IDPMotorController, IDPGate
 
 from strategies.motion import MotionControlStrategies
 
@@ -58,6 +58,8 @@ class IDPRobot(Robot):
                                          decreasing=True, min_range=0.15)
         self.motors = IDPMotorController('wheel1', 'wheel2')
 
+        self.gate = IDPGate('gate')
+
         # To store and process detections
         self.object_detection_handler = ObjectDetectionHandler()
 
@@ -88,6 +90,14 @@ class IDPRobot(Robot):
 
         # For getting stuck
         self.stuck_last_step = False
+
+    def open_gate(self):
+        ''' Opens the robot gate'''
+        self.gate.setPosition(1.57)
+
+    def close_gate(self):
+        ''' Closes the robot gate'''
+        self.gate.setPosition(0)
 
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
