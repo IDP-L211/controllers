@@ -117,8 +117,7 @@ class IDPRobot(Robot):
         # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers due to noise in acceleration
         self.pid_f_velocity = PID("Forward Velocity", self.getTime, 0.1, 0, 0, self.timestep_actual)
         self.pid_distance = PID("Distance", self.getTime, 2, 0, 0, self.timestep_actual)
-        self.pid_angle = PID("Angle", self.getTime, 2.5, 1.0, 0.10, self.timestep_actual, integral_wind_up_speed=2,
-                             integral_delay_time=1, integral_active_error_band=np.pi/4,
+        self.pid_angle = PID("Angle", self.getTime, 2.5, 0.0, 0.10, self.timestep_actual,
                              derivative_weight_decay_half_life=0.05)
 
         motor_graph_styles = {"distance": 'k-', "angle": 'r-', "forward_speed": 'k--', "rotation_speed": 'r--',
@@ -471,8 +470,8 @@ class IDPRobot(Robot):
         Returns:
             bool: If we are at our target
         """
-        distance_from_block_to_stop = 0.2  # TODO - Update this
-        rotate_angle = np.pi / 2  # TODO - Make sure this is correct direction and angle
+        distance_from_block_to_stop = 0.15  # TODO - Update this
+        rotate_angle = -np.pi / 2  # TODO - Make sure this is correct direction and angle
 
         if self.collect_state == 0:
             if self.distance_from_bot(target.position) - distance_from_block_to_stop >= 0:
