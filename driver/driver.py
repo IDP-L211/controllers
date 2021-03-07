@@ -18,6 +18,7 @@ from control_scripts.tests.sensor_bounds_ultrasonic_test import main as sensor_b
 from control_scripts.greedy_collect import main as greedy_collect
 from pid_tuning import manual as pid_tuning
 from control_scripts.tests.manual_test import main as manual_test
+from control_scripts.tests.color_test import main as color_test
 
 
 if __name__ == '__main__':
@@ -34,4 +35,5 @@ if __name__ == '__main__':
     # greedy_collect(robot)
     # pid_tuning(robot)
     # manual_test(robot)
-    greedy_collect(robot)
+    # greedy_collect(robot)
+    color_test(robot)

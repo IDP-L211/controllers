@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 """Sensors used on the robot"""
-from controller import GPS, Compass, DistanceSensor
+from controller import GPS, Compass, DistanceSensor, LightSensor
 from scipy.interpolate import interp1d
 from scipy.optimize import root_scalar as root
 from warnings import warn
@@ -14,6 +14,32 @@ class IDPCompass(Compass):
     def __init__(self, name, sampling_rate):
         super().__init__(name)
         self.enable(sampling_rate)
+
+
+class IDPLightSensor(LightSensor):
+    def __init__(self, name, sampling_rate):
+        super().__init__(name)
+        self.enable(sampling_rate)
+
+
+class IDPColorDetector:
+    def __init__(self, sampling_rate):
+        self.red_sensor = IDPLightSensor('red_light_sensor', sampling_rate)
+        self.green_sensor = IDPLightSensor('green_light_sensor', sampling_rate)
+
+    def get_color(self):
+        """Returns the color from the color sensors
+
+        Returns:
+            string: color of the block or none
+        """
+        color = None
+        if self.red_sensor.getValue() > 0.5 and self.green_sensor.getValue() < 0.5:
+            color = 'red'
+        elif self.green_sensor.getValue() > 0.5:
+            color = 'green'
+
+        return color
 
 
 class IDPDistanceSensor(DistanceSensor):
