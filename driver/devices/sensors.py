@@ -20,6 +20,25 @@ class IDPLightSensor(LightSensor):
         super().__init__(name)
         self.enable(sampling_rate)
 
+class IDPColorDetector:
+    def __innit__(self, sampling_rate):
+        self.red_sensor = IDPLightSensor('red_light_sensor', sampling_rate)
+        self.green_sensor = IDPLightSensor('red_light_sensor', sampling_rate)
+
+    def get_color(self):
+        """Returns the color from the color sensors
+
+        Returns:
+            string: color of the block or none
+        """
+        color = 'none'
+        if self.red_sensor.getValue() > 0:
+            color = 'red'
+        elif self.green_sensor.getValue() > 0:
+            color = 'green'
+
+        return color
+
 class IDPDistanceSensor(DistanceSensor):
     def __init__(self, name, sampling_rate, decreasing=False, min_range=0):
         super().__init__(name)

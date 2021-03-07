@@ -9,7 +9,7 @@ from typing import Union
 from controller import Robot
 import numpy as np
 
-from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor, IDPLightSensor
+from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor, IDPColorDetector
 
 from devices.motors import IDPMotorController
 from devices.radio import IDPRadio
@@ -71,8 +71,7 @@ class IDPRobot(Robot):
                                           decreasing=True, min_range=0.15)
         self.motors = IDPMotorController('wheel1', 'wheel2', self)
         self.radio = IDPRadio(self.timestep)
-        self.red_light_sensor = IDPLightSensor('red_light_sensor', self.timestep)
-        self.green_light_sensor = IDPLightSensor('green_light_sensor', self.timestep)
+        self.color_detector = IDPColorDetector(self.timestep)
 
         # To store and process detections
         self.targeting_handler = TargetingHandler()
@@ -603,17 +602,3 @@ class IDPRobot(Robot):
         )
 
         return object_list[0] if len(object_list) > 0 else None
-
-    def get_color(self):
-        """Returns the color from the color sensors
-
-        Returns:
-            string: color of the block or none
-        """
-        color = 'none'
-        if self.red_light_sensor.getValue() > 0:
-            color = 'red'
-        elif self.green_light_sensor.getValue() > 0:
-            color = 'green'
-
-        return color
