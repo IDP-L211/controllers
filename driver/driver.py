@@ -35,5 +35,5 @@ if __name__ == '__main__':
     # greedy_collect(robot)
     # pid_tuning(robot)
     # manual_test(robot)
-    greedy_collect(robot)
-    # color_test(robot)
+    # greedy_collect(robot)
+    color_test(robot)
