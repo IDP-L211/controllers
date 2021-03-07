@@ -18,10 +18,7 @@ def trial(supervisor):
 
     # The actions for our bot to perform
     test_actions = [
-        ("rotate", tau/2),
-        ("face", tau/2),
-        ("move", [0, 0.75]),
-        ("move", [0.5, 0.75])
+        ("rotate", tau/4)
     ]
 
     # Load actions and store timings

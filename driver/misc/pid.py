@@ -58,6 +58,7 @@ class PID:
         self.cum_error = 0
 
         # This helps stabilise the derivative error
+        self.d_weight_decay_half_life = derivative_weight_decay_half_life
         if derivative_weight_decay_half_life is not None:
             num_weights = int(3.32 * derivative_weight_decay_half_life / time_step)  # Last weight is 10% of first
             weight_decay_constant = derivative_weight_decay_half_life / time_step
@@ -131,7 +132,8 @@ class PID:
 {f" K_i={self.k_i} " if self.k_i != 0 else ""}{f" K_d={self.k_d} " if self.k_d != 0 else ""}\
 {f" i_windup={self.i_wind_up_speed} " if self.i_wind_up_speed is not None else ""}\
 {f" i_delay={self.i_delay_time} " if self.i_delay_time != 0 else ""}\
-{f" i_active_error_band={self.i_active_error_band} " if self.i_active_error_band != np.inf else ""}"""
+{f" i_active_error_band={self.i_active_error_band} " if self.i_active_error_band != np.inf else ""}\
+{f" d_weight_decay_half_life={self.i_active_error_band} " if self.d_weight_decay_half_life is not None else ""}"""
 
         if not args:
             plot_args = ["output", "error"] + (["p"] * bool(self.k_p)) + (["cumulative_error", "i"] * bool(self.k_i))\
