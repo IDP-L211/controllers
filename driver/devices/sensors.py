@@ -23,7 +23,7 @@ class IDPLightSensor(LightSensor):
 class IDPColorDetector:
     def __innit__(self, sampling_rate):
         self.red_sensor = IDPLightSensor('red_light_sensor', sampling_rate)
-        self.green_sensor = IDPLightSensor('red_light_sensor', sampling_rate)
+        self.green_sensor = IDPLightSensor('green_light_sensor', sampling_rate)
 
     def get_color(self):
         """Returns the color from the color sensors
