@@ -43,6 +43,11 @@ class IDPRobot(Robot):
     def __init__(self):
         super().__init__()
 
+        # TODO - Remove these
+        self.length = 0.2
+        self.width = 0.1
+        self.wheel_radius = 0.04
+
         # Motion properties, derived experimentally, speeds are when drive = 1
         self.max_possible_speed = {"f": 1.0, "r": 11.2}  # THESE MUST BE ACCURATE, else things get  w e i r d
         self.default_max_allowed_speed = {"f": 1.0, "r": 5.0}
@@ -96,7 +101,7 @@ class IDPRobot(Robot):
 
         # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
         hold_time = 0.5  # s
-        self.target_distance_threshold = 0.01
+        self.target_distance_threshold = 0.02
         self.linear_speed_threshold = self.target_distance_threshold / hold_time
         self.target_bearing_threshold = np.pi / 180
         self.angular_speed_threshold = self.target_bearing_threshold / hold_time
@@ -112,7 +117,8 @@ class IDPRobot(Robot):
         # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers due to noise in acceleration
         self.pid_f_velocity = PID("Forward Velocity", self.getTime, 0.1, 0, 0, self.timestep_actual)
         self.pid_distance = PID("Distance", self.getTime, 2, 0, 0, self.timestep_actual)
-        self.pid_angle = PID("Angle", self.getTime, 2.5, 0, 0.10, self.timestep_actual,
+        self.pid_angle = PID("Angle", self.getTime, 2.5, 1.0, 0.10, self.timestep_actual, integral_wind_up_speed=2,
+                             integral_delay_time=1, integral_active_error_band=np.pi/4,
                              derivative_weight_decay_half_life=0.05)
 
         motor_graph_styles = {"distance": 'k-', "angle": 'r-', "forward_speed": 'k--', "rotation_speed": 'r--',
@@ -484,7 +490,7 @@ class IDPRobot(Robot):
         # TODO - Check colour here
 
         if self.collect_state == 2:
-            if self.rotate(rotate_angle, max_rotation_rate=1.0):
+            if self.rotate(rotate_angle):
                 self.target_cache.remove_target(target)
                 self.collect_state = 0
                 return True
@@ -498,7 +504,7 @@ class IDPRobot(Robot):
             bool: Whether the scan is completed
         """
         if not self.targeting_handler.relocating:
-            complete = self.rotate(np.pi * 2)
+            complete = self.rotate(np.pi * 2, max_rotation_rate=1.0)
 
             distance = self.infrared.getValue()
             d_min, d_max = self.infrared.getBounds()
