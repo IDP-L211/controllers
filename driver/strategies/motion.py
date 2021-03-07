@@ -14,8 +14,8 @@ class MotionCS:
     """
 
     # Some characteristics of the robot used for motion calcs
-    max_f_speed = 0.5
-    max_r_speed = 5.3
+    max_f_speed = 1.0
+    max_r_speed = 11.2
     f_drive_speed_ratio = 1 / max_f_speed
     r_drive_speed_ratio = 1 / max_r_speed
 
