@@ -111,7 +111,7 @@ class IDPRobot(Robot):
         self.pid_f_velocity = PID("Forward Velocity", self.getTime, 0.1, 0, 0, self.timestep_actual)
         self.pid_distance = PID("Distance", self.getTime, 4, 0, 0, self.timestep_actual)
         self.pid_angle = PID("Angle", self.getTime, 0.5, 0.5, 0.26, self.timestep_actual,
-                             integral_wind_up_speed=1, integral_delay_time=3, integral_active_error_band=np.pi/2)
+                             integral_wind_up_speed=1, integral_delay_time=3, integral_active_error_band=np.pi / 2)
 
         motor_graph_styles = {"distance": 'k-', "angle": 'r-', "forward_speed": 'k--', "rotation_speed": 'r--',
                               "linear_speed": "k:", "angular_velocity": "r:", "left_motor": 'b-', "right_motor": 'y-'}
@@ -131,7 +131,7 @@ class IDPRobot(Robot):
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
         if name in ['gps', 'compass', 'wheel1', 'wheel2', 'ultrasonic_left',
-                    'ultrasonic_right', 'infrared']:
+                    'ultrasonic_right', 'infrared', "red_light_sensor", "green_light_sensor"]:
             raise RuntimeError('Please use the corresponding properties instead')
         return Robot.getDevice(self, name)
 
@@ -162,7 +162,7 @@ class IDPRobot(Robot):
         Returns:
             float: Angular velocity, rad/s
         """
-        return -self.angle_from_bot_from_bearing(self.last_bearing) / self.timestep_actual\
+        return -self.angle_from_bot_from_bearing(self.last_bearing) / self.timestep_actual \
             if self.last_bearing is not None else 0
 
     @property
@@ -495,7 +495,8 @@ class IDPRobot(Robot):
                     # TODO check target not the other robot
 
                 if self.get_best_target() is None:
-                    self.targeting_handler.next_scan_position = self.targeting_handler.get_fallback_scan_position(self.infrared.max_range)
+                    self.targeting_handler.next_scan_position = self.targeting_handler.get_fallback_scan_position(
+                        self.infrared.max_range)
                     self.targeting_handler.relocating = True
 
                     # TODO too many scans, probably has collected all the targets, return home
