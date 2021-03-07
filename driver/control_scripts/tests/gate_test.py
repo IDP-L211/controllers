@@ -9,9 +9,9 @@ def main(robot):
     while robot.step(timestep) != -1:
 
         if gate_close:
-            robot.gate.open()
-        else:
-            robot.gate.close()
+            print(robot.gate.close())
+            gate_close = not gate_close
+
 
         '''else:
             robot.close_gate

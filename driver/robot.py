@@ -55,10 +55,11 @@ class IDPRobot(Robot):
         self.ultrasonic_left = IDPDistanceSensor('ultrasonic_left', self.timestep)
         self.ultrasonic_right = IDPDistanceSensor('ultrasonic_right', self.timestep)
         self.infrared = IDPDistanceSensor('infrared', self.timestep,
-                                         decreasing=True, min_range=0.15)
+                                          decreasing=True, min_range=0.15)
         self.motors = IDPMotorController('wheel1', 'wheel2')
 
-        self.gate = IDPGate('gate')
+        self.gate = IDPGate('gate', "position_sensor", self.timestep)
+
 
         # To store and process detections
         self.object_detection_handler = ObjectDetectionHandler()
