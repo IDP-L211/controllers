@@ -603,3 +603,17 @@ class IDPRobot(Robot):
         )
 
         return object_list[0] if len(object_list) > 0 else None
+
+    def get_color(self):
+        """Returns the color from the color sensors
+
+        Returns:
+            string: color of the block or none
+        """
+        color = 'none'
+        if self.red_light_sensor.getValue() > 0:
+            color = 'red'
+        elif self.green_light_sensor.getValue() > 0:
+            color = 'green'
+
+        return color
