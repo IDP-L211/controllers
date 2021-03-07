@@ -1,4 +1,4 @@
-# Test script for drive_to_pos
+# Test script for colour detection
 
 def main(robot):
     timestep = int(robot.getBasicTimeStep())
