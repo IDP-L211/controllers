@@ -48,7 +48,7 @@ class DataRecorder:
 
 class PID:
     def __init__(self, quantity, timer_func, k_p=0, k_i=0, k_d=0, time_step=None, integral_wind_up_speed=None,
-                 integral_delay_time=0, integral_active_error_band=np.inf):
+                 integral_delay_time=0, integral_active_error_band=np.inf, derivative_weight_decay_half_life=None):
         self.quantity = quantity
 
         self.k_p = k_p
@@ -56,8 +56,17 @@ class PID:
         self.k_d = k_d
 
         self.cum_error = 0
+
+        # This helps stabilise the derivative error
+        self.d_weight_decay_half_life = derivative_weight_decay_half_life
+        if derivative_weight_decay_half_life is not None:
+            num_weights = int(3.32 * derivative_weight_decay_half_life / time_step)  # Last weight is 10% of first
+            weight_decay_constant = derivative_weight_decay_half_life / time_step
+            raw_weights = np.array([2 ** (-i / weight_decay_constant) for i in range(num_weights)])
+            self.e_weights = raw_weights / sum(raw_weights)
+        else:
+            self.e_weights = [1]
         self.e_history = []  # Record the last set of errors for derivative calc
-        self.e_weights = [0.434, 0.260, 0.156, 0.094, 0.056]  # This helps stabilise the derivative error
 
         self.i_wind_up_speed = integral_wind_up_speed
         self.i_delay_time = integral_delay_time
@@ -122,8 +131,9 @@ class PID:
         title = f"""{self.quantity} PID\n{f" K_p={self.k_p} " if self.k_p != 0 else ""}\
 {f" K_i={self.k_i} " if self.k_i != 0 else ""}{f" K_d={self.k_d} " if self.k_d != 0 else ""}\
 {f" i_windup={self.i_wind_up_speed} " if self.i_wind_up_speed is not None else ""}\
-{f" i_delay={self.i_delay_time} " if self.i_delay_time is not 0 else ""}\
-{f" i_active_error_band={self.i_active_error_band} " if self.i_active_error_band is not np.inf else ""}"""
+{f" i_delay={self.i_delay_time} " if self.i_delay_time != 0 else ""}\
+{f" i_active_error_band={self.i_active_error_band} " if self.i_active_error_band != np.inf else ""}\
+{f" d_weight_decay_half_life={self.i_active_error_band} " if self.d_weight_decay_half_life is not None else ""}"""
 
         if not args:
             plot_args = ["output", "error"] + (["p"] * bool(self.k_p)) + (["cumulative_error", "i"] * bool(self.k_i))\

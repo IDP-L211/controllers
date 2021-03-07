@@ -6,6 +6,8 @@
 
 import numpy as np
 
+tau = np.pi * 2
+
 
 class MotionCS:
     """
@@ -14,8 +16,8 @@ class MotionCS:
     """
 
     # Some characteristics of the robot used for motion calcs
-    max_f_speed = 0.5
-    max_r_speed = 5.3
+    max_f_speed = 1.0
+    max_r_speed = 11.2
     f_drive_speed_ratio = 1 / max_f_speed
     r_drive_speed_ratio = 1 / max_r_speed
 
@@ -95,7 +97,7 @@ class MotionCS:
 
         # Attenuate speeds and distance based on angle so robot doesn't zoom off when not facing target
         if angle_attenuation and angle is not None:
-            attenuation_factor = (np.cos(angle) ** 5) if abs(angle) <= np.pi / 2 else 0
+            attenuation_factor = (np.cos(angle) ** 5) if abs(angle) <= tau / 4 else 0
             distance *= attenuation_factor
             required_distance *= attenuation_factor
             req_forward_speed *= attenuation_factor

@@ -16,9 +16,6 @@ class IDPMotor(Motor):
 
 class IDPMotorController:
 
-    max_speed = {"f": 0.5, "r": 5.3}
-    max_acc = {"f": 5.0, "r": 2.5}
-
     def __init__(self, left_motor_name: str, right_motor_name: str, robot):
         self.robot = robot
         self.left_motor = IDPMotor(left_motor_name)
@@ -28,7 +25,7 @@ class IDPMotorController:
 
     @property
     def velocities(self):
-        return np.array([self.right_motor.getVelocity(), self.left_motor.getVelocity()]) / self.max_motor_speed
+        return np.array([self.left_motor.getVelocity(), self.right_motor.getVelocity()]) / self.max_motor_speed
 
     @velocities.setter
     def velocities(self, drive_fractions: np.array):
@@ -47,12 +44,12 @@ class IDPMotorController:
 
         # Process them to limit motor velocity changes
         def limit_velocity_change(drive, speed_type):
-            speed = drive * self.max_speed[speed_type]
-            max_speed = self.last_speed[speed_type] + (self.max_acc[speed_type] * self.robot.timestep_actual)
-            min_speed = self.last_speed[speed_type] - (self.max_acc[speed_type] * self.robot.timestep_actual)
+            speed = drive * self.robot.max_possible_speed[speed_type]
+            max_speed = self.last_speed[speed_type] + (self.robot.max_acc[speed_type] * self.robot.timestep_actual)
+            min_speed = self.last_speed[speed_type] - (self.robot.max_acc[speed_type] * self.robot.timestep_actual)
             speed = max(min(speed, max_speed), min_speed)
             self.last_speed[speed_type] = speed
-            return speed / self.max_speed[speed_type]
+            return speed / self.robot.max_possible_speed[speed_type]
         f_drive = limit_velocity_change(f_speed, "f")
         r_drive = limit_velocity_change(r_speed, "r")
 
@@ -60,5 +57,5 @@ class IDPMotorController:
         values = np.array([f_drive + r_drive, f_drive - r_drive]) * self.max_motor_speed
 
         # TODO - Put these back when model changes
-        self.left_motor.setVelocity(values[1])
-        self.right_motor.setVelocity(values[0])
+        self.left_motor.setVelocity(values[0])
+        self.right_motor.setVelocity(values[1])
