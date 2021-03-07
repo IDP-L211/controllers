@@ -30,7 +30,6 @@ class IDPRobot(Robot):
     Attributes:
         compass (IDPCompass): The compass
         gps (IDPGPS): The GPS
-        length (float): Length of the robot, parallel to the axis running back-to-front, in meters
         motors (IDPMotorController): The two motors
         target_bearing_threshold (float): Threshold determining whether the target bearing is reached
         target_distance_threshold (float): Threshold determining whether the target coordinate is reached
@@ -44,11 +43,6 @@ class IDPRobot(Robot):
 
     def __init__(self):
         super().__init__()
-
-        # TODO - Remove these
-        self.length = 0.2
-        self.width = 0.1
-        self.wheel_radius = 0.04
 
         # Motion properties, derived experimentally, speeds are when drive = 1
         self.max_possible_speed = {"f": 1.0, "r": 11.2}  # THESE MUST BE ACCURATE, else things get  w e i r d
@@ -274,12 +268,10 @@ class IDPRobot(Robot):
             [np.ndarray]: List of coordinates
         """
 
-        center_to_corner = np.array([self.width, self.length]) / 2
-
-        center_to_topleft = center_to_corner * np.array([-1, 1])
-        center_to_topright = center_to_corner
-        center_to_bottomright = center_to_corner * np.array([1, -1])
-        center_to_bottomleft = -center_to_corner
+        center_to_topleft = np.array([-0.1, 0.225])
+        center_to_topright = np.array([0.175, 0.225])
+        center_to_bottomright = np.array([0.175, -0.12])
+        center_to_bottomleft = np.array([-0.1, -0.12])
 
         center_to_corners = [center_to_topleft, center_to_topright,
                              center_to_bottomright, center_to_bottomleft]
