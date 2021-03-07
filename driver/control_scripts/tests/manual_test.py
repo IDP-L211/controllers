@@ -17,7 +17,7 @@ def main(robot):
 
         if robot.time <= 5:
             speed = final_speed * min(1.0, robot.time / ramp_up_time)
-            motor_velocities = np.array([-speed, speed])
+            motor_velocities = np.array([speed, -speed])
         else:
             motor_velocities = np.zeros(2)
 

@@ -33,5 +33,5 @@ if __name__ == '__main__':
     # sensor_bounds_ir_test(robot)
     # greedy_collect(robot)
     # pid_tuning(robot)
-    # manual_test(robot)
-    greedy_collect(robot)
+    manual_test(robot)
+    # greedy_collect(robot)

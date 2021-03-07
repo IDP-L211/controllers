@@ -90,6 +90,9 @@ class IDPRobot(Robot):
         self.last_action_type = None
         self.last_action_value = None
 
+        # State for some composite actions
+        self.collect_state = 0
+
         # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
         hold_time = 0.5  # s
         self.target_distance_threshold = 0.01
@@ -358,6 +361,7 @@ class IDPRobot(Robot):
         self.rotating = False
         self.last_action_type = None
         self.last_action_value = None
+        self.collect_state = 0
 
     def drive_to_position(self, target_pos: list, reverse=False) -> bool:
         """Go to a position
@@ -439,7 +443,7 @@ class IDPRobot(Robot):
         return self.rotate(self.angle_from_bot_from_bearing(target_bearing))
 
     def collect_block(self, target: Target):
-        """Collect block at position
+        """Collect block at position. Ifs not elifs means we don't waste timesteps
 
         Args:
             target (Target): The target object
@@ -449,24 +453,26 @@ class IDPRobot(Robot):
         distance_from_block_to_stop = 0.2
         rotate_angle = np.pi / 2
 
-        # If not at block we need to drive to it
-        if self.distance_from_bot(target.position) - distance_from_block_to_stop >= 0:
-            self.drive_to_position(target.position)
-            return False
+        if self.collect_state == 0:
+            if self.distance_from_bot(target.position) - distance_from_block_to_stop >= 0:
+                self.drive_to_position(target.position)
+            else:
+                self.collect_state = 1
 
-        # If we're not facing the block we need to face it
-        angle = self.angle_from_bot_from_position(target.position)
-        if abs(angle) > self.target_bearing_threshold:
-            completed_rotation = self.rotate(angle)
-            if completed_rotation:
-                self.reset_action_variables()  # Just to clean up rotation stuff
-            return False
+        if self.collect_state == 1:
+            angle_to_block = self.angle_from_bot_from_position(target.position)
+            if abs(angle_to_block) > 0.2:
+                self.rotate(angle_to_block)
+            else:
+                self.collect_state = 2
 
-        # If we're facing target and at it we can rotate
-        finished = self.rotate(rotate_angle)
-        if finished:
-            self.target_cache.remove_target(target)
-        return finished
+        if self.collect_state == 2:
+            if self.rotate(rotate_angle):
+                self.target_cache.remove_target(target)
+                self.collect_state = 0
+                return True
+
+        return False
 
     def scan(self) -> bool:
         """Rotate 360 degrees to scan for blocks
