@@ -1,10 +1,5 @@
 # Greedy collect algorithm for robot
 
-import numpy as np
-
-
-TAU = np.pi * 2  # Tau > pi
-
 
 def main(robot):
 

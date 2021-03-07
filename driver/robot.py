@@ -21,6 +21,7 @@ from misc.pid import PID, DataRecorder
 from misc.targeting import TargetingHandler, Target, TargetCache
 
 DEBUG = False
+tau = np.pi * 2
 
 
 class IDPRobot(Robot):
@@ -44,10 +45,17 @@ class IDPRobot(Robot):
     def __init__(self):
         super().__init__()
 
-        # note the sensors are assumed to be at the centre of the robot, and the robot is assumed symmetrical
+        # TODO - Remove these
         self.length = 0.2
         self.width = 0.1
         self.wheel_radius = 0.04
+
+        # Motion properties, derived experimentally, speeds are when drive = 1
+        self.max_possible_speed = {"f": 1.0, "r": 11.2}  # THESE MUST BE ACCURATE, else things get  w e i r d
+        self.default_max_allowed_speed = {"f": 1.0, "r": 5.0}
+        self.max_acc = {"f": 5.0, "r": 40.0}  # These are tunable if the robot is slipping or gripping more than expected
+
+        # note the sensors are assumed to be at the centre of the robot, and the robot is assumed symmetrical
         self.color = self.getName()
         if self.color not in ['red', 'green']:
             raise Exception('Name the robot either red or green')
@@ -65,8 +73,7 @@ class IDPRobot(Robot):
         self.compass = IDPCompass('compass', self.timestep)
         self.ultrasonic_left = IDPDistanceSensor('ultrasonic_left', self.timestep)
         self.ultrasonic_right = IDPDistanceSensor('ultrasonic_right', self.timestep)
-        self.infrared = IDPDistanceSensor('infrared', self.timestep,
-                                          decreasing=True, min_range=0.15)
+        self.infrared = IDPDistanceSensor('infrared', self.timestep, decreasing=True, min_range=0.15)
         self.motors = IDPMotorController('wheel1', 'wheel2', self)
         self.radio = IDPRadio(self.timestep)
         self.color_detector = IDPColorDetector(self.timestep)
@@ -92,11 +99,14 @@ class IDPRobot(Robot):
         self.last_action_type = None
         self.last_action_value = None
 
+        # State for some composite actions
+        self.collect_state = 0
+
         # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
         hold_time = 0.5  # s
-        self.target_distance_threshold = 0.01
+        self.target_distance_threshold = 0.02
         self.linear_speed_threshold = self.target_distance_threshold / hold_time
-        self.target_bearing_threshold = np.pi / 180
+        self.target_bearing_threshold = tau / 360
         self.angular_speed_threshold = self.target_bearing_threshold / hold_time
 
         # For rotations
@@ -109,9 +119,9 @@ class IDPRobot(Robot):
 
         # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers due to noise in acceleration
         self.pid_f_velocity = PID("Forward Velocity", self.getTime, 0.1, 0, 0, self.timestep_actual)
-        self.pid_distance = PID("Distance", self.getTime, 4, 0, 0, self.timestep_actual)
-        self.pid_angle = PID("Angle", self.getTime, 0.5, 0.5, 0.26, self.timestep_actual,
-                             integral_wind_up_speed=1, integral_delay_time=3, integral_active_error_band=np.pi / 2)
+        self.pid_distance = PID("Distance", self.getTime, 2, 0, 0, self.timestep_actual)
+        self.pid_angle = PID("Angle", self.getTime, 2.5, 0.0, 0.10, self.timestep_actual,
+                             derivative_weight_decay_half_life=0.05)
 
         motor_graph_styles = {"distance": 'k-', "angle": 'r-', "forward_speed": 'k--', "rotation_speed": 'r--',
                               "linear_speed": "k:", "angular_velocity": "r:", "left_motor": 'b-', "right_motor": 'y-'}
@@ -176,7 +186,7 @@ class IDPRobot(Robot):
         if np.isnan([north[0], north[2]]).any():
             raise RuntimeError('No data from Compass, make sure "xAxis" and "yAxis" are set to TRUE')
         rad = np.arctan2(north[0], north[2])  # [-pi, pi]
-        return rad + 2 * np.pi if rad < 0 else rad
+        return rad + tau if rad < 0 else rad
 
     def distance_from_bot(self, position) -> float:
         """The Euclidean distance between the bot and a position
@@ -203,10 +213,10 @@ class IDPRobot(Robot):
         angle = bearing - self.bearing
 
         # Need to adjust if outside [-pi,pi]
-        if angle > np.pi:
-            angle -= 2 * np.pi
-        elif angle < -np.pi:
-            angle += 2 * np.pi
+        if angle > tau / 2:
+            angle -= tau
+        elif angle < -(tau / 2):
+            angle += tau
 
         return angle
 
@@ -360,16 +370,25 @@ class IDPRobot(Robot):
         self.rotating = False
         self.last_action_type = None
         self.last_action_value = None
+        self.collect_state = 0
 
-    def drive_to_position(self, target_pos: list, reverse=False) -> bool:
+    def drive_to_position(self, target_pos: list, max_forward_speed=None, max_rotation_rate=None,
+                          reverse=False) -> bool:
         """Go to a position
 
         Args:
             target_pos ([float, float]): The East-North co-ords of the target position
+            max_forward_speed (float): Maximum speed to travel at m/s
+            max_rotation_rate (float): Maximum rate to rotate at, rad/s
             reverse (bool): Whether to reverse there
         Returns:
             bool: If we are at our target
         """
+        max_rotation_rate = self.default_max_allowed_speed["r"] if max_rotation_rate is None else max_rotation_rate
+        max_rotation_drive = max_rotation_rate / self.max_possible_speed["r"]
+
+        max_forward_speed = self.default_max_allowed_speed["f"] if max_forward_speed is None else max_forward_speed
+        max_forward_drive = max_forward_speed / self.max_possible_speed["f"]
 
         distance = self.distance_from_bot(target_pos)
         angle = self.angle_from_bot_from_position(target_pos)
@@ -379,11 +398,13 @@ class IDPRobot(Robot):
 
         # If we're reversing we change the angle so it mimics the bot facing the opposite way
         # When we apply the wheel velocities we negative them and voila we tricked the bot into reversing
-        angle = (np.sign(angle) * np.pi) - angle if reverse else angle
+        angle = (np.sign(angle) * (tau / 2)) - angle if reverse else angle
 
-        forward_speed = MotionCS.linear_dual_pid(distance=distance, distance_pid=self.pid_distance, angle=angle,
-                                                 forward_speed=self.linear_speed, forward_speed_pid=self.pid_f_velocity)
-        rotation_speed = self.pid_angle.step(angle)
+        forward_speed = min(MotionCS.linear_dual_pid(distance=distance, distance_pid=self.pid_distance, angle=angle,
+                                                     forward_speed=self.linear_speed,
+                                                     forward_speed_pid=self.pid_f_velocity), max_forward_drive)
+        r_speed = self.pid_angle.step(angle)
+        rotation_speed = sorted([r_speed, np.sign(r_speed) * max_rotation_drive], key=lambda x: abs(x))[0]
         raw_velocities = MotionCS.combine_and_scale(forward_speed, rotation_speed)
         self.motors.velocities = raw_velocities if not reverse else -raw_velocities
         self.update_motion_history(time=self.time, distance=distance, angle=angle, forward_speed=forward_speed,
@@ -401,14 +422,17 @@ class IDPRobot(Robot):
         """
         return self.drive_to_position(target_pos, reverse=True)
 
-    def rotate(self, angle: float) -> bool:
+    def rotate(self, angle: float, max_rotation_rate=None) -> bool:
         """Rotate the bot a fixed angle at a fixed rate of rotation
 
         Args:
             angle (float): Angle to rotate in radians, positive is clockwise
+            max_rotation_rate (float): Maximum rate to rotate at, rad/s
         Returns:
             bool: If we completed rotation
         """
+        max_rotation_rate = self.default_max_allowed_speed["r"] if max_rotation_rate is None else max_rotation_rate
+        max_rotation_drive = max_rotation_rate / self.max_possible_speed["r"]
 
         # Check if it's a new rotation and update how far we've rotated
         self.rotation_angle = self.rotation_angle if self.rotating else angle
@@ -424,7 +448,8 @@ class IDPRobot(Robot):
             self.rotating = False
             return True
 
-        rotation_speed = self.pid_angle.step(angle_difference)
+        r_speed = self.pid_angle.step(angle_difference)
+        rotation_speed = sorted([r_speed, np.sign(r_speed) * max_rotation_drive], key=lambda x: abs(x))[0]
         self.motors.velocities = MotionCS.combine_and_scale(0, rotation_speed)
         self.update_motion_history(time=self.time, angle=angle_difference, rotation_speed=rotation_speed,
                                    linear_speed=self.linear_speed, angular_velocity=self.angular_velocity)
@@ -441,34 +466,40 @@ class IDPRobot(Robot):
         return self.rotate(self.angle_from_bot_from_bearing(target_bearing))
 
     def collect_block(self, target: Target):
-        """Collect block at position
+        """Collect block at position.
 
         Args:
             target (Target): The target object
         Returns:
             bool: If we are at our target
         """
-        distance_from_block_to_stop = 0.2
-        rotate_angle = np.pi / 2
+        distance_from_block_to_stop = 0.15  # TODO - Update this
+        rotate_angle = -tau / 4  # TODO - Make sure this is correct direction and angle
 
-        # If not at block we need to drive to it
-        if self.distance_from_bot(target.position) - distance_from_block_to_stop >= 0:
-            self.drive_to_position(target.position)
-            return False
+        # Ifs not elifs means we don't waste timesteps if the state changes
 
-        # If we're not facing the block we need to face it
-        angle = self.angle_from_bot_from_position(target.position)
-        if abs(angle) > self.target_bearing_threshold:
-            completed_rotation = self.rotate(angle)
-            if completed_rotation:
-                self.reset_action_variables()  # Just to clean up rotation stuff
-            return False
+        if self.collect_state == 0:
+            if self.distance_from_bot(target.position) - distance_from_block_to_stop >= 0:
+                self.drive_to_position(target.position)
+            else:
+                self.collect_state = 1
 
-        # If we're facing target and at it we can rotate
-        finished = self.rotate(rotate_angle)
-        if finished:
-            self.target_cache.remove_target(target)
-        return finished
+        if self.collect_state == 1:
+            angle_to_block = self.angle_from_bot_from_position(target.position)
+            if abs(angle_to_block) > 0.2:
+                self.rotate(angle_to_block)
+            else:
+                self.collect_state = 2
+
+        # TODO - Check colour here
+
+        if self.collect_state == 2:
+            if self.rotate(rotate_angle):
+                self.target_cache.remove_target(target)
+                self.collect_state = 0
+                return True
+
+        return False
 
     def scan(self) -> bool:
         """Rotate 360 degrees to scan for blocks
@@ -477,7 +508,7 @@ class IDPRobot(Robot):
             bool: Whether the scan is completed
         """
         if not self.targeting_handler.relocating:
-            complete = self.rotate(np.pi * 2)
+            complete = self.rotate(tau, max_rotation_rate=1.0)
 
             distance = self.infrared.getValue()
             d_min, d_max = self.infrared.getBounds()
