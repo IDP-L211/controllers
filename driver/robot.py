@@ -38,8 +38,7 @@ class IDPRobot(Robot):
         ultrasonic_left (IDPDistanceSensor): The ultrasonic sensor on the left
         ultrasonic_right (IDPDistanceSensor): The ultrasonic sensor on the right
         infrared (IDPDistanceSensor): The IR sensor (long range)
-        red_light_sensor (IDPLightSensor): The light sensor (red filter)
-        green_light_sensor (IDPLightSensor): The IR sensor (green filter)
+        color_detector (IDPColorDetector): The colour detector, containing two light sensors with red and green filters
         width (float): Width of the robot, perpendicular to the axis running back-to-front
     """
 
