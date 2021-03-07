@@ -10,7 +10,6 @@ from controller import Robot
 import numpy as np
 
 from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor, IDPColorDetector
-
 from devices.motors import IDPMotorController
 from devices.radio import IDPRadio
 
