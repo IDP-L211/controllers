@@ -49,7 +49,7 @@ def manual(robot):
 
     # Actions for our robot
     action_queue = [
-        ("move", [-0.5, 0])
+        ("move", [0.5, 0])
     ]
 
     robot.action_queue = action_queue

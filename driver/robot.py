@@ -96,7 +96,7 @@ class IDPRobot(Robot):
 
         # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
         hold_time = 0.5  # s
-        self.target_distance_threshold = 0.05
+        self.target_distance_threshold = 0.01
         self.linear_speed_threshold = self.target_distance_threshold / hold_time
         self.target_bearing_threshold = np.pi / 180
         self.angular_speed_threshold = self.target_bearing_threshold / hold_time
@@ -111,9 +111,9 @@ class IDPRobot(Robot):
 
         # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers due to noise in acceleration
         self.pid_f_velocity = PID("Forward Velocity", self.getTime, 0.1, 0, 0, self.timestep_actual)
-        self.pid_distance = PID("Distance", self.getTime, 4, 0, 0, self.timestep_actual)
-        self.pid_angle = PID("Angle", self.getTime, 0.5, 0.5, 0.26, self.timestep_actual,
-                             integral_wind_up_speed=1, integral_delay_time=3, integral_active_error_band=np.pi/2)
+        self.pid_distance = PID("Distance", self.getTime, 2, 0, 0, self.timestep_actual)
+        self.pid_angle = PID("Angle", self.getTime, 2.5, 0, 0.10, self.timestep_actual,
+                             derivative_weight_decay_half_life=0.05)
 
         motor_graph_styles = {"distance": 'k-', "angle": 'r-', "forward_speed": 'k--', "rotation_speed": 'r--',
                               "linear_speed": "k:", "angular_velocity": "r:", "left_motor": 'b-', "right_motor": 'y-'}
@@ -440,7 +440,7 @@ class IDPRobot(Robot):
             self.rotating = False
             return True
 
-        r_speed = self.pid_angle.step(angle)
+        r_speed = self.pid_angle.step(angle_difference)
         rotation_speed = sorted([r_speed, np.sign(r_speed) * max_rotation_drive], key=lambda x: abs(x))[0]
         self.motors.velocities = MotionCS.combine_and_scale(0, rotation_speed)
         self.update_motion_history(time=self.time, angle=angle_difference, rotation_speed=rotation_speed,
@@ -484,7 +484,7 @@ class IDPRobot(Robot):
         # TODO - Check colour here
 
         if self.collect_state == 2:
-            if self.rotate(rotate_angle):
+            if self.rotate(rotate_angle, max_rotation_rate=1.0):
                 self.target_cache.remove_target(target)
                 self.collect_state = 0
                 return True
