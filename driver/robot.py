@@ -9,7 +9,7 @@ from typing import Union
 from controller import Robot
 import numpy as np
 
-from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor
+from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor, IDPColorDetector
 from devices.motors import IDPMotorController
 from devices.radio import IDPRadio
 
@@ -38,6 +38,7 @@ class IDPRobot(Robot):
         ultrasonic_left (IDPDistanceSensor): The ultrasonic sensor on the left
         ultrasonic_right (IDPDistanceSensor): The ultrasonic sensor on the right
         infrared (IDPDistanceSensor): The IR sensor (long range)
+        color_detector (IDPColorDetector): The colour detector, containing two light sensors with red and green filters
         width (float): Width of the robot, perpendicular to the axis running back-to-front
     """
 
@@ -75,6 +76,7 @@ class IDPRobot(Robot):
         self.infrared = IDPDistanceSensor('infrared', self.timestep, decreasing=True, min_range=0.15)
         self.motors = IDPMotorController('wheel1', 'wheel2', self)
         self.radio = IDPRadio(self.timestep)
+        self.color_detector = IDPColorDetector(self.timestep)
 
         # To store and process detections
         self.targeting_handler = TargetingHandler()
@@ -139,7 +141,7 @@ class IDPRobot(Robot):
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
         if name in ['gps', 'compass', 'wheel1', 'wheel2', 'ultrasonic_left',
-                    'ultrasonic_right', 'infrared']:
+                    'ultrasonic_right', 'infrared', "red_light_sensor", "green_light_sensor"]:
             raise RuntimeError('Please use the corresponding properties instead')
         return Robot.getDevice(self, name)
 
@@ -170,7 +172,7 @@ class IDPRobot(Robot):
         Returns:
             float: Angular velocity, rad/s
         """
-        return -self.angle_from_bot_from_bearing(self.last_bearing) / self.timestep_actual\
+        return -self.angle_from_bot_from_bearing(self.last_bearing) / self.timestep_actual \
             if self.last_bearing is not None else 0
 
     @property
@@ -524,7 +526,8 @@ class IDPRobot(Robot):
                     # TODO check target not the other robot
 
                 if self.get_best_target() is None:
-                    self.targeting_handler.next_scan_position = self.targeting_handler.get_fallback_scan_position(self.infrared.max_range)
+                    self.targeting_handler.next_scan_position = self.targeting_handler.get_fallback_scan_position(
+                        self.infrared.max_range)
                     self.targeting_handler.relocating = True
 
                     # TODO too many scans, probably has collected all the targets, return home
