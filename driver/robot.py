@@ -132,8 +132,7 @@ class IDPRobot(Robot):
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
         if name in ['gps', 'compass', 'wheel1', 'wheel2', 'ultrasonic_left',
-                    'ultrasonic_right', 'infrared', 'red_light_sensor',
-                    'green_light_sensor']:
+                    'ultrasonic_right', 'infrared']:
             raise RuntimeError('Please use the corresponding properties instead')
         return Robot.getDevice(self, name)
 
