@@ -3,12 +3,16 @@
 # SPDX-License-Identifier: MIT
 """Class file for detected objects handler"""
 
-from typing import Union
+from typing import Union, Callable
 from itertools import starmap
 from collections import defaultdict
+from functools import partial
+from operator import attrgetter
 
 import numpy as np
 from sklearn.cluster import DBSCAN
+
+from geometry import get_path_rectangle, point_in_rectangle
 
 
 class TargetingHandler:
@@ -191,7 +195,7 @@ class TargetCache:
         """
         self.targets.remove(target)
 
-    def get_targets(self, valid_classes: list, key=None) -> list:
+    def get_targets(self, valid_classes: list, key: Callable = None) -> list:
         """Returns a list of object dicts based on a sorting algorithm
 
         Args:
@@ -207,7 +211,7 @@ class TargetCache:
             key=key
         )
 
-    def pop_target(self, valid_classes: list, key=None) -> Union[Target, None]:
+    def pop_target(self, valid_classes, key: Callable = None) -> Union[Target, None]:
         """Pops the best target
 
         Similar to get_targets, the targets are sorted, but only the best one is returned.
@@ -227,3 +231,21 @@ class TargetCache:
         self.remove_target(popped)
 
         return popped
+
+    def check_target_path_blocked(self, curr_target: Target, curr_position: list) -> bool:
+        check_in_path = partial(
+            point_in_rectangle,
+            get_path_rectangle(np.asarray(curr_target.position), np.asarray(curr_position))
+        )
+
+        return any(map(
+            check_in_path,
+            map(
+                attrgetter('position'),
+                filter(
+                    # TODO this can be potentially changed to only checking blocks of the wrong colour
+                    lambda t: t != curr_target and t.classification in ['box', 'red_box', 'green_box'],
+                    self.targets
+                )
+            )
+        ))

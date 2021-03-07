@@ -15,7 +15,8 @@ from devices.radio import IDPRadio
 
 from strategies.motion import MotionCS
 
-from misc.utils import rotate_vector, get_min_distance_rectangles, print_if_debug, ensure_list_or_tuple
+from misc.utils import print_if_debug, ensure_list_or_tuple
+from misc.geometry import rotate_vector, get_min_distance_rectangles
 from misc.mapping import Map
 from misc.pid import PID, DataRecorder
 from misc.targeting import TargetingHandler, Target, TargetCache
@@ -72,9 +73,7 @@ class IDPRobot(Robot):
         self.motors = IDPMotorController('wheel1', 'wheel2', self)
         self.radio = IDPRadio(self.timestep)
         self.color_detector = IDPColorDetector(self.timestep)
-
         self.gate = IDPGate('gate')
-
 
         # To store and process detections
         self.targeting_handler = TargetingHandler()
@@ -662,11 +661,15 @@ class IDPRobot(Robot):
         Returns:
             [float, float]: Targets co-ordinates, East-North, m
         """
-        valid_classes = ["box", f"{self.color}_box"]
-
-        object_list = self.target_cache.get_targets(
-            valid_classes=valid_classes,
-            key=lambda target: self.distance_from_bot(target.position)
+        valid_targets_sorted = self.target_cache.get_targets(
+            valid_classes=['box', 'red_box', 'green_box'],
+            key=lambda t: self.distance_from_bot(t.position)
         )
 
-        return object_list[0] if len(object_list) > 0 else None
+        for target in valid_targets_sorted:
+            if target.classification not in ['box', f'{self.color}_box'] \
+                    or self.target_cache.check_target_path_blocked(target, self.position):
+                continue  # prevents a block of different colour blocking the path to the target
+            return target
+
+        return None
