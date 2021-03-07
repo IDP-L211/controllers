@@ -31,7 +31,7 @@ class IDPGate:
         Returns:
             bool: Checks if the gate has fully opened
         """
-        self.motor.setPosition(1.57)
+        self.motor.setPosition(np.pi / 2)
 
         return abs(self.sensor.getValue() - self.motor.getTargetPosition()) < IDPGate.uncertainty
 
