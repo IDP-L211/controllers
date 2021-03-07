@@ -3,15 +3,15 @@
 def main(robot):
     # Setup
     timestep = int(robot.getBasicTimeStep())
-    gate_close = False
+    gate_close = True
 
     # Main loop, perform simulation steps until Webots is stopping the controller
     while robot.step(timestep) != -1:
 
         if gate_close:
-            robot.open_gate()
+            robot.gate.open()
         else:
-            robot.close_gate()
+            robot.gate.close()
 
         '''else:
             robot.close_gate

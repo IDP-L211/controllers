@@ -91,14 +91,6 @@ class IDPRobot(Robot):
         # For getting stuck
         self.stuck_last_step = False
 
-    def open_gate(self):
-        ''' Opens the robot gate'''
-        self.gate.setPosition(1.57)
-
-    def close_gate(self):
-        ''' Closes the robot gate'''
-        self.gate.setPosition(0)
-
     def getDevice(self, name: str):
         # here to make sure no device is retrieved this way
         if name in ['gps', 'compass', 'wheel1', 'wheel2', 'ultrasonic_left', \

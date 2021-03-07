@@ -11,6 +11,14 @@ class IDPGate(Motor):
     def __init__(self, name):
         super().__init__(name)
 
+    def open(self):
+        """Opens the robot gate"""
+        self.setPosition(1.57)
+
+    def close(self):
+        """Closes the robot gate"""
+        self.setPosition(0)
+
 class IDPMotor(Motor):
     def __init__(self, name):
         super().__init__(name)
