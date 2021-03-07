@@ -34,9 +34,9 @@ class IDPColorDetector:
             string: color of the block or none
         """
         color = None
-        if self.red_sensor.getValue() > 0 and self.green_sensor.getValue() == 0:
+        if self.red_sensor.getValue() > 0.5 and self.green_sensor.getValue() < 0.5:
             color = 'red'
-        elif self.green_sensor.getValue() > 0:
+        elif self.green_sensor.getValue() > 0.5:
             color = 'green'
 
         return color
