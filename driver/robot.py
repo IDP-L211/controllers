@@ -134,7 +134,22 @@ class IDPRobot(Robot):
         """A wrapper for the step call that allows us to keep our last bearing and keep track of time"""
         self.last_bearing = self.bearing if self.time != 0 else None
         self.time += self.timestep_actual
-        return super().step(timestep)
+        returned = super().step(timestep)
+
+        for t in self.target_cache.targets:
+            self.map.plot_coordinate(
+                t.position,
+                style='o' if t.classification in ['box', f'{self.color}_box'] else 's'
+            )
+
+        self.radio.send_message({
+            'position': self.position,
+            'bearing': self.bearing
+        })
+
+        self.map.update()
+
+        return returned
 
     def getTime(self):
         """This function is used by PIDs to see what the current robot time is for accurate data recording"""
