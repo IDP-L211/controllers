@@ -279,12 +279,24 @@ class TargetCache:
         ))
 
     def prepare_collected_message(self) -> list:
+        """Prepare a list of positions where blocks were collected
+
+        This is used to prepare the message to the other robot.
+
+        Returns:
+            list: List of coordinates (as lists instead of np.ndarray)
+        """
         return list(map(
             list,
             map(attrgetter('position'), self.collected)
         ))
 
     def remove_collected_by_other(self, collected: Union[list, None]) -> None:
+        """Remove the targets already collected by the other robot
+
+        Args:
+            collected (list, None): List of coordinates where the blocks were collected
+        """
         if collected is None:
             return
 
