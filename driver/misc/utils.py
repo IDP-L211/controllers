@@ -16,8 +16,8 @@ def fire_and_forget(function, *args, **kwargs):
     Function MUST be accessible from main scope (not nested in another function). It can be a class method"""
     process = Process(target=function, args=args, kwargs=kwargs)
     process.start()
-    
-    
+
+
 def print_if_debug(*args, debug_flag=True):
     if debug_flag:
         print(*args)

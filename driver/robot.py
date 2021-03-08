@@ -21,7 +21,7 @@ from misc.mapping import Map
 from misc.pid import PID, DataRecorder
 from misc.targeting import TargetingHandler, Target, TargetCache
 
-DEBUG = True
+DEBUG = False
 tau = np.pi * 2
 
 
