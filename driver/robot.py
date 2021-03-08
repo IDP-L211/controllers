@@ -15,7 +15,8 @@ from devices.radio import IDPRadio
 
 from strategies.motion import MotionCS
 
-from misc.utils import rotate_vector, get_min_distance_rectangles, print_if_debug, ensure_list_or_tuple
+from misc.utils import print_if_debug, ensure_list_or_tuple
+from misc.geometry import rotate_vector, get_min_distance_rectangles
 from misc.mapping import Map
 from misc.pid import PID, DataRecorder
 from misc.targeting import TargetingHandler, Target, TargetCache
@@ -30,7 +31,6 @@ class IDPRobot(Robot):
     Attributes:
         compass (IDPCompass): The compass
         gps (IDPGPS): The GPS
-        length (float): Length of the robot, parallel to the axis running back-to-front, in meters
         motors (IDPMotorController): The two motors
         target_bearing_threshold (float): Threshold determining whether the target bearing is reached
         target_distance_threshold (float): Threshold determining whether the target coordinate is reached
@@ -39,21 +39,16 @@ class IDPRobot(Robot):
         ultrasonic_right (IDPDistanceSensor): The ultrasonic sensor on the right
         infrared (IDPDistanceSensor): The IR sensor (long range)
         color_detector (IDPColorDetector): The colour detector, containing two light sensors with red and green filters
-        width (float): Width of the robot, perpendicular to the axis running back-to-front
     """
 
     def __init__(self):
         super().__init__()
 
-        # TODO - Remove these
-        self.length = 0.2
-        self.width = 0.1
-        self.wheel_radius = 0.04
-
         # Motion properties, derived experimentally, speeds are when drive = 1
         self.max_possible_speed = {"f": 1.0, "r": 11.2}  # THESE MUST BE ACCURATE, else things get  w e i r d
-        self.default_max_allowed_speed = {"f": 0.5, "r": 5.0}
-        self.max_acc = {"f": 5.0, "r": 40.0}  # These are tunable if the robot is slipping or gripping more than expected
+        self.default_max_allowed_speed = {"f": 1.0, "r": 5.0}
+        self.max_acc = {"f": 5.0, "r": 40.0}
+        # These are tunable if the robot is slipping or gripping more than expected
 
         # note the sensors are assumed to be at the centre of the robot, and the robot is assumed symmetrical
         self.color = self.getName()
@@ -78,9 +73,10 @@ class IDPRobot(Robot):
         self.motors = IDPMotorController('wheel1', 'wheel2', self)
         self.radio = IDPRadio(self.timestep)
         self.color_detector = IDPColorDetector(self.timestep)
-
         self.gate = IDPGate('gate')
+        self.map = Map(self, self.infrared, self.arena_length, 'map')
 
+        self.distance_sensor_offset = 0.075
 
         # To store and process detections
         self.targeting_handler = TargetingHandler()
@@ -95,6 +91,7 @@ class IDPRobot(Robot):
             "face": self.face_bearing,
             "rotate": self.rotate,
             "reverse": self.reverse_to_position,
+            "break": self.brake,
             "collect": self.collect_block,
             "scan": self.scan
         }
@@ -106,7 +103,6 @@ class IDPRobot(Robot):
         # State for some composite actions
         self.collect_state = 0
         self.stored_time = 0
-        self.num_collected = 0
 
         # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
         hold_time = 0.5  # s
@@ -135,10 +131,39 @@ class IDPRobot(Robot):
                                            "right_motor", "linear_speed", "angular_velocity", styles=motor_graph_styles)
 
     def step(self, timestep):
-        """A wrapper for the step call that allows us to keep our last bearing and keep track of time"""
+        """A wrapper for the step call that allows us to keep our last bearing and keep track of time. Furthermore,
+        tasks that needs to be ran every timestep are also put here.
+        """
         self.last_bearing = self.bearing if self.time != 0 else None
         self.time += self.timestep_actual
-        return super().step(timestep)
+        returned = super().step(timestep)
+
+        self.collision_avoidance()  # passive collision avoidance
+
+        self.radio.send_message({
+            'position': self.position,
+            'bearing': self.bearing,
+            'vertices': list(map(list, self.get_bot_vertices())),
+            'collected': self.target_cache.prepare_collected_message()
+        })  # also sending 'confirmed': (pos, color) if a block should be collected by the other robot
+        self.radio.dispatch_message()  # TODO ideally this should be send at the end of the timestep
+
+        # remove targets already collected by the other robot
+        self.target_cache.remove_collected_by_other(self.radio.get_other_bot_collected())
+
+        # add target confirmed by the other robot
+        if confirmed_pos_color := self.radio.get_message().get('confirmed'):
+            self.target_cache.add_target(confirmed_pos_color[0], f'{confirmed_pos_color[1]}_box')
+
+        # update the map
+        for t in self.target_cache.targets:  # plotting target markers
+            self.map.plot_coordinate(
+                t.position,
+                style='o' if t.classification in ['box', f'{self.color}_box'] else 's'
+            )
+        self.map.update()
+
+        return returned
 
     def getTime(self):
         """This function is used by PIDs to see what the current robot time is for accurate data recording"""
@@ -274,12 +299,10 @@ class IDPRobot(Robot):
             [np.ndarray]: List of coordinates
         """
 
-        center_to_corner = np.array([self.width, self.length]) / 2
-
-        center_to_topleft = center_to_corner * np.array([-1, 1])
-        center_to_topright = center_to_corner
-        center_to_bottomright = center_to_corner * np.array([1, -1])
-        center_to_bottomleft = -center_to_corner
+        center_to_topleft = np.array([-0.1, 0.225])
+        center_to_topright = np.array([0.175, 0.225])
+        center_to_bottomright = np.array([0.175, -0.12])
+        center_to_bottomleft = np.array([-0.1, -0.12])
 
         center_to_corners = [center_to_topleft, center_to_topright,
                              center_to_bottomright, center_to_bottomleft]
@@ -345,21 +368,6 @@ class IDPRobot(Robot):
         """
         return get_min_distance_rectangles(self.get_bot_vertices(), other_bot_vertices)
 
-    def get_map(self, sensor: IDPDistanceSensor, name: str = 'map') -> Map:
-        """Get a map of the arena, on which the current position and bounding box of the robot
-        will be displayed.
-
-        This requires the robot to have a Display child node with name 'map'.
-
-        Args:
-            sensor (IDPDistanceSensor): The distance sensor used on the robot
-            name (str): Name of the Display node, default to 'map'
-
-        Returns:
-            Map: The map
-        """
-        return Map(self, sensor, self.arena_length, name)
-
     def plot_motion_history(self):
         self.motion_history.plot("time", title="Robot motor graph")
 
@@ -378,7 +386,7 @@ class IDPRobot(Robot):
         self.last_action_value = None
         self.collect_state = 0
 
-    def drive_to_position(self, target_pos: list, max_forward_speed=None, max_rotation_rate=None,
+    def drive_to_position(self, target_pos: Union[list, np.ndarray], max_forward_speed=None, max_rotation_rate=None,
                           reverse=False) -> bool:
         """Go to a position
 
@@ -418,7 +426,7 @@ class IDPRobot(Robot):
                                    angular_velocity=self.angular_velocity)
         return False
 
-    def reverse_to_position(self, target_pos: list) -> bool:
+    def reverse_to_position(self, target_pos: Union[list, np.ndarray]) -> bool:
         """Go to a position in reverse
 
         Args:
@@ -521,10 +529,13 @@ class IDPRobot(Robot):
                     self.collect_state = 4
                 else:
                     self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
+                    # should be collected by the other robot, send info to it
+                    self.radio.send_message({'confirmed': (list(target.position), color)})
                     return True
-            else:
+            else:  # not able to detect the colour, probably because the position is not accurate
                 self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
-                self.action_queue.insert(2, "scan")
+                self.action_queue.insert(2, "scan")  # rescan to check if there is actually a target there
+                # pop the current target off for now, the new scan will give better position
                 self.target_cache.remove_target(target)
                 return True
 
@@ -542,7 +553,7 @@ class IDPRobot(Robot):
             self.gate.close()
             if self.time - self.stored_time >= gate_time:
                 self.target_cache.remove_target(target)
-                self.num_collected += 1
+                self.target_cache.collected.append(target)
                 return True
 
         return False
@@ -562,14 +573,19 @@ class IDPRobot(Robot):
 
             if abs(self.get_sensor_distance_to_wall() - distance) > bound * 1.5 \
                     and abs(self.infrared.max_range - distance) > bound:
-                self.targeting_handler.positions.append(self.get_bot_front(distance))
+                self.targeting_handler.positions.append(
+                    self.get_bot_front(distance + 0.0125)  # add a bit to get the centre of the block
+                )
                 # self.targeting_handler.bounds.append(bound)
 
             if complete:
-                for target in self.targeting_handler.get_targets(self.position):
-                    self.target_cache.add_target(target)
-
-                    # TODO check target not the other robot
+                for target_pos in self.targeting_handler.get_targets(self.position):
+                    # check if target is the other robot
+                    if (other_bot_pos := self.radio.get_other_bot_position()) \
+                            and Target.check_near(target_pos, other_bot_pos, 0.3):
+                        self.target_cache.add_target(target_pos, classification='robot')
+                    else:
+                        self.target_cache.add_target(target_pos)
 
                 print_if_debug(self.target_cache.targets)
 
@@ -670,11 +686,18 @@ class IDPRobot(Robot):
         Returns:
             [float, float]: Targets co-ordinates, East-North, m
         """
-        valid_classes = ["box", f"{self.color}_box"]
-
-        object_list = self.target_cache.get_targets(
-            valid_classes=valid_classes,
-            key=lambda target: self.distance_from_bot(target.position)
+        valid_targets_sorted = self.target_cache.get_targets(
+            valid_classes=['box', 'red_box', 'green_box'],
+            key=lambda t: self.distance_from_bot(t.position)
         )
 
-        return object_list[0] if len(object_list) > 0 else None
+        for target in valid_targets_sorted:
+            if target.classification not in ['box', f'{self.color}_box'] \
+                    or self.target_cache.check_target_path_blocked(target, self.position):
+                continue  # prevents a block of different colour blocking the path to the target
+            return target
+
+        return None
+
+    def collision_avoidance(self):
+        pass

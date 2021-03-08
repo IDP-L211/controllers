@@ -5,7 +5,6 @@ def main(robot):
     timestep = int(robot.getBasicTimeStep())
     camera = robot.getDevice('camera')
     camera.enable(timestep)
-    nav_map = robot.get_map(robot.infrared)
 
     # Main loop, perform simulation steps until Webots is stopping the controller
     while robot.step(timestep) != -1:
@@ -13,4 +12,4 @@ def main(robot):
 
         print(robot.position, robot.linear_speed, robot.bearing)
         # print(camera.getImageArray())
-        nav_map.update()
+        robot.map.update()

@@ -3,12 +3,16 @@
 # SPDX-License-Identifier: MIT
 """Class file for detected objects handler"""
 
-from typing import Union
+from typing import Union, Callable
 from itertools import starmap
 from collections import defaultdict
+from functools import partial
+from operator import attrgetter
 
 import numpy as np
 from sklearn.cluster import DBSCAN
+
+from .geometry import get_path_rectangle, point_in_rectangle
 
 
 class TargetingHandler:
@@ -123,6 +127,10 @@ class Target:
     def profit(self):  # Not implemented
         return 1
 
+    @staticmethod
+    def check_near(p1: list, p2: list, threshold: float) -> bool:
+        return all(starmap(lambda rp, p: abs(rp - p) < threshold, zip(p1, p2)))
+
     def is_near(self, position: list, threshold: float = 0.1) -> bool:
         """Check if the target is close to the specified position
 
@@ -133,7 +141,7 @@ class Target:
         Returns:
             bool: Whether the target is closeby
         """
-        return all(starmap(lambda rp, p: abs(rp - p) < threshold, zip(self.position, position)))
+        return Target.check_near(self.position, position, threshold)
 
     def __repr__(self):
         return f'{self.classification} at {self.position}'
@@ -150,6 +158,7 @@ class TargetCache:
 
     def __init__(self):
         self.targets = []
+        self.collected = []
 
     def clear_targets(self):
         """Removes all detections but leaves id counter alone"""
@@ -159,6 +168,10 @@ class TargetCache:
     def num_targets(self) -> int:
         """How many objects we currently have stored"""
         return len(self.targets)
+
+    @property
+    def num_collected(self) -> int:
+        return len(self.collected)
 
     def add_target(self, position: list, classification: str = 'box') -> None:
         """Add a new detected object to the handler
@@ -178,7 +191,17 @@ class TargetCache:
 
         for t in self.targets:  # check if the same target already exist in cache
             if t.is_near(position):
-                t.classification = classification  # updates its classification
+                if t.classification == 'robot' and classification != 'robot':  # updates if it was classified as robot
+                    # unlikely the other robot is at the same position again, probably false classification last time
+                    t.classification = classification
+                elif classification in ['red_box', 'green_box']:
+                    # this is when the other robot sends in the confirmed colour and position
+                    t.classification = classification
+                t.position = TargetingHandler.get_centroid([t.position, position])  # more accurate position
+                break
+            if t.classification == 'robot' and classification == 'robot':
+                # there should only be one position of the other robot
+                t.position = position
                 break
         else:
             self.targets.append(Target(position, classification))
@@ -191,7 +214,7 @@ class TargetCache:
         """
         self.targets.remove(target)
 
-    def get_targets(self, valid_classes: list, key=None) -> list:
+    def get_targets(self, valid_classes: list, key: Callable = None) -> list:
         """Returns a list of object dicts based on a sorting algorithm
 
         Args:
@@ -207,7 +230,7 @@ class TargetCache:
             key=key
         )
 
-    def pop_target(self, valid_classes: list, key=None) -> Union[Target, None]:
+    def pop_target(self, valid_classes, key: Callable = None) -> Union[Target, None]:
         """Pops the best target
 
         Similar to get_targets, the targets are sorted, but only the best one is returned.
@@ -227,3 +250,57 @@ class TargetCache:
         self.remove_target(popped)
 
         return popped
+
+    def check_target_path_blocked(self, curr_target: Target, curr_position: list) -> bool:
+        """Check if there are other targets on the path to currently selected target
+
+        Args:
+            curr_target (Target): The target chosen
+            curr_position (list): Current position of the centre of the robot
+
+        Returns:
+            bool: Whether the path is blocked
+        """
+        check_in_path = partial(
+            point_in_rectangle,
+            get_path_rectangle(np.asarray(curr_target.position), np.asarray(curr_position))
+        )
+
+        return any(map(
+            check_in_path,
+            map(
+                attrgetter('position'),
+                filter(
+                    # TODO this can be potentially changed to only checking blocks of the wrong colour
+                    lambda t: t != curr_target and t.classification in ['box', 'red_box', 'green_box'],
+                    self.targets
+                )
+            )
+        ))
+
+    def prepare_collected_message(self) -> list:
+        """Prepare a list of positions where blocks were collected
+
+        This is used to prepare the message to the other robot.
+
+        Returns:
+            list: List of coordinates (as lists instead of np.ndarray)
+        """
+        return list(map(
+            list,
+            map(attrgetter('position'), self.collected)
+        ))
+
+    def remove_collected_by_other(self, collected: Union[list, None]) -> None:
+        """Remove the targets already collected by the other robot
+
+        Args:
+            collected (list, None): List of coordinates where the blocks were collected
+        """
+        if collected is None:
+            return
+
+        for collected_pos in collected:
+            for t in self.targets:
+                if t.is_near(collected_pos):
+                    self.remove_target(t)
