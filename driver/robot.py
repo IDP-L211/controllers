@@ -39,7 +39,6 @@ class IDPRobot(Robot):
         ultrasonic_right (IDPDistanceSensor): The ultrasonic sensor on the right
         infrared (IDPDistanceSensor): The IR sensor (long range)
         color_detector (IDPColorDetector): The colour detector, containing two light sensors with red and green filters
-        width (float): Width of the robot, perpendicular to the axis running back-to-front
     """
 
     def __init__(self):

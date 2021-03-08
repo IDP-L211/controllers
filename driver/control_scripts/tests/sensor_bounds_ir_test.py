@@ -1,5 +1,4 @@
 def main(robot):
-    nav_map = robot.get_map(robot.infrared)
     action_queue = [
         ("rotate", 6.28 * 2, 2)
     ]
@@ -11,5 +10,5 @@ def main(robot):
         print(*map(lambda x: f"{x:5f}", (
             robot.infrared.getValue(), *robot.infrared.getBounds()
         )))
-        nav_map.plot_coordinate(robot.get_bot_front(dis))
-        nav_map.update()
+        robot.map.plot_coordinate(robot.get_bot_front(dis))
+        robot.map.update()
