@@ -196,6 +196,13 @@
 </dd></dl>
 
 <dl class="py method">
+<dt id="devices.radio.IDPRadio.dispatch_message">
+<code class="sig-name descname"><span class="pre">dispatch_message</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; <span class="pre">None</span><a class="headerlink" href="#devices.radio.IDPRadio.dispatch_message" title="Permalink to this definition">¶</a></dt>
+<dd><p>Send the given message</p>
+<p>This should only be called once per timestep</p>
+</dd></dl>
+
+<dl class="py method">
 <dt id="devices.radio.IDPRadio.encode_message">
 <em class="property"><span class="pre">static</span> </em><code class="sig-name descname"><span class="pre">encode_message</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">bytes</span><a class="headerlink" href="#devices.radio.IDPRadio.encode_message" title="Permalink to this definition">¶</a></dt>
 <dd><p>Encode the given dictionary into bytes by first dumping it as JSON</p>
@@ -216,6 +223,7 @@
 <dt id="devices.radio.IDPRadio.get_message">
 <code class="sig-name descname"><span class="pre">get_message</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; <span class="pre">dict</span><a class="headerlink" href="#devices.radio.IDPRadio.get_message" title="Permalink to this definition">¶</a></dt>
 <dd><p>Get the latest received message</p>
+<p>This can be called multiple times per timestep</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns</dt>
 <dd class="field-odd"><p>The decoded received message</p>
@@ -227,12 +235,27 @@
 </dd></dl>
 
 <dl class="py method">
+<dt id="devices.radio.IDPRadio.get_other_bot_bearing">
+<code class="sig-name descname"><span class="pre">get_other_bot_bearing</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; <span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">None</span><span class="p"><span class="pre">,</span> </span><span class="pre">list</span><span class="p"><span class="pre">]</span></span><a class="headerlink" href="#devices.radio.IDPRadio.get_other_bot_bearing" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="devices.radio.IDPRadio.get_other_bot_collected">
+<code class="sig-name descname"><span class="pre">get_other_bot_collected</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; <span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">None</span><span class="p"><span class="pre">,</span> </span><span class="pre">list</span><span class="p"><span class="pre">]</span></span><a class="headerlink" href="#devices.radio.IDPRadio.get_other_bot_collected" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="devices.radio.IDPRadio.get_other_bot_position">
+<code class="sig-name descname"><span class="pre">get_other_bot_position</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; <span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">None</span><span class="p"><span class="pre">,</span> </span><span class="pre">list</span><span class="p"><span class="pre">]</span></span><a class="headerlink" href="#devices.radio.IDPRadio.get_other_bot_position" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
 <dt id="devices.radio.IDPRadio.send_message">
 <code class="sig-name descname"><span class="pre">send_message</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">None</span><a class="headerlink" href="#devices.radio.IDPRadio.send_message" title="Permalink to this definition">¶</a></dt>
-<dd><p>Send the given message</p>
+<dd><p>Add more message to be sent</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>message</strong> (<em>dict</em>) – The message to send</p>
+<dd class="field-odd"><p><strong>message</strong> (<em>dict</em>) – The key-value pair to be appended to the message</p>
 </dd>
 </dl>
 </dd></dl>
