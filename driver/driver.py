@@ -20,7 +20,7 @@ while robot.step(robot.timestep) != -1:
                 print(f"{robot.color} complete")
         else:
             robot.do("move", robot.home)
-
+            
     # If we have no action
     if robot.execute_next_action():
         # Update target

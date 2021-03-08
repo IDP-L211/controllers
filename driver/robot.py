@@ -91,6 +91,7 @@ class IDPRobot(Robot):
             "face": self.face_bearing,
             "rotate": self.rotate,
             "reverse": self.reverse_to_position,
+            "break": self.brake,
             "collect": self.collect_block,
             "scan": self.scan,
             "brake": self.brake,
