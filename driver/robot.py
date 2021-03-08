@@ -47,8 +47,9 @@ class IDPRobot(Robot):
 
         # Motion properties, derived experimentally, speeds are when drive = 1
         self.max_possible_speed = {"f": 1.0, "r": 11.2}  # THESE MUST BE ACCURATE, else things get  w e i r d
-        self.default_max_allowed_speed = {"f": 0.5, "r": 5.0}
-        self.max_acc = {"f": 5.0, "r": 40.0}  # These are tunable if the robot is slipping or gripping more than expected
+        self.default_max_allowed_speed = {"f": 1.0, "r": 5.0}
+        self.max_acc = {"f": 5.0, "r": 40.0}
+        # These are tunable if the robot is slipping or gripping more than expected
 
         # note the sensors are assumed to be at the centre of the robot, and the robot is assumed symmetrical
         self.color = self.getName()
@@ -74,6 +75,9 @@ class IDPRobot(Robot):
         self.radio = IDPRadio(self.timestep)
         self.color_detector = IDPColorDetector(self.timestep)
         self.gate = IDPGate('gate')
+        self.map = Map(self, self.infrared, self.arena_length, 'map')
+
+        self.distance_sensor_offset = 0.075
 
         # To store and process detections
         self.targeting_handler = TargetingHandler()
@@ -336,21 +340,6 @@ class IDPRobot(Robot):
         """
         return get_min_distance_rectangles(self.get_bot_vertices(), other_bot_vertices)
 
-    def get_map(self, sensor: IDPDistanceSensor, name: str = 'map') -> Map:
-        """Get a map of the arena, on which the current position and bounding box of the robot
-        will be displayed.
-
-        This requires the robot to have a Display child node with name 'map'.
-
-        Args:
-            sensor (IDPDistanceSensor): The distance sensor used on the robot
-            name (str): Name of the Display node, default to 'map'
-
-        Returns:
-            Map: The map
-        """
-        return Map(self, sensor, self.arena_length, name)
-
     def plot_motion_history(self):
         self.motion_history.plot("time", title="Robot motor graph")
 
@@ -557,10 +546,13 @@ class IDPRobot(Robot):
                 # self.targeting_handler.bounds.append(bound)
 
             if complete:
-                for target in self.targeting_handler.get_targets(self.position):
-                    self.target_cache.add_target(target)
-
-                    # TODO check target not the other robot
+                for target_pos in self.targeting_handler.get_targets(self.position):
+                    # check if target is the other robot
+                    if (other_bot_pos := self.radio.get_other_bot_position()) \
+                            and Target.check_near(target_pos, other_bot_pos, 0.3):
+                        self.target_cache.add_target(target_pos, classification='robot')
+                    else:
+                        self.target_cache.add_target(target_pos)
 
                 print_if_debug(self.target_cache.targets)
 

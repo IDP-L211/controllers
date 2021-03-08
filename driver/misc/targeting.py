@@ -12,7 +12,7 @@ from operator import attrgetter
 import numpy as np
 from sklearn.cluster import DBSCAN
 
-from geometry import get_path_rectangle, point_in_rectangle
+from .geometry import get_path_rectangle, point_in_rectangle
 
 
 class TargetingHandler:
@@ -127,6 +127,10 @@ class Target:
     def profit(self):  # Not implemented
         return 1
 
+    @staticmethod
+    def check_near(p1: list, p2: list, threshold: float) -> bool:
+        return all(starmap(lambda rp, p: abs(rp - p) < threshold, zip(p1, p2)))
+
     def is_near(self, position: list, threshold: float = 0.1) -> bool:
         """Check if the target is close to the specified position
 
@@ -137,7 +141,7 @@ class Target:
         Returns:
             bool: Whether the target is closeby
         """
-        return all(starmap(lambda rp, p: abs(rp - p) < threshold, zip(self.position, position)))
+        return Target.check_near(self.position, position, threshold)
 
     def __repr__(self):
         return f'{self.classification} at {self.position}'

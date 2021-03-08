@@ -67,21 +67,22 @@ class Map(Display):
         )))
 
     def get_map_bot_front(self, distance: float = 0) -> list:
-        if distance <= 0:
-            distance = self.robot.length / 0.8
-
         return self.coordtransform_world_to_map(self.robot.get_bot_front(distance))
 
-    def draw_marker(self, map_coord: list) -> None:
+    def draw_oval_marker(self, map_coord: list) -> None:
         # must be of type int not np.int64, pass in a list instead of np.ndarray
         self.fillOval(*map_coord, 3, 3)
+
+    def draw_square_marker(self, map_coord: list) -> None:
+        self.fillRectangle(map_coord[0] - 3, map_coord[1] - 3, 6, 6)
 
     def draw_line_from_botcenter(self, map_coord: list) -> None:
         # must be of type int not np.int64, pass in a list instead of np.ndarray
         self.drawLine(*self.coordtransform_world_to_map(self.robot.position), *map_coord)
 
-    def plot_coordinate(self, world_coord):
-        self.plot_commands.append(lambda: self.draw_marker(self.coordtransform_world_to_map(world_coord)))
+    def plot_coordinate(self, world_coord: list, style: str = 'o'):
+        draw_marker_func = self.draw_square_marker if style == 's' else self.draw_oval_marker
+        self.plot_commands.append(lambda: draw_marker_func(self.coordtransform_world_to_map(world_coord)))
 
     def clear(self):
         # clear display
@@ -102,9 +103,9 @@ class Map(Display):
         front_coord = self.get_map_bot_front(self.sensor.getValue())
         if draw_line:
             self.draw_line_from_botcenter(front_coord)
-        self.draw_marker(front_coord)
+        self.draw_oval_marker(front_coord)
         if draw_range:
-            self.draw_marker(self.get_map_bot_front(self.sensor.max_range))
+            self.draw_oval_marker(self.get_map_bot_front(self.sensor.max_range))
 
         # other external plot commands
         while len(self.plot_commands) > 0:
