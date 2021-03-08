@@ -71,6 +71,5 @@ class IDPMotorController:
         # Reassemble drive and convert to motor values
         values = np.array([f_drive + r_drive, f_drive - r_drive]) * self.max_motor_speed
 
-        # TODO - Put these back when model changes
         self.left_motor.setVelocity(values[0])
         self.right_motor.setVelocity(values[1])
