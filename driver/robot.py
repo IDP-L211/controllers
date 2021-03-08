@@ -137,14 +137,14 @@ class IDPRobot(Robot):
         self.time += self.timestep_actual
         returned = super().step(timestep)
 
-        self.collision_avoidance()
+        self.collision_avoidance()  # passive collision avoidance
 
         self.radio.send_message({
             'position': self.position,
             'bearing': self.bearing,
             'vertices': list(map(list, self.get_bot_vertices())),
             'collected': self.target_cache.prepare_collected_message()
-        })  # also sending 'confirmed' if a block should be collected by the other robot
+        })  # also sending 'confirmed': (pos, color) if a block should be collected by the other robot
         self.radio.dispatch_message()  # TODO ideally this should be send at the end of the timestep
 
         # remove targets already collected by the other robot
@@ -154,7 +154,8 @@ class IDPRobot(Robot):
         if confirmed_pos_color := self.radio.get_message().get('confirmed'):
             self.target_cache.add_target(confirmed_pos_color[0], f'{confirmed_pos_color[1]}_box')
 
-        for t in self.target_cache.targets:
+        # update the map
+        for t in self.target_cache.targets:  # plotting target markers
             self.map.plot_coordinate(
                 t.position,
                 style='o' if t.classification in ['box', f'{self.color}_box'] else 's'

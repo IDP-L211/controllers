@@ -71,7 +71,7 @@ class Map(Display):
 
     def draw_oval_marker(self, map_coord: list) -> None:
         # must be of type int not np.int64, pass in a list instead of np.ndarray
-        self.fillOval(*map_coord, 3, 3)
+        self.fillOval(*map_coord, 4, 4)
 
     def draw_square_marker(self, map_coord: list) -> None:
         self.fillRectangle(map_coord[0] - 3, map_coord[1] - 3, 6, 6)

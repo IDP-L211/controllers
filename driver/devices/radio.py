@@ -24,7 +24,7 @@ class IDPRadio:
         self.emitter = IDPEmitter('emitter')
         self.receiver = IDPReceiver('receiver', sampling_rate)
         self.received_cache = {}
-        self.send_cache = {}
+        self.message_draft = {}
 
     @staticmethod
     def encode_message(message: dict) -> bytes:
@@ -56,15 +56,15 @@ class IDPRadio:
         Args:
             message (dict): The key-value pair to be appended to the message
         """
-        self.send_cache.update(message)
+        self.message_draft.update(message)
 
     def dispatch_message(self) -> None:
         """Send the given message
 
         This should only be called once per timestep
         """
-        self.emitter.send(IDPRadio.encode_message(self.send_cache))
-        self.send_cache = {}
+        self.emitter.send(IDPRadio.encode_message(self.message_draft))
+        self.message_draft = {}
 
     def get_message(self) -> dict:
         """Get the latest received message
