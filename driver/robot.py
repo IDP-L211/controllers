@@ -10,7 +10,7 @@ from controller import Robot
 import numpy as np
 
 from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor, IDPColorDetector
-from devices.motors import IDPMotorController
+from devices.motors import IDPMotorController, IDPGate
 from devices.radio import IDPRadio
 
 from strategies.motion import MotionCS
@@ -77,6 +77,9 @@ class IDPRobot(Robot):
         self.motors = IDPMotorController('wheel1', 'wheel2', self)
         self.radio = IDPRadio(self.timestep)
         self.color_detector = IDPColorDetector(self.timestep)
+
+        self.gate = IDPGate('gate')
+
 
         # To store and process detections
         self.targeting_handler = TargetingHandler()
