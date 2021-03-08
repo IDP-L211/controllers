@@ -194,6 +194,9 @@ class TargetCache:
                 if t.classification == 'robot' and classification != 'robot':  # updates if it was classified as robot
                     # unlikely the other robot is at the same position again, probably false classification last time
                     t.classification = classification
+                elif classification in ['red_box', 'green_box']:
+                    # this is when the other robot sends in the confirmed colour and position
+                    t.classification = classification
                 t.position = TargetingHandler.get_centroid([t.position, position])  # more accurate position
                 break
             if t.classification == 'robot' and classification == 'robot':
@@ -249,6 +252,15 @@ class TargetCache:
         return popped
 
     def check_target_path_blocked(self, curr_target: Target, curr_position: list) -> bool:
+        """Check if there are other targets on the path to currently selected target
+
+        Args:
+            curr_target (Target): The target chosen
+            curr_position (list): Current position of the centre of the robot
+
+        Returns:
+            bool: Whether the path is blocked
+        """
         check_in_path = partial(
             point_in_rectangle,
             get_path_rectangle(np.asarray(curr_target.position), np.asarray(curr_position))

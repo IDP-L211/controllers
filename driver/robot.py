@@ -130,7 +130,9 @@ class IDPRobot(Robot):
                                            "right_motor", "linear_speed", "angular_velocity", styles=motor_graph_styles)
 
     def step(self, timestep):
-        """A wrapper for the step call that allows us to keep our last bearing and keep track of time"""
+        """A wrapper for the step call that allows us to keep our last bearing and keep track of time. Furthermore,
+        tasks that needs to be ran every timestep are also put here.
+        """
         self.last_bearing = self.bearing if self.time != 0 else None
         self.time += self.timestep_actual
         returned = super().step(timestep)
@@ -141,13 +143,16 @@ class IDPRobot(Robot):
             'position': self.position,
             'bearing': self.bearing,
             'vertices': list(map(list, self.get_bot_vertices())),
-            'collected': self.target_cache.prepare_collected_message(),
-            'color': []
-        })
+            'collected': self.target_cache.prepare_collected_message()
+        })  # also sending 'confirmed' if a block should be collected by the other robot
         self.radio.dispatch_message()  # TODO ideally this should be send at the end of the timestep
 
         # remove targets already collected by the other robot
         self.target_cache.remove_collected_by_other(self.radio.get_other_bot_collected())
+
+        # add target confirmed by the other robot
+        if confirmed_pos_color := self.radio.get_message().get('confirmed'):
+            self.target_cache.add_target(confirmed_pos_color[0], f'{confirmed_pos_color[1]}_box')
 
         for t in self.target_cache.targets:
             self.map.plot_coordinate(
@@ -522,6 +527,8 @@ class IDPRobot(Robot):
                     self.collect_state = 4
                 else:
                     self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
+                    # should be collected by the other robot, send info to it
+                    self.radio.send_message({'confirmed': (list(target.position), color)})
                     return True
             else:  # not able to detect the colour, probably because the position is not accurate
                 self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
@@ -689,3 +696,6 @@ class IDPRobot(Robot):
             return target
 
         return None
+
+    def collision_avoidance(self):
+        pass
