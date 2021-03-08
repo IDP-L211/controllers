@@ -59,6 +59,7 @@ class IDPRobot(Robot):
         self.color = self.getName()
         if self.color not in ['red', 'green']:
             raise Exception('Name the robot either red or green')
+        self.home = [-0.4, 0] if self.color == 'green' else [0.4, 0]
 
         self.last_bearing = None
 
@@ -105,6 +106,7 @@ class IDPRobot(Robot):
         # State for some composite actions
         self.collect_state = 0
         self.stored_time = 0
+        self.num_collected = 0
 
         # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
         hold_time = 0.5  # s
@@ -485,8 +487,10 @@ class IDPRobot(Robot):
             bool: If we are at our target
         """
         distance_from_block_to_stop = 0.15
+        max_angle_to_block = 0.1
         rotate_angle = -tau / 4
-        gate_time = 0.8
+        gate_time = 0.6
+        reverse_distance = 0.3
 
         # Ifs not elifs means we don't waste timesteps if the state changes
 
@@ -498,7 +502,7 @@ class IDPRobot(Robot):
 
         if self.collect_state == 1:
             angle_to_block = self.angle_from_bot_from_position(target.position)
-            if abs(angle_to_block) > 0.2:
+            if abs(angle_to_block) > max_angle_to_block:
                 self.rotate(angle_to_block)
             else:
                 self.stored_time = self.time
@@ -510,11 +514,18 @@ class IDPRobot(Robot):
 
         if self.collect_state == 3:
             color = self.color_detector.get_color()
-            target.classification = f"{color}_box"
-            if color == self.color:
-                self.collect_state = 4
+            print(f"Block colour: {color}")
+            if color in ["red", "green"]:
+                target.classification = f"{color}_box"
+                if color == self.color:
+                    self.collect_state = 4
+                else:
+                    self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
+                    return True
             else:
-                self.action_queue.insert(1, ("reverse", list(self.coordtransform_bot_polar_to_world(-0.25, 0))))
+                self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
+                self.action_queue.insert(2, "scan")
+                self.target_cache.remove_target(target)
                 return True
 
         if self.collect_state == 4:
@@ -531,6 +542,7 @@ class IDPRobot(Robot):
             self.gate.close()
             if self.time - self.stored_time >= gate_time:
                 self.target_cache.remove_target(target)
+                self.num_collected += 1
                 return True
 
         return False
@@ -558,6 +570,8 @@ class IDPRobot(Robot):
                     self.target_cache.add_target(target)
 
                     # TODO check target not the other robot
+
+                print_if_debug(self.target_cache.targets)
 
                 if self.get_best_target() is None:
                     self.targeting_handler.next_scan_position = self.targeting_handler.get_fallback_scan_position(
