@@ -186,7 +186,14 @@ class TargetCache:
 
         for t in self.targets:  # check if the same target already exist in cache
             if t.is_near(position):
-                t.classification = classification  # updates its classification
+                if t.classification == 'robot' and classification != 'robot':  # updates if it was classified as robot
+                    # unlikely the other robot is at the same position again, probably false classification last time
+                    t.classification = classification
+                t.position = TargetingHandler.get_centroid([t.position, position])  # more accurate position
+                break
+            if t.classification == 'robot' and classification == 'robot':
+                # there should only be one position of the other robot
+                t.position = position
                 break
         else:
             self.targets.append(Target(position, classification))
