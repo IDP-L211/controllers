@@ -52,13 +52,14 @@ class IDPRobot(Robot):
 
         # Motion properties, derived experimentally, speeds are when drive = 1
         self.max_possible_speed = {"f": 1.0, "r": 11.2}  # THESE MUST BE ACCURATE, else things get  w e i r d
-        self.default_max_allowed_speed = {"f": 1.0, "r": 5.0}
+        self.default_max_allowed_speed = {"f": 0.5, "r": 5.0}
         self.max_acc = {"f": 5.0, "r": 40.0}  # These are tunable if the robot is slipping or gripping more than expected
 
         # note the sensors are assumed to be at the centre of the robot, and the robot is assumed symmetrical
         self.color = self.getName()
         if self.color not in ['red', 'green']:
             raise Exception('Name the robot either red or green')
+        self.home = [-0.4, 0] if self.color == 'green' else [0.4, 0]
 
         self.last_bearing = None
 
@@ -104,6 +105,8 @@ class IDPRobot(Robot):
 
         # State for some composite actions
         self.collect_state = 0
+        self.stored_time = 0
+        self.num_collected = 0
 
         # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
         hold_time = 0.5  # s
@@ -118,7 +121,7 @@ class IDPRobot(Robot):
         self.rotating = False
 
         # For getting stuck
-        self.stuck_last_step = False
+        self.stuck_steps = 0
 
         # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers due to noise in acceleration
         self.pid_f_velocity = PID("Forward Velocity", self.getTime, 0.1, 0, 0, self.timestep_actual)
@@ -204,7 +207,7 @@ class IDPRobot(Robot):
         distance = np.hypot(*relative_position)
         return distance
 
-    def angle_from_bot_from_bearing(self, bearing):
+    def angle_from_bot_from_bearing(self, bearing: float) -> float:
         """The clockwise angle from the direction our bot is facing to the bearing in radians
 
         Args:
@@ -223,7 +226,7 @@ class IDPRobot(Robot):
 
         return angle
 
-    def angle_from_bot_from_position(self, position) -> float:
+    def angle_from_bot_from_position(self, position: list) -> float:
         """The clockwise angle from the direction our bot is facing to the position in radians
 
         Args:
@@ -468,6 +471,13 @@ class IDPRobot(Robot):
         """
         return self.rotate(self.angle_from_bot_from_bearing(target_bearing))
 
+    def brake(self):
+        self.motors.velocities = np.zeros(2)
+        self.update_motion_history(time=self.time, linear_speed=self.linear_speed,
+                                   angular_velocity=self.angular_velocity)
+        return abs(self.linear_speed) <= self.linear_speed_threshold\
+            and abs(self.angular_velocity) <= self.angular_speed_threshold
+
     def collect_block(self, target: Target):
         """Collect block at position.
 
@@ -476,8 +486,11 @@ class IDPRobot(Robot):
         Returns:
             bool: If we are at our target
         """
-        distance_from_block_to_stop = 0.15  # TODO - Update this
-        rotate_angle = -tau / 4  # TODO - Make sure this is correct direction and angle
+        distance_from_block_to_stop = 0.15
+        max_angle_to_block = 0.1
+        rotate_angle = -tau / 4
+        gate_time = 0.6
+        reverse_distance = 0.3
 
         # Ifs not elifs means we don't waste timesteps if the state changes
 
@@ -489,17 +502,47 @@ class IDPRobot(Robot):
 
         if self.collect_state == 1:
             angle_to_block = self.angle_from_bot_from_position(target.position)
-            if abs(angle_to_block) > 0.2:
+            if abs(angle_to_block) > max_angle_to_block:
                 self.rotate(angle_to_block)
             else:
+                self.stored_time = self.time
                 self.collect_state = 2
 
-        # TODO - Check colour here
-
         if self.collect_state == 2:
-            if self.rotate(rotate_angle):
+            if self.brake():
+                self.collect_state = 3
+
+        if self.collect_state == 3:
+            color = self.color_detector.get_color()
+            print(f"Block colour: {color}")
+            if color in ["red", "green"]:
+                target.classification = f"{color}_box"
+                if color == self.color:
+                    self.collect_state = 4
+                else:
+                    self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
+                    return True
+            else:
+                self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
+                self.action_queue.insert(2, "scan")
                 self.target_cache.remove_target(target)
-                self.collect_state = 0
+                return True
+
+        if self.collect_state == 4:
+            self.gate.open()
+            if self.time - self.stored_time >= gate_time:
+                self.collect_state = 5
+
+        if self.collect_state == 5:
+            if self.rotate(rotate_angle, max_rotation_rate=3.0):
+                self.stored_time = self.time
+                self.collect_state = 6
+
+        if self.collect_state == 6:
+            self.gate.close()
+            if self.time - self.stored_time >= gate_time:
+                self.target_cache.remove_target(target)
+                self.num_collected += 1
                 return True
 
         return False
@@ -527,6 +570,8 @@ class IDPRobot(Robot):
                     self.target_cache.add_target(target)
 
                     # TODO check target not the other robot
+
+                print_if_debug(self.target_cache.targets)
 
                 if self.get_best_target() is None:
                     self.targeting_handler.next_scan_position = self.targeting_handler.get_fallback_scan_position(
@@ -599,19 +644,18 @@ class IDPRobot(Robot):
             print_if_debug('\n'.join(str(x) for x in self.action_queue), debug_flag=DEBUG)
 
         # Check if bot is stuck, note we only reach here if action not completed
-        if abs(self.linear_speed) <= self.linear_speed_threshold / 1000 \
-                and abs(self.angular_velocity) <= self.angular_speed_threshold / 1000:
-            if self.stuck_last_step:
+        if abs(self.linear_speed) <= self.linear_speed_threshold / 1000\
+                and abs(self.angular_velocity) <= self.angular_speed_threshold / 1000\
+                and self.collect_state in [1, 0]:
+            if self.stuck_steps >= 5:
                 print_if_debug(f"BOT STUCK - Attempting unstuck", debug_flag=DEBUG)
                 if action_type != "reverse":
-                    self.action_queue.insert(0, ("reverse",
-                                                 list(self.coordtransform_bot_cartesian_to_world(np.array([0, -0.5])))))
+                    self.action_queue.insert(0, ("reverse", list(self.coordtransform_bot_polar_to_world(-0.5, 0))))
                 else:
-                    self.action_queue.insert(0, ("move",
-                                                 list(self.coordtransform_bot_cartesian_to_world(np.array([0, 0.5])))))
-                self.stuck_last_step = False
+                    self.action_queue.insert(0, ("move", list(self.coordtransform_bot_polar_to_world(0.5, 0))))
+                self.stuck_steps = 0
             else:
-                self.stuck_last_step = True
+                self.stuck_steps += 1
 
         return False
 
