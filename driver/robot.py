@@ -58,7 +58,7 @@ class IDPRobot(Robot):
                                           decreasing=True, min_range=0.15)
         self.motors = IDPMotorController('wheel1', 'wheel2')
 
-        self.gate = IDPGate('gate', "position_sensor", self.timestep)
+        self.gate = IDPGate('gate')
 
 
         # To store and process detections

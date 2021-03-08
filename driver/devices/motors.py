@@ -2,48 +2,24 @@
 #
 # SPDX-License-Identifier: MIT
 """Motors and a class bundling two motors together"""
-from controller import Motor, PositionSensor
+from controller import Motor
 
 import numpy as np
 
 
-class IDPGateMotor(Motor):
+class IDPGate(Motor):
+    uncertainty = 0.02
+
     def __init__(self, name):
         super().__init__(name)
 
-
-class IDPGateSensor(PositionSensor):
-    def __init__(self, name, sampling_rate):
-        super().__init__(name)
-        self.enable(sampling_rate)
-
-
-class IDPGate:
-    uncertainty = 0.02
-
-    def __init__(self, motor_name, sensor_name, sampling_rate):
-        self.motor = IDPGateMotor(motor_name)
-        self.sensor = IDPGateSensor(sensor_name, sampling_rate)
-
     def open(self):
-        """Opens the robot gate
-
-        Returns:
-            bool: Checks if the gate has fully opened
-        """
-        self.motor.setPosition(1.57)
-
-        return abs(self.sensor.getValue() - self.motor.getTargetPosition()) < IDPGate.uncertainty
+        """Opens the robot gate"""
+        self.setPosition(np.pi / 2)
 
     def close(self):
-        """Closes the robot gate
-
-        Returns:
-            bool: Checks if the gate has fully closed
-        """
-        self.motor.setPosition(0)
-
-        return abs(self.sensor.getValue() - self.motor.getTargetPosition()) < IDPGate.uncertainty
+        """Closes the robot gate"""
+        self.setPosition(0)
 
 
 class IDPMotor(Motor):
