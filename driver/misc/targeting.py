@@ -158,6 +158,7 @@ class TargetCache:
 
     def __init__(self):
         self.targets = []
+        self.collected = []
 
     def clear_targets(self):
         """Removes all detections but leaves id counter alone"""
@@ -167,6 +168,10 @@ class TargetCache:
     def num_targets(self) -> int:
         """How many objects we currently have stored"""
         return len(self.targets)
+
+    @property
+    def num_collected(self) -> int:
+        return len(self.collected)
 
     def add_target(self, position: list, classification: str = 'box') -> None:
         """Add a new detected object to the handler
@@ -260,3 +265,18 @@ class TargetCache:
                 )
             )
         ))
+
+    def prepare_collected_message(self) -> list:
+        return list(map(
+            list,
+            map(attrgetter('position'), self.collected)
+        ))
+
+    def remove_collected_by_other(self, collected: Union[list, None]) -> None:
+        if collected is None:
+            return
+
+        for collected_pos in collected:
+            for t in self.targets:
+                if t.is_near(collected_pos):
+                    self.remove_target(t)

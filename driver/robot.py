@@ -102,7 +102,6 @@ class IDPRobot(Robot):
         # State for some composite actions
         self.collect_state = 0
         self.stored_time = 0
-        self.num_collected = 0
 
         # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
         hold_time = 0.5  # s
@@ -136,17 +135,25 @@ class IDPRobot(Robot):
         self.time += self.timestep_actual
         returned = super().step(timestep)
 
+        self.collision_avoidance()
+
+        self.radio.send_message({
+            'position': self.position,
+            'bearing': self.bearing,
+            'vertices': list(map(list, self.get_bot_vertices())),
+            'collected': self.target_cache.prepare_collected_message(),
+            'color': []
+        })
+        self.radio.dispatch_message()  # TODO ideally this should be send at the end of the timestep
+
+        # remove targets already collected by the other robot
+        self.target_cache.remove_collected_by_other(self.radio.get_other_bot_collected())
+
         for t in self.target_cache.targets:
             self.map.plot_coordinate(
                 t.position,
                 style='o' if t.classification in ['box', f'{self.color}_box'] else 's'
             )
-
-        self.radio.send_message({
-            'position': self.position,
-            'bearing': self.bearing
-        })
-
         self.map.update()
 
         return returned
@@ -372,7 +379,7 @@ class IDPRobot(Robot):
         self.last_action_value = None
         self.collect_state = 0
 
-    def drive_to_position(self, target_pos: list, max_forward_speed=None, max_rotation_rate=None,
+    def drive_to_position(self, target_pos: Union[list, np.ndarray], max_forward_speed=None, max_rotation_rate=None,
                           reverse=False) -> bool:
         """Go to a position
 
@@ -412,7 +419,7 @@ class IDPRobot(Robot):
                                    angular_velocity=self.angular_velocity)
         return False
 
-    def reverse_to_position(self, target_pos: list) -> bool:
+    def reverse_to_position(self, target_pos: Union[list, np.ndarray]) -> bool:
         """Go to a position in reverse
 
         Args:
@@ -516,9 +523,10 @@ class IDPRobot(Robot):
                 else:
                     self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
                     return True
-            else:
+            else:  # not able to detect the colour, probably because the position is not accurate
                 self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
-                self.action_queue.insert(2, "scan")
+                self.action_queue.insert(2, "scan")  # rescan to check if there is actually a target there
+                # pop the current target off for now, the new scan will give better position
                 self.target_cache.remove_target(target)
                 return True
 
@@ -536,7 +544,7 @@ class IDPRobot(Robot):
             self.gate.close()
             if self.time - self.stored_time >= gate_time:
                 self.target_cache.remove_target(target)
-                self.num_collected += 1
+                self.target_cache.collected.append(target)
                 return True
 
         return False
@@ -556,7 +564,9 @@ class IDPRobot(Robot):
 
             if abs(self.get_sensor_distance_to_wall() - distance) > bound * 1.5 \
                     and abs(self.infrared.max_range - distance) > bound:
-                self.targeting_handler.positions.append(self.get_bot_front(distance))
+                self.targeting_handler.positions.append(
+                    self.get_bot_front(distance + 0.0125)  # add a bit to get the centre of the block
+                )
                 # self.targeting_handler.bounds.append(bound)
 
             if complete:

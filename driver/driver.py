@@ -9,7 +9,7 @@ robot = IDPRobot()
 
 # Main loop, perform simulation steps until Webots is stopping the controller
 while robot.step(robot.timestep) != -1:
-    if robot.num_collected >= 4 or robot.targeting_handler.num_scans >= 6:
+    if robot.target_cache.num_collected >= 4 or robot.targeting_handler.num_scans >= 6:
         robot.do("move", robot.home)
         if robot.distance_from_bot(robot.home) <= 0.1:
             break
