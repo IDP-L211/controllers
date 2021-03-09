@@ -498,7 +498,7 @@ class IDPRobot(Robot):
         if time is not None:
             if self.stored_time == 0:
                 self.stored_time = self.time + time
-            elif self.time >= self.stored_time:
+            if self.time >= self.stored_time:
                 return True
         self.brake()
         return False
