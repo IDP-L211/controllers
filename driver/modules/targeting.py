@@ -150,7 +150,7 @@ class Target:
         return self.profit < other.profit
 
     def __eq__(self, other):
-        return self.is_near(other.position, 0)
+        return self.is_near(other.position, 0.01)
 
 
 class TargetCache:
