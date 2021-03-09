@@ -94,5 +94,11 @@ class IDPRadio:
     def get_other_bot_bearing(self) -> Union[None, list]:
         return self.get_message().get('bearing')
 
+    def get_other_bot_vertices(self) -> Union[None, list]:
+        return self.get_message().get('vertices')
+
     def get_other_bot_collected(self) -> Union[None, list]:
         return self.get_message().get('collected')
+
+    def get_other_bot_target_pos(self) -> Union[None, list]:
+        return self.get_message().get('target')

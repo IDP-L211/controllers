@@ -20,10 +20,9 @@ from tests.manual_test import main as manual_test
 from tests.color_test import main as color_test
 
 if __name__ == '__main__':
-    # robot = IDPSupervisor()
     robot = IDPRobot()
     # com_test(robot)
-    motion_test(robot)
+    # motion_test(robot)
     # camera_test(robot)
     # gate_test(robot)
     # object_processing_test(robot)
@@ -32,6 +31,6 @@ if __name__ == '__main__':
     # sensor_bounds_ultrasonic_test(robot)
     # sensor_bounds_ir_test(robot)
     # greedy_collect(robot)
-    # pid_tuning(robot)
+    pid_tuning(robot)
     # manual_test(robot)
     # color_test(robot)

@@ -13,13 +13,12 @@ from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor, IDPColorDetec
 from devices.motors import IDPMotorController, IDPGate
 from devices.radio import IDPRadio
 
-from strategies.motion import MotionCS
-
-from misc.utils import print_if_debug, ensure_list_or_tuple
-from misc.geometry import rotate_vector, get_min_distance_rectangles
-from misc.mapping import Map
-from misc.pid import PID, DataRecorder
-from misc.targeting import TargetingHandler, Target, TargetCache
+from modules.motion import MotionCS
+from modules.utils import print_if_debug, ensure_list_or_tuple
+from modules.geometry import rotate_vector, get_min_distance_rectangles
+from modules.mapping import Map
+from modules.pid import PID, DataRecorder
+from modules.targeting import TargetingHandler, Target, TargetCache
 
 DEBUG = False
 tau = np.pi * 2
@@ -91,9 +90,10 @@ class IDPRobot(Robot):
             "face": self.face_bearing,
             "rotate": self.rotate,
             "reverse": self.reverse_to_position,
-            "break": self.brake,
             "collect": self.collect_block,
-            "scan": self.scan
+            "scan": self.scan,
+            "brake": self.brake,
+            "hold": self.hold
         }
 
         # So we can cleanup if we change our action
@@ -120,10 +120,11 @@ class IDPRobot(Robot):
         self.stuck_steps = 0
 
         # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers due to noise in acceleration
-        self.pid_f_velocity = PID("Forward Velocity", self.getTime, 0.1, 0, 0, self.timestep_actual)
-        self.pid_distance = PID("Distance", self.getTime, 2, 0, 0, self.timestep_actual)
-        self.pid_angle = PID("Angle", self.getTime, 2.5, 0.0, 0.10, self.timestep_actual,
-                             derivative_weight_decay_half_life=0.05)
+        self.pid_f_velocity = PID(0.1, 0, 0, self.timestep_actual, quantity_name="Forward Velocity",
+                                  timer_func=self.getTime)
+        self.pid_distance = PID(2, 0, 0, self.timestep_actual, quantity_name="Distance", timer_func=self.getTime)
+        self.pid_angle = PID(2.5, 0.0, 0.10, self.timestep_actual, derivative_weight_decay_half_life=0.05,
+                             quantity_name="Angle", timer_func=self.getTime)
 
         motor_graph_styles = {"distance": 'k-', "angle": 'r-', "forward_speed": 'k--', "rotation_speed": 'r--',
                               "linear_speed": "k:", "angular_velocity": "r:", "left_motor": 'b-', "right_motor": 'y-'}
@@ -146,6 +147,11 @@ class IDPRobot(Robot):
             'vertices': list(map(list, self.get_bot_vertices())),
             'collected': self.target_cache.prepare_collected_message()
         })  # also sending 'confirmed': (pos, color) if a block should be collected by the other robot
+        
+        # send 'target': [x, y] if a target is selected
+        if target := self.get_best_target():
+            self.radio.send_message({'target': list(target.position)})
+        
         self.radio.dispatch_message()  # TODO ideally this should be send at the end of the timestep
 
         # remove targets already collected by the other robot
@@ -385,6 +391,7 @@ class IDPRobot(Robot):
         self.last_action_type = None
         self.last_action_value = None
         self.collect_state = 0
+        self.stored_time = 0
 
     def drive_to_position(self, target_pos: Union[list, np.ndarray], max_forward_speed=None, max_rotation_rate=None,
                           reverse=False) -> bool:
@@ -483,8 +490,18 @@ class IDPRobot(Robot):
         self.motors.velocities = np.zeros(2)
         self.update_motion_history(time=self.time, linear_speed=self.linear_speed,
                                    angular_velocity=self.angular_velocity)
-        return abs(self.linear_speed) <= self.linear_speed_threshold\
-            and abs(self.angular_velocity) <= self.angular_speed_threshold
+        return abs(self.linear_speed) <= self.linear_speed_threshold \
+               and abs(self.angular_velocity) <= self.angular_speed_threshold
+
+    def hold(self, time=None):
+        # Store when we want hold to end, we do this instead of storing current time because current time might be 0
+        if time is not None:
+            if self.stored_time == 0:
+                self.stored_time = self.time + time
+            if self.time >= self.stored_time:
+                return True
+        self.brake()
+        return False
 
     def collect_block(self, target: Target):
         """Collect block at position.
@@ -494,11 +511,12 @@ class IDPRobot(Robot):
         Returns:
             bool: If we are at our target
         """
-        distance_from_block_to_stop = 0.15
+        distance_from_block_to_stop = 0.14
         max_angle_to_block = 0.1
         rotate_angle = -tau / 4
-        gate_time = 0.6
-        reverse_distance = 0.3
+        gate_time = 0.5
+        reverse_distance = 0.2
+        collect_rotation_rate = 2.0
 
         # Ifs not elifs means we don't waste timesteps if the state changes
 
@@ -545,7 +563,7 @@ class IDPRobot(Robot):
                 self.collect_state = 5
 
         if self.collect_state == 5:
-            if self.rotate(rotate_angle, max_rotation_rate=3.0):
+            if self.rotate(rotate_angle, max_rotation_rate=collect_rotation_rate):
                 self.stored_time = self.time
                 self.collect_state = 6
 
@@ -565,7 +583,7 @@ class IDPRobot(Robot):
             bool: Whether the scan is completed
         """
         if not self.targeting_handler.relocating:
-            complete = self.rotate(tau, max_rotation_rate=1.0)
+            complete = self.rotate(tau, max_rotation_rate=2.0)
 
             distance = self.infrared.getValue()
             d_min, d_max = self.infrared.getBounds()
@@ -582,12 +600,12 @@ class IDPRobot(Robot):
                 for target_pos in self.targeting_handler.get_targets(self.position):
                     # check if target is the other robot
                     if (other_bot_pos := self.radio.get_other_bot_position()) \
-                            and Target.check_near(target_pos, other_bot_pos, 0.3):
+                            and Target.check_near(target_pos, other_bot_pos, 0.4):
                         self.target_cache.add_target(target_pos, classification='robot')
                     else:
                         self.target_cache.add_target(target_pos)
 
-                print_if_debug(self.target_cache.targets)
+                print_if_debug(self.target_cache.targets, debug_flag=DEBUG)
 
                 if self.get_best_target() is None:
                     self.targeting_handler.next_scan_position = self.targeting_handler.get_fallback_scan_position(
@@ -660,11 +678,16 @@ class IDPRobot(Robot):
             print_if_debug('\n'.join(str(x) for x in self.action_queue), debug_flag=DEBUG)
 
         # Check if bot is stuck, note we only reach here if action not completed
-        if abs(self.linear_speed) <= self.linear_speed_threshold / 1000\
-                and abs(self.angular_velocity) <= self.angular_speed_threshold / 1000\
-                and self.collect_state in [1, 0]:
+        if abs(self.linear_speed) <= self.linear_speed_threshold / 1000 \
+                and abs(self.angular_velocity) <= self.angular_speed_threshold / 1000 \
+                and self.collect_state in [1, 0] \
+                and action_type != "hold":
             if self.stuck_steps >= 5:
                 print_if_debug(f"BOT STUCK - Attempting unstuck", debug_flag=DEBUG)
+
+                if target := self.get_best_target():
+                    self.target_cache.remove_target(target)
+
                 if action_type != "reverse":
                     self.action_queue.insert(0, ("reverse", list(self.coordtransform_bot_polar_to_world(-0.5, 0))))
                 else:
@@ -692,12 +715,23 @@ class IDPRobot(Robot):
         )
 
         for target in valid_targets_sorted:
-            if target.classification not in ['box', f'{self.color}_box'] \
-                    or self.target_cache.check_target_path_blocked(target, self.position):
-                continue  # prevents a block of different colour blocking the path to the target
+            # prevent a block of different colour or the other robot blocking the path to the target
+            if target.classification not in ['box', f'{self.color}_box'] or self.target_cache.check_target_path_blocked(
+                    target, self.position, self.radio.get_other_bot_position(), self.radio.get_other_bot_vertices()):
+                continue
+
+            # prevent robots going to the same target
+            if other_bot_target_pos := self.radio.get_other_bot_target_pos():  # check we have all the date needed
+                # going to the same target indeed
+                if target.is_near(other_bot_target_pos, threshold=0.3):
+                    print_if_debug('target clash, next target', debug_flag=DEBUG)
+                    # the other robot is closer to the target, let's go somewhere else
+                    continue
+
+            # passed all the tests
             return target
 
-        return None
+        return None  # no suitable target
 
     def collision_avoidance(self):
         pass
