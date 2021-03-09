@@ -683,12 +683,9 @@ class IDPRobot(Robot):
                 and self.collect_state in [1, 0] \
                 and action_type != "hold":
             if self.stuck_steps >= 5:
-                print_if_debug(f"BOT STUCK - Attempting unstuck", debug_flag=DEBUG)
-
-                if action_type != "reverse":
-                    self.action_queue.insert(0, ("reverse", list(self.coordtransform_bot_polar_to_world(-0.5, 0))))
-                else:
-                    self.action_queue.insert(0, ("move", list(self.coordtransform_bot_polar_to_world(0.5, 0))))
+                print_if_debug(f"BOT STUCK - Removing target", debug_flag=DEBUG)
+                if target := self.get_best_target():
+                    self.target_cache.remove_target(target)
                 self.stuck_steps = 0
             else:
                 self.stuck_steps += 1
