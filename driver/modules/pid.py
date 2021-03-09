@@ -51,16 +51,25 @@ class DataRecorder:
 
 
 class PID:
-    def __init__(self, k_p=0, k_i=0, k_d=0, time_step=None, integral_wind_up_speed=np.inf,
-                 integral_delay_time=0, integral_active_error_band=np.inf, derivative_weight_decay_half_life=None,
+    def __init__(self, k_p=0, k_i=0, k_d=0, time_step=None, integral_wind_up_speed=np.inf, integral_delay_time=0,
+                 integral_active_error_band=np.inf, derivative_weight_decay_half_life=None, custom_function=None,
                  integral_delay_windup_when_in_bounds=True, quantity_name="Error", timer_func=None):
         self.quantity_name = quantity_name
 
+        if custom_function is not None and (k_p != 0 or k_i != 0 or k_d != 0):
+            raise Exception("Both constants and custom function specified, use one or the other")
+
+        # Log these so we can display them in the graph title
         self.k_p = k_p
         self.k_i = k_i
         self.k_d = k_d
+        self.custom_function = custom_function.__name__ if custom_function is not None else None
 
-        self.cum_error = 0
+        def default_function(error, cumulative_error, error_change):
+            return (error * k_p) + (cumulative_error * k_i) + (error_change * k_d)
+
+        # If custom, this should take 3 arguments (error, cumulative_error, error_change) and return one output
+        self.function = default_function if custom_function is None else custom_function
 
         # This helps stabilise the derivative error by using an exponential moving average of error changes
         self.d_weight_decay_half_life = derivative_weight_decay_half_life
@@ -73,6 +82,7 @@ class PID:
             self.e_weights = [1]
         self.e_history = []  # Record the last set of errors for derivative calc
 
+        self.cum_error = 0
         self.i_wind_up_speed = integral_wind_up_speed
         self.i_delay_time = integral_delay_time
         self.i_active_error_band = integral_active_error_band
@@ -116,7 +126,7 @@ class PID:
         p = self.k_p * error
         i = self.k_i * self.cum_error
         d = self.k_d * error_change
-        output = p + i + d
+        output = self.function(error, self.cum_error, error_change)
 
         if step_mode:
             return output, p, i, d, error_change, time
@@ -156,10 +166,11 @@ class PID:
     def plot_history(self, *args):
         title = f"""{self.quantity_name} PID\n{f" K_p={self.k_p} " if self.k_p != 0 else ""}\
 {f" K_i={self.k_i} " if self.k_i != 0 else ""}{f" K_d={self.k_d} " if self.k_d != 0 else ""}\
+{f"custom_function={self.custom_function}" if self.custom_function is not None else ""}\
 {f" i_windup={self.i_wind_up_speed} " if self.i_wind_up_speed != np.inf else ""}\
 {f" i_delay={self.i_delay_time} " if self.i_delay_time != 0 else ""}\
 {f" i_active_error_band={self.i_active_error_band} " if self.i_active_error_band != np.inf else ""}\
-{f" d_weight_decay_half_life={self.i_active_error_band} " if self.d_weight_decay_half_life is not None else ""}"""
+{f" d_weight_decay_half_life={self.d_weight_decay_half_life} " if self.d_weight_decay_half_life is not None else ""}"""
 
         if not args:
             plot_args = ["output", "error"] + (["p"] * bool(self.k_p)) + (["cumulative_error", "i"] * bool(self.k_i))\
