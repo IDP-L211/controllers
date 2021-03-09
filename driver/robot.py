@@ -499,7 +499,7 @@ class IDPRobot(Robot):
         Returns:
             bool: If we are at our target
         """
-        distance_from_block_to_stop = 0.15
+        distance_from_block_to_stop = 0.14
         max_angle_to_block = 0.1
         rotate_angle = -tau / 4
         gate_time = 0.5
@@ -593,7 +593,7 @@ class IDPRobot(Robot):
                     else:
                         self.target_cache.add_target(target_pos)
 
-                print_if_debug(self.target_cache.targets, DEBUG)
+                print_if_debug(self.target_cache.targets, debug_flag=DEBUG)
 
                 if self.get_best_target() is None:
                     self.targeting_handler.next_scan_position = self.targeting_handler.get_fallback_scan_position(
@@ -672,6 +672,10 @@ class IDPRobot(Robot):
                 and action_type != "hold":
             if self.stuck_steps >= 5:
                 print_if_debug(f"BOT STUCK - Attempting unstuck", debug_flag=DEBUG)
+
+                if target := self.get_best_target():
+                    self.target_cache.remove_target(target)
+
                 if action_type != "reverse":
                     self.action_queue.insert(0, ("reverse", list(self.coordtransform_bot_polar_to_world(-0.5, 0))))
                 else:

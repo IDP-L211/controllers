@@ -173,6 +173,10 @@ class TargetCache:
     def num_collected(self) -> int:
         return len(self.collected)
 
+    @property
+    def num_discard(self) -> int:
+        return len(list(filter(lambda t: t.classification == 'discard', self.targets)))
+
     def add_target(self, position: list, classification: str = 'box') -> None:
         """Add a new detected object to the handler
 
@@ -183,18 +187,21 @@ class TargetCache:
         """
 
         # Validation on classification string
-        valid_classifications = ["unknown", "robot", "box", "red_box", "green_box", "wall"]
+        valid_classifications = ["robot", "box", "red_box", "green_box", "discard"]
         classification = classification.lower()
         if classification not in valid_classifications:
             raise Exception(f"{classification} is an invalid classification for a detected object\n"
                             f"Valid: {', '.join(valid_classifications)}")
+
+        if any(map(lambda x: abs(x) > 1.1, position)):
+            classification = 'discard'
 
         for t in self.targets:  # check if the same target already exist in cache
             if t.is_near(position):
                 if t.classification == 'robot' and classification != 'robot':  # updates if it was classified as robot
                     # unlikely the other robot is at the same position again, probably false classification last time
                     t.classification = classification
-                elif classification in ['red_box', 'green_box']:
+                elif classification in ['red_box', 'green_box', 'discard']:
                     # this is when the other robot sends in the confirmed colour and position
                     t.classification = classification
                 t.position = TargetingHandler.get_centroid([t.position, position])  # more accurate position
