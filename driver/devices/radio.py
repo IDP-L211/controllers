@@ -99,3 +99,6 @@ class IDPRadio:
 
     def get_other_bot_collected(self) -> Union[None, list]:
         return self.get_message().get('collected')
+
+    def get_other_bot_target_pos(self) -> Union[None, list]:
+        return self.get_message().get('target')
