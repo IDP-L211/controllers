@@ -150,7 +150,7 @@ class Target:
         return self.profit < other.profit
 
     def __eq__(self, other):
-        return self.is_near(other.position, 0)
+        return self.is_near(other.position, 0.01)
 
 
 class TargetCache:
@@ -173,6 +173,19 @@ class TargetCache:
     def num_collected(self) -> int:
         return len(self.collected)
 
+    @property
+    def num_discard(self) -> int:
+        return len(list(filter(
+            lambda t: t.classification == 'discard',
+            self.targets
+        )))
+
+    def get_valid_target_num(self, color: str) -> int:
+        return len(list(filter(
+            lambda t: t.classification in ['box', f'{color}_box'],
+            self.targets
+        )))
+
     def add_target(self, position: list, classification: str = 'box') -> None:
         """Add a new detected object to the handler
 
@@ -183,18 +196,21 @@ class TargetCache:
         """
 
         # Validation on classification string
-        valid_classifications = ["unknown", "robot", "box", "red_box", "green_box", "wall"]
+        valid_classifications = ["robot", "box", "red_box", "green_box", "discard"]
         classification = classification.lower()
         if classification not in valid_classifications:
             raise Exception(f"{classification} is an invalid classification for a detected object\n"
                             f"Valid: {', '.join(valid_classifications)}")
+
+        if any(map(lambda x: abs(x) > 1.1, position)):
+            classification = 'discard'
 
         for t in self.targets:  # check if the same target already exist in cache
             if t.is_near(position):
                 if t.classification == 'robot' and classification != 'robot':  # updates if it was classified as robot
                     # unlikely the other robot is at the same position again, probably false classification last time
                     t.classification = classification
-                elif classification in ['red_box', 'green_box']:
+                elif classification in ['red_box', 'green_box', 'discard']:
                     # this is when the other robot sends in the confirmed colour and position
                     t.classification = classification
                 t.position = TargetingHandler.get_centroid([t.position, position])  # more accurate position
@@ -212,7 +228,10 @@ class TargetCache:
         Args:
             target: The target object to be removed
         """
-        self.targets.remove(target)
+        try:
+            self.targets.remove(target)
+        except ValueError:
+            print(f'[WARNING] {target} not in cache')
 
     def get_targets(self, valid_classes: list, key: Callable = None) -> list:
         """Returns a list of object dicts based on a sorting algorithm
@@ -251,12 +270,16 @@ class TargetCache:
 
         return popped
 
-    def check_target_path_blocked(self, curr_target: Target, curr_position: list) -> bool:
+    def check_target_path_blocked(self, curr_target: Target, curr_position: list,
+                                  other_bot_pos: Union[list, None] = None,
+                                  other_bot_vertices: Union[list, None] = None) -> bool:
         """Check if there are other targets on the path to currently selected target
 
         Args:
             curr_target (Target): The target chosen
             curr_position (list): Current position of the centre of the robot
+            other_bot_pos (list, None): Current position of the other robot
+            other_bot_vertices (list, None): Current positions of vertices of the other robot
 
         Returns:
             bool: Whether the path is blocked
@@ -276,7 +299,10 @@ class TargetCache:
                     self.targets
                 )
             )
-        ))
+        )) or (check_in_path(other_bot_pos) if other_bot_pos else False) or (any(map(
+            check_in_path,
+            other_bot_vertices
+        )) if other_bot_vertices else False)
 
     def prepare_collected_message(self) -> list:
         """Prepare a list of positions where blocks were collected

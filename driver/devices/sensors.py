@@ -112,7 +112,7 @@ class IDPDistanceSensor(DistanceSensor):
         try:
             sc_expectation_result = root(
                 lambda x: self.f_expectation(x) - v,
-                method='bisect',
+                method='brentq',
                 bracket=sorted((
                     self.betterLookupTable[0][0],
                     self.betterLookupTable[0][-1],
@@ -140,14 +140,14 @@ class IDPDistanceSensor(DistanceSensor):
             sc_bound_results = (
                 root(
                     lambda x: self.f_lower_bound(x) - v,
-                    method='bisect',
+                    method='brentq',
                     bracket=sorted((
                         self.betterLookupTable[0][0],
                         self.betterLookupTable[0][-1],
                     )), x0=(self.getValue(),)
                 ), root(
                     lambda x: self.f_upper_bound(x) - v,
-                    method='bisect',
+                    method='brentq',
                     bracket=sorted((
                         self.betterLookupTable[0][0],
                         self.betterLookupTable[0][-1],

@@ -8,8 +8,6 @@ import numpy as np
 
 
 class IDPGate(Motor):
-    uncertainty = 0.02
-
     def __init__(self, name):
         super().__init__(name)
 
