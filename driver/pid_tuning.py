@@ -1,42 +1,9 @@
 # Test script for drive_to_pos
 
 import numpy as np
-from misc.utils import fire_and_forget
+from modules.utils import fire_and_forget
 
 tau = np.pi * 2
-
-
-def trial(supervisor):
-    # Setup robot
-    robot_node = supervisor.getFromDef("MY_ROBOT")
-    timestep = int(supervisor.getBasicTimeStep())
-
-    # Reset bot to center bottom, facing east
-    robot_node.getField("translation").setSFVec3f([-0.75, 0.035, 0])
-    robot_node.getField("rotation").setSFRotation([0, 1, 0, 0])
-    robot_node.resetPhysics()
-
-    # The actions for our bot to perform
-    test_actions = [
-        ("rotate", tau/4)
-    ]
-
-    # Load actions and store timings
-    supervisor.action_queue = test_actions
-    start_time = supervisor.getTime()
-    max_allowed_time = 10
-
-    # Execute until finished or out of time
-    while supervisor.getTime() - start_time < max_allowed_time:
-        if supervisor.step(timestep) == -1 or supervisor.execute_next_action():
-            break
-
-    # Return the time taken
-    return supervisor.getTime() - start_time
-
-
-def genetic_optimise(supervisor):
-    trial(supervisor)
 
 
 def manual(robot):

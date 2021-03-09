@@ -20,7 +20,6 @@ from tests.manual_test import main as manual_test
 from tests.color_test import main as color_test
 
 if __name__ == '__main__':
-    # robot = IDPSupervisor()
     robot = IDPRobot()
     # com_test(robot)
     motion_test(robot)

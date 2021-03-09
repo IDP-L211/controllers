@@ -13,13 +13,12 @@ from devices.sensors import IDPCompass, IDPGPS, IDPDistanceSensor, IDPColorDetec
 from devices.motors import IDPMotorController, IDPGate
 from devices.radio import IDPRadio
 
-from strategies.motion import MotionCS
-
-from misc.utils import print_if_debug, ensure_list_or_tuple
-from misc.geometry import rotate_vector, get_min_distance_rectangles
-from misc.mapping import Map
-from misc.pid import PID, DataRecorder
-from misc.targeting import TargetingHandler, Target, TargetCache
+from modules.motion import MotionCS
+from modules.utils import print_if_debug, ensure_list_or_tuple
+from modules.geometry import rotate_vector, get_min_distance_rectangles
+from modules.mapping import Map
+from modules.pid import PID, DataRecorder
+from modules.targeting import TargetingHandler, Target, TargetCache
 
 DEBUG = False
 tau = np.pi * 2
