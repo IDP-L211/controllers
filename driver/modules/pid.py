@@ -63,13 +63,9 @@ class PID:
         self.k_p = k_p
         self.k_i = k_i
         self.k_d = k_d
-        self.custom_function = custom_function.__name__ if custom_function is not None else None
-
-        def default_function(error, cumulative_error, error_change):
-            return (error * k_p) + (cumulative_error * k_i) + (error_change * k_d)
 
         # If custom, this should take 3 arguments (error, cumulative_error, error_change) and return one output
-        self.function = default_function if custom_function is None else custom_function
+        self.custom_function = custom_function
 
         # This helps stabilise the derivative error by using an exponential moving average of error changes
         self.d_weight_decay_half_life = derivative_weight_decay_half_life
@@ -123,10 +119,14 @@ class PID:
 
         error_change = sum([(e1 - e2) * w / self.time_step
                             for e1, e2, w in zip(self.e_history[::-1], self.e_history[-2::-1], self.e_weights)])
-        p = self.k_p * error
-        i = self.k_i * self.cum_error
-        d = self.k_d * error_change
-        output = self.function(error, self.cum_error, error_change)
+        if self.custom_function is not None:
+            p, i, d = np.nan, np.nan, np.nan
+            output = self.custom_function(error, self.cum_error, error_change)
+        else:
+            p = self.k_p * error
+            i = self.k_i * self.cum_error
+            d = self.k_d * error_change
+            output = p + i + d
 
         if step_mode:
             return output, p, i, d, error_change, time
@@ -166,7 +166,7 @@ class PID:
     def plot_history(self, *args):
         title = f"""{self.quantity_name} PID\n{f" K_p={self.k_p} " if self.k_p != 0 else ""}\
 {f" K_i={self.k_i} " if self.k_i != 0 else ""}{f" K_d={self.k_d} " if self.k_d != 0 else ""}\
-{f"custom_function={self.custom_function}" if self.custom_function is not None else ""}\
+{f"custom_function={self.custom_function.__name__}" if self.custom_function is not None else ""}\
 {f" i_windup={self.i_wind_up_speed} " if self.i_wind_up_speed != np.inf else ""}\
 {f" i_delay={self.i_delay_time} " if self.i_delay_time != 0 else ""}\
 {f" i_active_error_band={self.i_active_error_band} " if self.i_active_error_band != np.inf else ""}\
