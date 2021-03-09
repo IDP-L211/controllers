@@ -116,6 +116,9 @@ class IDPRobot(Robot):
         self.angle_rotated = 0
         self.rotating = False
 
+        # For getting stuck
+        self.stuck_steps = 0
+
         # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers due to noise in acceleration
         self.pid_f_velocity = PID(0.1, 0, 0, self.timestep_actual, quantity_name="Forward Velocity",
                                   timer_func=self.getTime)
@@ -673,6 +676,22 @@ class IDPRobot(Robot):
                 return True
 
             print_if_debug('\n'.join(str(x) for x in self.action_queue), debug_flag=DEBUG)
+
+        # Check if bot is stuck, note we only reach here if action not completed
+        if abs(self.linear_speed) <= self.linear_speed_threshold / 1000 \
+                and abs(self.angular_velocity) <= self.angular_speed_threshold / 1000 \
+                and self.collect_state in [1, 0] \
+                and action_type != "hold":
+            if self.stuck_steps >= 5:
+                print_if_debug(f"BOT STUCK - Attempting unstuck", debug_flag=DEBUG)
+
+                if action_type != "reverse":
+                    self.action_queue.insert(0, ("reverse", list(self.coordtransform_bot_polar_to_world(-0.5, 0))))
+                else:
+                    self.action_queue.insert(0, ("move", list(self.coordtransform_bot_polar_to_world(0.5, 0))))
+                self.stuck_steps = 0
+            else:
+                self.stuck_steps += 1
 
         return False
 
