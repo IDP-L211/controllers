@@ -583,7 +583,7 @@ class IDPRobot(Robot):
             bool: Whether the scan is completed
         """
         if not self.targeting_handler.relocating:
-            complete = self.rotate(tau, max_rotation_rate=3.0)
+            complete = self.rotate(tau, max_rotation_rate=2.0)
 
             distance = self.infrared.getValue()
             d_min, d_max = self.infrared.getBounds()

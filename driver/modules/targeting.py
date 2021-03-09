@@ -175,7 +175,16 @@ class TargetCache:
 
     @property
     def num_discard(self) -> int:
-        return len(list(filter(lambda t: t.classification == 'discard', self.targets)))
+        return len(list(filter(
+            lambda t: t.classification == 'discard',
+            self.targets
+        )))
+
+    def get_valid_target_num(self, color: str) -> int:
+        return len(list(filter(
+            lambda t: t.classification in ['box', f'{color}_box'],
+            self.targets
+        )))
 
     def add_target(self, position: list, classification: str = 'box') -> None:
         """Add a new detected object to the handler
