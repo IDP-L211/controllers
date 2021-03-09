@@ -386,6 +386,7 @@ class IDPRobot(Robot):
         self.last_action_type = None
         self.last_action_value = None
         self.collect_state = 0
+        self.stored_time = 0
 
     def drive_to_position(self, target_pos: Union[list, np.ndarray], max_forward_speed=None, max_rotation_rate=None,
                           reverse=False) -> bool:
@@ -487,7 +488,13 @@ class IDPRobot(Robot):
         return abs(self.linear_speed) <= self.linear_speed_threshold \
                and abs(self.angular_velocity) <= self.angular_speed_threshold
 
-    def hold(self):
+    def hold(self, time=None):
+        # Store when we want hold to end, we do this instead of storing current time because current time might be 0
+        if time is not None:
+            if self.stored_time == 0:
+                self.stored_time = self.time + time
+            elif self.time >= self.stored_time:
+                return True
         self.brake()
         return False
 

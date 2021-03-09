@@ -62,7 +62,7 @@ class PID:
 
         self.cum_error = 0
 
-        # This helps stabilise the derivative error
+        # This helps stabilise the derivative error by using an exponential moving average of error changes
         self.d_weight_decay_half_life = derivative_weight_decay_half_life
         if derivative_weight_decay_half_life is not None:
             num_weights = int(3.32 * derivative_weight_decay_half_life / time_step)  # Last weight is 10% of first
