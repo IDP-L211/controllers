@@ -273,13 +273,13 @@ class TargetCache:
     def check_target_path_blocked(self, curr_target: Target, curr_position: list,
                                   other_bot_pos: Union[list, None] = None,
                                   other_bot_vertices: Union[list, None] = None) -> bool:
-        """Check if there are other targets on the path to currently selected target
+        """Check if other targets or the other robot is in the path to currently selected target
 
         Args:
             curr_target (Target): The target chosen
             curr_position (list): Current position of the centre of the robot
-            other_bot_pos (list, None): Current position of the other robot
-            other_bot_vertices (list, None): Current positions of vertices of the other robot
+            other_bot_pos (list, None): Current position of the other robot, optional
+            other_bot_vertices (list, None): Current positions of vertices of the other robot, optional
 
         Returns:
             bool: Whether the path is blocked
