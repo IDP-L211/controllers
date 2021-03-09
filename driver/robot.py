@@ -80,6 +80,7 @@ class IDPRobot(Robot):
         # To store and process detections
         self.targeting_handler = TargetingHandler()
         self.target_cache = TargetCache()
+        self.target = None
 
         # Store internal action queue
         self.action_queue = []
@@ -139,7 +140,7 @@ class IDPRobot(Robot):
         self.time += self.timestep_actual
         returned = super().step(timestep)
 
-        self.collision_avoidance()  # passive collision avoidance
+        self.passive_collision_avoidance()  # passive collision avoidance
 
         self.radio.send_message({
             'position': self.position,
@@ -147,11 +148,11 @@ class IDPRobot(Robot):
             'vertices': list(map(list, self.get_bot_vertices())),
             'collected': self.target_cache.prepare_collected_message()
         })  # also sending 'confirmed': (pos, color) if a block should be collected by the other robot
-        
+
         # send 'target': [x, y] if a target is selected
-        if target := self.get_best_target():
-            self.radio.send_message({'target': list(target.position)})
-        
+        if self.target:
+            self.radio.send_message({'target': list(self.target.position)})
+
         self.radio.dispatch_message()  # TODO ideally this should be send at the end of the timestep
 
         # remove targets already collected by the other robot
@@ -503,14 +504,27 @@ class IDPRobot(Robot):
         self.brake()
         return False
 
-    def collect_block(self, target: Target):
-        """Collect block at position.
+    def collect_block(self) -> bool:
+        """Collect block at the best position possible
 
-        Args:
-            target (Target): The target object
         Returns:
-            bool: If we are at our target
+            bool: If the collect action is completed
         """
+        if any((
+            not self.target,  # no target selected
+            all((
+                self.collect_state == 0,  # on the way to target
+                not self.check_target_valid(self.target),  # collision if continue to target
+                other_bot_pos := self.radio.get_other_bot_position(),  # have position data of the other robot
+                abs(self.angle_from_bot_from_position(other_bot_pos)) < np.pi / 2  # the other robot is in front of us
+            ))
+        )):
+            if curr_best_target := self.get_best_target():
+                self.target = curr_best_target  # update target to the best available at this time
+            else:  # no other target can be selected either, return to scan
+                self.brake()
+                return True
+
         distance_from_block_to_stop = 0.14
         max_angle_to_block = 0.1
         rotate_angle = -tau / 4
@@ -520,58 +534,61 @@ class IDPRobot(Robot):
 
         # Ifs not elifs means we don't waste timesteps if the state changes
 
-        if self.collect_state == 0:
-            if self.distance_from_bot(target.position) - distance_from_block_to_stop >= 0:
-                self.drive_to_position(target.position)
+        if self.collect_state == 0:  # driving to target
+            if self.distance_from_bot(self.target.position) - distance_from_block_to_stop >= 0:
+                self.drive_to_position(self.target.position)
             else:
                 self.collect_state = 1
 
-        if self.collect_state == 1:
-            angle_to_block = self.angle_from_bot_from_position(target.position)
+        if self.collect_state == 1:  # rotate to face target
+            angle_to_block = self.angle_from_bot_from_position(self.target.position)
             if abs(angle_to_block) > max_angle_to_block:
                 self.rotate(angle_to_block)
             else:
                 self.stored_time = self.time
                 self.collect_state = 2
 
-        if self.collect_state == 2:
+        if self.collect_state == 2:  # facing target
             if self.brake():
                 self.collect_state = 3
 
-        if self.collect_state == 3:
+        if self.collect_state == 3:  # detecting colour
             color = self.color_detector.get_color()
             print(f"Block colour: {color}")
             if color in ["red", "green"]:
-                target.classification = f"{color}_box"
+                self.target.classification = f"{color}_box"
                 if color == self.color:
                     self.collect_state = 4
                 else:
                     self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
                     # should be collected by the other robot, send info to it
-                    self.radio.send_message({'confirmed': (list(target.position), color)})
+                    self.radio.send_message({'confirmed': (list(self.target.position), color)})
+                    self.target = None
                     return True
             else:  # not able to detect the colour, probably because the position is not accurate
                 self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
                 self.action_queue.insert(2, "scan")  # rescan to check if there is actually a target there
                 # pop the current target off for now, the new scan will give better position
-                self.target_cache.remove_target(target)
+                self.target_cache.remove_target(self.target)
+                self.target = None
                 return True
 
-        if self.collect_state == 4:
+        if self.collect_state == 4:  # correct colour
             self.gate.open()
             if self.time - self.stored_time >= gate_time:
                 self.collect_state = 5
 
-        if self.collect_state == 5:
+        if self.collect_state == 5:  # collecting target
             if self.rotate(rotate_angle, max_rotation_rate=collect_rotation_rate):
                 self.stored_time = self.time
                 self.collect_state = 6
 
-        if self.collect_state == 6:
+        if self.collect_state == 6:  # target collected
             self.gate.close()
             if self.time - self.stored_time >= gate_time:
-                self.target_cache.remove_target(target)
-                self.target_cache.collected.append(target)
+                self.target_cache.remove_target(self.target)
+                self.target_cache.collected.append(self.target)
+                self.target = None
                 return True
 
         return False
@@ -699,40 +716,44 @@ class IDPRobot(Robot):
 
         return False
 
+    def check_target_valid(self, target: Union[Target, None]) -> bool:
+        return target.classification in ['box',
+                                         f'{self.color}_box'] and not self.target_cache.check_target_path_blocked(
+            target,
+            self.position,
+            self.radio.get_other_bot_position(),
+            self.radio.get_other_bot_vertices()
+        ) if target else False
+
+    def filter_targets(self, targets: list) -> list:
+        """Filter a given list of targets, returns targets the robot can drive to without hitting other targets or
+        the other robot on the way.
+
+        Args:
+            targets ([Target]): List of targets
+
+        Returns:
+            [Target]: Filtered list of targets
+        """
+        return list(filter(
+            self.check_target_valid,
+            targets
+        ))
+
     def get_best_target(self) -> Union[Target, None]:
-        """Decide on a new target block for robot
-
-        If targeting is not just get closest block there could be more logic here, potentially calls to a script in
-            strategies folder that applied more complex algorithms and could even return a list of ordered targets
-
-        For now we just choose the closest block of correct colour or unknown colour
+        """Decide on a new target block for robot, which is the cloest valid target on the way to which
+        there won't involve any collision
 
         Returns:
             [float, float]: Targets co-ordinates, East-North, m
         """
-        valid_targets_sorted = self.target_cache.get_targets(
-            valid_classes=['box', 'red_box', 'green_box'],
+        potential_targets_sorted = self.target_cache.get_targets(
+            valid_classes=['box', f'{self.color}_box'],
             key=lambda t: self.distance_from_bot(t.position)
         )
 
-        for target in valid_targets_sorted:
-            # prevent a block of different colour or the other robot blocking the path to the target
-            if target.classification not in ['box', f'{self.color}_box'] or self.target_cache.check_target_path_blocked(
-                    target, self.position, self.radio.get_other_bot_position(), self.radio.get_other_bot_vertices()):
-                continue
+        valid_targets = self.filter_targets(potential_targets_sorted)
+        return valid_targets[0] if valid_targets else None
 
-            # prevent robots going to the same target
-            if other_bot_target_pos := self.radio.get_other_bot_target_pos():  # check we have all the date needed
-                # going to the same target indeed
-                if target.is_near(other_bot_target_pos, threshold=0.3):
-                    print_if_debug('target clash, next target', debug_flag=DEBUG)
-                    # the other robot is closer to the target, let's go somewhere else
-                    continue
-
-            # passed all the tests
-            return target
-
-        return None  # no suitable target
-
-    def collision_avoidance(self):
+    def passive_collision_avoidance(self):
         pass

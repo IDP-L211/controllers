@@ -23,11 +23,8 @@ while robot.step(robot.timestep) != -1:
 
     # If we have no action
     if robot.execute_next_action():
-        # Update target
-        target = robot.get_best_target()
-
         # If we have a target go to it, else scan
-        if target:
-            robot.do("collect", target)
+        if robot.get_best_target():
+            robot.do("collect")
         else:
             robot.do("scan")
