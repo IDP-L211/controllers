@@ -20,6 +20,10 @@ class DataRecorder:
         for arg in args:
             self.dict[arg] = []
 
+    def reset(self):
+        for k in self.dict.keys():
+            self.dict[k] = []
+
     def update(self, **kwargs):
         for k in self.dict.keys():
             self.dict[k].append(kwargs[k] if k in kwargs.keys() else 0)
@@ -47,8 +51,9 @@ class DataRecorder:
 
 
 class PID:
-    def __init__(self, quantity, timer_func, k_p=0, k_i=0, k_d=0, time_step=None, integral_wind_up_speed=None,
-                 integral_delay_time=0, integral_active_error_band=np.inf, derivative_weight_decay_half_life=None):
+    def __init__(self, quantity, timer_func, k_p=0, k_i=0, k_d=0, time_step=None, integral_wind_up_speed=np.inf,
+                 integral_delay_time=0, integral_active_error_band=np.inf, derivative_weight_decay_half_life=None,
+                 integral_delay_windup_when_in_bounds=True):
         self.quantity = quantity
 
         self.k_p = k_p
@@ -71,17 +76,27 @@ class PID:
         self.i_wind_up_speed = integral_wind_up_speed
         self.i_delay_time = integral_delay_time
         self.i_active_error_band = integral_active_error_band
+        self.i_delay_windup_when_in_bounds = integral_delay_windup_when_in_bounds
 
         self.time_step = time_step
         self.timer_func = timer_func
         self.active_time = 0
         self.last_time_called = 0
+        self.time_entered_bounds = None
 
         # Mild deuteranopia go brrrr
         pid_graph_styles = {"output": 'k-', "error": 'r-', "cumulative_error": 'b-', "error_change": 'y-', "p": 'r--',
                             "i": 'b--', "d": 'y--'}
         self.history = DataRecorder("time", "error", "cumulative_error", "error_change", "p", "i", "d", "output",
                                     styles=pid_graph_styles)
+
+    def reset(self, hard=False):
+        self.e_history = []
+        self.cum_error = 0
+        self.active_time = 0
+        self.time_entered_bounds = None
+        if hard:
+            self.history.reset()
 
     def query(self, error, step_mode=False):
         """Get the output of the pid without affecting its state"""
@@ -93,9 +108,7 @@ class PID:
             if step_mode:
                 self.history.update(time=self.last_time_called, error=np.nan, cumulative_error=np.nan, error_change=np.nan,
                                     p=np.nan, i=np.nan, d=np.nan, output=np.nan)
-            self.e_history = []
-            self.cum_error = 0
-            self.active_time = 0
+            self.reset()
 
         error_change = sum([(e1 - e2) * w / self.time_step
                             for e1, e2, w in zip(self.e_history[::-1], self.e_history[-2::-1], self.e_weights)])
@@ -117,10 +130,22 @@ class PID:
         self.history.update(time=time, error=error, cumulative_error=self.cum_error, error_change=error_change, p=p,
                             i=i, d=d, output=output)
 
-        # Update our state variables
-        i_control_term = max(0, np.tanh((self.active_time - self.i_delay_time) * self.i_wind_up_speed))\
-            if self.i_wind_up_speed is not None else max(0, np.sign(self.active_time - self.i_delay_time))
+        # If we are waiting to be in our bounds before applying delay and windup we need the to use the correct time
+        if self.i_delay_windup_when_in_bounds:
+            if abs(error) <= self.i_active_error_band:
+                if self.time_entered_bounds is None:
+                    self.time_entered_bounds = self.active_time
+            else:
+                self.time_entered_bounds = None
+            i_time = self.active_time - self.time_entered_bounds if self.time_entered_bounds is not None else 0
+        else:
+            i_time = self.active_time
+
+        # Use delay and windup to calculate the weight on error accumulation
+        i_control_term = max(0, np.tanh((i_time - self.i_delay_time) * self.i_wind_up_speed))
         i_control_term = i_control_term if abs(error) <= self.i_active_error_band else 0
+
+        # Update our state variables
         self.cum_error += error * self.time_step * i_control_term
         self.e_history.append(error)
         self.active_time += self.time_step
@@ -130,7 +155,7 @@ class PID:
     def plot_history(self, *args):
         title = f"""{self.quantity} PID\n{f" K_p={self.k_p} " if self.k_p != 0 else ""}\
 {f" K_i={self.k_i} " if self.k_i != 0 else ""}{f" K_d={self.k_d} " if self.k_d != 0 else ""}\
-{f" i_windup={self.i_wind_up_speed} " if self.i_wind_up_speed is not None else ""}\
+{f" i_windup={self.i_wind_up_speed} " if self.i_wind_up_speed != np.inf else ""}\
 {f" i_delay={self.i_delay_time} " if self.i_delay_time != 0 else ""}\
 {f" i_active_error_band={self.i_active_error_band} " if self.i_active_error_band != np.inf else ""}\
 {f" d_weight_decay_half_life={self.i_active_error_band} " if self.d_weight_decay_half_life is not None else ""}"""
