@@ -212,7 +212,10 @@ class TargetCache:
         Args:
             target: The target object to be removed
         """
-        self.targets.remove(target)
+        try:
+            self.targets.remove(target)
+        except ValueError:
+            print(f'[WARNING] {target} not in cache')
 
     def get_targets(self, valid_classes: list, key: Callable = None) -> list:
         """Returns a list of object dicts based on a sorting algorithm
@@ -251,12 +254,16 @@ class TargetCache:
 
         return popped
 
-    def check_target_path_blocked(self, curr_target: Target, curr_position: list) -> bool:
+    def check_target_path_blocked(self, curr_target: Target, curr_position: list,
+                                  other_bot_pos: Union[list, None] = None,
+                                  other_bot_vertices: Union[list, None] = None) -> bool:
         """Check if there are other targets on the path to currently selected target
 
         Args:
             curr_target (Target): The target chosen
             curr_position (list): Current position of the centre of the robot
+            other_bot_pos (list, None): Current position of the other robot
+            other_bot_vertices (list, None): Current positions of vertices of the other robot
 
         Returns:
             bool: Whether the path is blocked
@@ -276,7 +283,10 @@ class TargetCache:
                     self.targets
                 )
             )
-        ))
+        )) or (check_in_path(other_bot_pos) if other_bot_pos else False) or (any(map(
+            check_in_path,
+            other_bot_vertices
+        )) if other_bot_vertices else False)
 
     def prepare_collected_message(self) -> list:
         """Prepare a list of positions where blocks were collected

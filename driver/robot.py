@@ -483,8 +483,8 @@ class IDPRobot(Robot):
         self.motors.velocities = np.zeros(2)
         self.update_motion_history(time=self.time, linear_speed=self.linear_speed,
                                    angular_velocity=self.angular_velocity)
-        return abs(self.linear_speed) <= self.linear_speed_threshold\
-            and abs(self.angular_velocity) <= self.angular_speed_threshold
+        return abs(self.linear_speed) <= self.linear_speed_threshold \
+               and abs(self.angular_velocity) <= self.angular_speed_threshold
 
     def hold(self):
         self.brake()
@@ -587,12 +587,12 @@ class IDPRobot(Robot):
                 for target_pos in self.targeting_handler.get_targets(self.position):
                     # check if target is the other robot
                     if (other_bot_pos := self.radio.get_other_bot_position()) \
-                            and Target.check_near(target_pos, other_bot_pos, 0.3):
+                            and Target.check_near(target_pos, other_bot_pos, 0.4):
                         self.target_cache.add_target(target_pos, classification='robot')
                     else:
                         self.target_cache.add_target(target_pos)
 
-                print_if_debug(self.target_cache.targets)
+                print_if_debug(self.target_cache.targets, DEBUG)
 
                 if self.get_best_target() is None:
                     self.targeting_handler.next_scan_position = self.targeting_handler.get_fallback_scan_position(
@@ -665,9 +665,9 @@ class IDPRobot(Robot):
             print_if_debug('\n'.join(str(x) for x in self.action_queue), debug_flag=DEBUG)
 
         # Check if bot is stuck, note we only reach here if action not completed
-        if abs(self.linear_speed) <= self.linear_speed_threshold / 1000\
-                and abs(self.angular_velocity) <= self.angular_speed_threshold / 1000\
-                and self.collect_state in [1, 0]\
+        if abs(self.linear_speed) <= self.linear_speed_threshold / 1000 \
+                and abs(self.angular_velocity) <= self.angular_speed_threshold / 1000 \
+                and self.collect_state in [1, 0] \
                 and action_type != "hold":
             if self.stuck_steps >= 5:
                 print_if_debug(f"BOT STUCK - Attempting unstuck", debug_flag=DEBUG)
@@ -698,8 +698,8 @@ class IDPRobot(Robot):
         )
 
         for target in valid_targets_sorted:
-            if target.classification not in ['box', f'{self.color}_box'] \
-                    or self.target_cache.check_target_path_blocked(target, self.position):
+            if target.classification not in ['box', f'{self.color}_box'] or self.target_cache.check_target_path_blocked(
+                    target, self.position, self.radio.get_other_bot_position(), self.radio.get_other_bot_vertices()):
                 continue  # prevents a block of different colour blocking the path to the target
             return target
 
