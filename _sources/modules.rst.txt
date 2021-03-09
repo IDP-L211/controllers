@@ -8,6 +8,7 @@ driver
    motors
    sensors
    radio
+   geometry
    targeting
    mapping
    utils
