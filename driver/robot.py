@@ -147,6 +147,11 @@ class IDPRobot(Robot):
             'vertices': list(map(list, self.get_bot_vertices())),
             'collected': self.target_cache.prepare_collected_message()
         })  # also sending 'confirmed': (pos, color) if a block should be collected by the other robot
+        
+        # send 'target': [x, y] if a target is selected
+        if target := self.get_best_target():
+            self.radio.send_message({'target': list(target.position)})
+        
         self.radio.dispatch_message()  # TODO ideally this should be send at the end of the timestep
 
         # remove targets already collected by the other robot
@@ -506,7 +511,7 @@ class IDPRobot(Robot):
         Returns:
             bool: If we are at our target
         """
-        distance_from_block_to_stop = 0.15
+        distance_from_block_to_stop = 0.14
         max_angle_to_block = 0.1
         rotate_angle = -tau / 4
         gate_time = 0.5
@@ -600,7 +605,7 @@ class IDPRobot(Robot):
                     else:
                         self.target_cache.add_target(target_pos)
 
-                print_if_debug(self.target_cache.targets, DEBUG)
+                print_if_debug(self.target_cache.targets, debug_flag=DEBUG)
 
                 if self.get_best_target() is None:
                     self.targeting_handler.next_scan_position = self.targeting_handler.get_fallback_scan_position(
@@ -679,6 +684,10 @@ class IDPRobot(Robot):
                 and action_type != "hold":
             if self.stuck_steps >= 5:
                 print_if_debug(f"BOT STUCK - Attempting unstuck", debug_flag=DEBUG)
+
+                if target := self.get_best_target():
+                    self.target_cache.remove_target(target)
+
                 if action_type != "reverse":
                     self.action_queue.insert(0, ("reverse", list(self.coordtransform_bot_polar_to_world(-0.5, 0))))
                 else:
@@ -706,12 +715,23 @@ class IDPRobot(Robot):
         )
 
         for target in valid_targets_sorted:
+            # prevent a block of different colour or the other robot blocking the path to the target
             if target.classification not in ['box', f'{self.color}_box'] or self.target_cache.check_target_path_blocked(
                     target, self.position, self.radio.get_other_bot_position(), self.radio.get_other_bot_vertices()):
-                continue  # prevents a block of different colour blocking the path to the target
+                continue
+
+            # prevent robots going to the same target
+            if other_bot_target_pos := self.radio.get_other_bot_target_pos():  # check we have all the date needed
+                # going to the same target indeed
+                if target.is_near(other_bot_target_pos, threshold=0.3):
+                    print_if_debug('target clash, next target', debug_flag=DEBUG)
+                    # the other robot is closer to the target, let's go somewhere else
+                    continue
+
+            # passed all the tests
             return target
 
-        return None
+        return None  # no suitable target
 
     def collision_avoidance(self):
         pass
