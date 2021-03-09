@@ -120,10 +120,11 @@ class IDPRobot(Robot):
         self.stuck_steps = 0
 
         # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers due to noise in acceleration
-        self.pid_f_velocity = PID("Forward Velocity", self.getTime, 0.1, 0, 0, self.timestep_actual)
-        self.pid_distance = PID("Distance", self.getTime, 2, 0, 0, self.timestep_actual)
-        self.pid_angle = PID("Angle", self.getTime, 2.5, 0.0, 0.10, self.timestep_actual,
-                             derivative_weight_decay_half_life=0.05)
+        self.pid_f_velocity = PID(0.1, 0, 0, self.timestep_actual, quantity_name="Forward Velocity",
+                                  timer_func=self.getTime)
+        self.pid_distance = PID(2, 0, 0, self.timestep_actual, quantity_name="Distance", timer_func=self.getTime)
+        self.pid_angle = PID(2.5, 0.0, 0.10, self.timestep_actual, derivative_weight_decay_half_life=0.05,
+                             quantity_name="Angle", timer_func=self.getTime)
 
         motor_graph_styles = {"distance": 'k-', "angle": 'r-', "forward_speed": 'k--', "rotation_speed": 'r--',
                               "linear_speed": "k:", "angular_velocity": "r:", "left_motor": 'b-', "right_motor": 'y-'}

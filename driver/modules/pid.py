@@ -51,10 +51,10 @@ class DataRecorder:
 
 
 class PID:
-    def __init__(self, quantity, timer_func, k_p=0, k_i=0, k_d=0, time_step=None, integral_wind_up_speed=np.inf,
+    def __init__(self, k_p=0, k_i=0, k_d=0, time_step=None, integral_wind_up_speed=np.inf,
                  integral_delay_time=0, integral_active_error_band=np.inf, derivative_weight_decay_half_life=None,
-                 integral_delay_windup_when_in_bounds=True):
-        self.quantity = quantity
+                 integral_delay_windup_when_in_bounds=True, quantity_name="Error", timer_func=None):
+        self.quantity_name = quantity_name
 
         self.k_p = k_p
         self.k_i = k_i
@@ -93,17 +93,18 @@ class PID:
     def reset(self, hard=False):
         self.e_history = []
         self.cum_error = 0
-        self.active_time = 0
+        self.active_time = 0 if self.timer_func is not None else self.active_time
         self.time_entered_bounds = None
         if hard:
             self.history.reset()
 
     def query(self, error, step_mode=False):
         """Get the output of the pid without affecting its state"""
-        time = self.timer_func()
+        time = self.timer_func() if self.timer_func is not None else self.active_time
 
         # Check if there was a gap in being called, if so make sure the logs and graphs reflect this
         # Whilst resetting here might go against the idea of query, it would get reset anyway if we waited for step
+        # Therefore we reset here so the returned result is accurate even if not stepping
         if self.last_time_called + self.time_step < time:
             if step_mode:
                 self.history.update(time=self.last_time_called, error=np.nan, cumulative_error=np.nan, error_change=np.nan,
@@ -153,7 +154,7 @@ class PID:
         return output
 
     def plot_history(self, *args):
-        title = f"""{self.quantity} PID\n{f" K_p={self.k_p} " if self.k_p != 0 else ""}\
+        title = f"""{self.quantity_name} PID\n{f" K_p={self.k_p} " if self.k_p != 0 else ""}\
 {f" K_i={self.k_i} " if self.k_i != 0 else ""}{f" K_d={self.k_d} " if self.k_d != 0 else ""}\
 {f" i_windup={self.i_wind_up_speed} " if self.i_wind_up_speed != np.inf else ""}\
 {f" i_delay={self.i_delay_time} " if self.i_delay_time != 0 else ""}\
