@@ -395,7 +395,7 @@ class IDPRobot(Robot):
         self.stored_time = 0
 
     def drive_to_position(self, target_pos: Union[list, np.ndarray], max_forward_speed=None, max_rotation_rate=None,
-                          reverse=False) -> bool:
+                          reverse=False, passive_collision_avoidance=True) -> bool:
         """Go to a position
 
         Args:
@@ -403,9 +403,14 @@ class IDPRobot(Robot):
             max_forward_speed (float): Maximum speed to travel at m/s
             max_rotation_rate (float): Maximum rate to rotate at, rad/s
             reverse (bool): Whether to reverse there
+            passive_collision_avoidance (bool): Whether to employ ultrasonic collision avoidance
         Returns:
             bool: If we are at our target
         """
+
+        passive_collision_avoidance_scaling = 0.2
+        collision_avoidance_direction = np.sign(self.angle_from_bot_from_position([0, 0]))
+
         max_rotation_rate = self.default_max_allowed_speed["r"] if max_rotation_rate is None else max_rotation_rate
         max_rotation_drive = max_rotation_rate / self.max_possible_speed["r"]
 
@@ -425,8 +430,17 @@ class IDPRobot(Robot):
         forward_speed = min(MotionCS.linear_dual_pid(distance=distance, distance_pid=self.pid_distance, angle=angle,
                                                      forward_speed=self.linear_speed,
                                                      forward_speed_pid=self.pid_f_velocity), max_forward_drive)
+
         r_speed = self.pid_angle.step(angle)
+
+        # Passive collision avoidance - turn away towards center if path is block
+        if passive_collision_avoidance and self.target_cache.check_target_path_blocked(target_pos, self.position,
+            self.radio.get_other_bot_position(),
+            self.radio.get_other_bot_vertices()):
+            r_speed += forward_speed * passive_collision_avoidance_scaling  # * collision_avoidance_direction
+
         rotation_speed = sorted([r_speed, np.sign(r_speed) * max_rotation_drive], key=lambda x: abs(x))[0]
+
         raw_velocities = MotionCS.combine_and_scale(forward_speed, rotation_speed)
         self.motors.velocities = raw_velocities if not reverse else -raw_velocities
         self.update_motion_history(time=self.time, distance=distance, angle=angle, forward_speed=forward_speed,
@@ -536,7 +550,7 @@ class IDPRobot(Robot):
 
         if self.collect_state == 0:  # driving to target
             if self.distance_from_bot(self.target.position) - distance_from_block_to_stop >= 0:
-                self.drive_to_position(self.target.position)
+                self.drive_to_position(self.target.position, passive_collision_avoidance=False)
             else:
                 self.collect_state = 1
 
