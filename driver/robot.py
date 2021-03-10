@@ -681,9 +681,9 @@ class IDPRobot(Robot):
         if abs(self.linear_speed) <= self.linear_speed_threshold / 1000 \
                 and abs(self.angular_velocity) <= self.angular_speed_threshold / 1000 \
                 and self.collect_state in [1, 0] \
-                and action_type != "hold":
+                and action_type not in ["hold", "brake", "scan"]:
             if self.stuck_steps >= 5:
-                print_if_debug(f"BOT STUCK - Attempting unstuck", debug_flag=DEBUG)
+                print_if_debug(f"BOT STUCK", debug_flag=DEBUG)
 
                 if target := self.get_best_target():
                     self.target_cache.remove_target(target)
@@ -692,6 +692,7 @@ class IDPRobot(Robot):
                     self.action_queue.insert(0, ("reverse", list(self.coordtransform_bot_polar_to_world(-0.5, 0))))
                 else:
                     self.action_queue.insert(0, ("move", list(self.coordtransform_bot_polar_to_world(0.5, 0))))
+
                 self.stuck_steps = 0
             else:
                 self.stuck_steps += 1
