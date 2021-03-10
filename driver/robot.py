@@ -446,7 +446,8 @@ class IDPRobot(Robot):
             print_if_debug(f'robot gonna collide {blockage_pos_d}', debug_flag=DEBUG)
             if self.distance_from_bot(target_pos) > 0.2:  # prevent stuck in rotation
                 collision_avoidance_direction = -np.sign(self.angle_from_bot_from_position(blockage_pos_d[0]))
-                r_speed += forward_speed * 1 / blockage_pos_d[1] * collision_avoidance_direction
+                r_speed *= 0.5
+                r_speed += forward_speed * 0.75 * min(1 / blockage_pos_d[1], 15) * collision_avoidance_direction
 
         rotation_speed = sorted([r_speed, np.sign(r_speed) * max_rotation_drive], key=lambda x: abs(x))[0]
 
@@ -653,8 +654,6 @@ class IDPRobot(Robot):
                         self.infrared.max_range)
                     self.targeting_handler.relocating = True
 
-                    # TODO too many scans, probably has collected all the targets, return home
-
         else:
             complete = self.drive_to_position(self.targeting_handler.next_scan_position)
             self.targeting_handler.relocating = not complete
@@ -717,26 +716,6 @@ class IDPRobot(Robot):
                 return True
 
             print_if_debug('\n'.join(str(x) for x in self.action_queue), debug_flag=DEBUG)
-
-        # Check if bot is stuck, note we only reach here if action not completed
-        if abs(self.linear_speed) <= self.linear_speed_threshold / 1000 \
-                and abs(self.angular_velocity) <= self.angular_speed_threshold / 1000 \
-                and self.collect_state in [1, 0] \
-                and action_type not in ["hold", "brake", "scan"]:
-            if self.stuck_steps >= 5:
-                print_if_debug(f"BOT STUCK", debug_flag=DEBUG)
-
-                if target := self.get_best_target():
-                    self.target_cache.remove_target(target)
-
-                if action_type != "reverse":
-                    self.action_queue.insert(0, ("reverse", list(self.coordtransform_bot_polar_to_world(-0.5, 0))))
-                else:
-                    self.action_queue.insert(0, ("move", list(self.coordtransform_bot_polar_to_world(0.5, 0))))
-
-                self.stuck_steps = 0
-            else:
-                self.stuck_steps += 1
 
         return False
 
