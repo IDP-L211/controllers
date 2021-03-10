@@ -5,6 +5,8 @@
 """
 
 from typing import Union
+from itertools import chain
+from operator import attrgetter
 
 from controller import Robot
 import numpy as np
@@ -15,7 +17,8 @@ from devices.radio import IDPRadio
 
 from modules.motion import MotionCS
 from modules.utils import print_if_debug, ensure_list_or_tuple
-from modules.geometry import rotate_vector, get_min_distance_rectangles
+from modules.geometry import rotate_vector, get_rectangle_sides, get_min_distance_point_rectangle, \
+    get_min_distance_rectangles, point_in_rectangle
 from modules.mapping import Map
 from modules.pid import PID, DataRecorder
 from modules.targeting import TargetingHandler, Target, TargetCache
@@ -139,8 +142,6 @@ class IDPRobot(Robot):
         self.last_bearing = self.bearing if self.time != 0 else None
         self.time += self.timestep_actual
         returned = super().step(timestep)
-
-        self.passive_collision_avoidance()  # passive collision avoidance
 
         self.radio.send_message({
             'position': self.position,
@@ -363,6 +364,17 @@ class IDPRobot(Robot):
         wall_from_origin = self.arena_length / 2
         return min(wall_from_origin - max_x_abs, wall_from_origin - max_y_abs)
 
+    def get_min_distance_point_to_bot(self, position: Union[list, np.ndarray]) -> float:
+        """Get the minimum distance between a point and the bounding box of the robot
+
+        Args:
+            position (list, np.ndarray): The coordinate of the point
+
+        Returns:
+            float: The minimum distance
+        """
+        return get_min_distance_point_rectangle(get_rectangle_sides(self.get_bot_vertices()), position)
+
     def get_min_distance_bot_to_bot(self, other_bot_vertices: list) -> float:
         """Get the minimum distances between two robots
 
@@ -407,10 +419,6 @@ class IDPRobot(Robot):
         Returns:
             bool: If we are at our target
         """
-
-        passive_collision_avoidance_scaling = 0.2
-        collision_avoidance_direction = np.sign(self.angle_from_bot_from_position([0, 0]))
-
         max_rotation_rate = self.default_max_allowed_speed["r"] if max_rotation_rate is None else max_rotation_rate
         max_rotation_drive = max_rotation_rate / self.max_possible_speed["r"]
 
@@ -434,10 +442,11 @@ class IDPRobot(Robot):
         r_speed = self.pid_angle.step(angle)
 
         # Passive collision avoidance - turn away towards center if path is block
-        if passive_collision_avoidance and self.target_cache.check_target_path_blocked(target_pos, self.position,
-            self.radio.get_other_bot_position(),
-            self.radio.get_other_bot_vertices()):
-            r_speed += forward_speed * passive_collision_avoidance_scaling  # * collision_avoidance_direction
+        if passive_collision_avoidance and (blockage_pos_d := self.get_imminent_collision()) is not None:
+            print_if_debug(f'robot gonna collide {blockage_pos_d}', debug_flag=DEBUG)
+            if self.distance_from_bot(target_pos) > 0.2:  # prevent stuck in rotation
+                collision_avoidance_direction = -np.sign(self.angle_from_bot_from_position(blockage_pos_d[0]))
+                r_speed += forward_speed * 1 / blockage_pos_d[1] * collision_avoidance_direction
 
         rotation_speed = sorted([r_speed, np.sign(r_speed) * max_rotation_drive], key=lambda x: abs(x))[0]
 
@@ -456,7 +465,7 @@ class IDPRobot(Robot):
         Returns:
             bool: If we are at our target
         """
-        return self.drive_to_position(target_pos, reverse=True)
+        return self.drive_to_position(target_pos, reverse=True, passive_collision_avoidance=False)
 
     def rotate(self, angle: float, max_rotation_rate=None) -> bool:
         """Rotate the bot a fixed angle at a fixed rate of rotation
@@ -525,13 +534,14 @@ class IDPRobot(Robot):
             bool: If the collect action is completed
         """
         if any((
-            not self.target,  # no target selected
-            all((
-                self.collect_state == 0,  # on the way to target
-                not self.check_target_valid(self.target),  # collision if continue to target
-                other_bot_pos := self.radio.get_other_bot_position(),  # have position data of the other robot
-                abs(self.angle_from_bot_from_position(other_bot_pos)) < np.pi / 2  # the other robot is in front of us
-            ))
+                not self.target,  # no target selected
+                all((
+                        self.collect_state == 0,  # on the way to target
+                        not self.check_target_valid(self.target),  # collision if continue to target
+                        other_bot_pos := self.radio.get_other_bot_position(),  # have position data of the other robot
+                        abs(self.angle_from_bot_from_position(other_bot_pos)) < np.pi / 2
+                        # the other robot is in front of us
+                ))
         )):
             if curr_best_target := self.get_best_target():
                 self.target = curr_best_target  # update target to the best available at this time
@@ -539,12 +549,12 @@ class IDPRobot(Robot):
                 self.brake()
                 return True
 
-        distance_from_block_to_stop = 0.14
+        distance_from_block_to_stop = 0.15
         max_angle_to_block = 0.1
-        rotate_angle = -tau / 4
+        rotate_angle = -tau / 3
         gate_time = 0.5
         reverse_distance = 0.2
-        collect_rotation_rate = 2.0
+        collect_rotation_rate = 3.0
 
         # Ifs not elifs means we don't waste timesteps if the state changes
 
@@ -733,7 +743,7 @@ class IDPRobot(Robot):
     def check_target_valid(self, target: Union[Target, None]) -> bool:
         return target.classification in ['box',
                                          f'{self.color}_box'] and not self.target_cache.check_target_path_blocked(
-            target,
+            target.position,
             self.position,
             self.radio.get_other_bot_position(),
             self.radio.get_other_bot_vertices()
@@ -769,5 +779,37 @@ class IDPRobot(Robot):
         valid_targets = self.filter_targets(potential_targets_sorted)
         return valid_targets[0] if valid_targets else None
 
-    def passive_collision_avoidance(self):
-        pass
+    def get_imminent_collision(self) -> Union[tuple, None]:
+        if self.radio.get_other_bot_position() is None or self.radio.get_other_bot_vertices() is None:
+            return None
+
+        zone_length = 0.5
+        front_rectangle = list(map(
+            self.coordtransform_bot_cartesian_to_world,
+            [
+                np.array([-0.2, 0.225 + zone_length]),  # topleft
+                np.array([0.3, 0.225 + zone_length]),
+                np.array([-0.2, -0.1]),
+                np.array([0.3, -0.1])  # bottomright
+            ]
+        ))
+
+        sorted_by_dist = sorted(
+            map(
+                lambda tp: (tp, self.get_min_distance_point_to_bot(np.asarray(tp))),
+                chain(
+                    map(
+                        attrgetter('position'),
+                        filter(lambda t: t.classification in ['box', 'green_box', 'red_box'], self.target_cache.targets)
+                    ),
+                    self.radio.get_other_bot_vertices()
+                )
+            ),
+            key=lambda x: x[1]
+        )
+
+        for pos_d in sorted_by_dist:
+            if point_in_rectangle(front_rectangle, pos_d[0]):
+                return pos_d
+
+        return None

@@ -4,7 +4,7 @@
 """Class file for detected objects handler"""
 
 from typing import Union, Callable
-from itertools import starmap
+from itertools import starmap, chain
 from collections import defaultdict
 from functools import partial
 from operator import attrgetter
@@ -186,13 +186,15 @@ class TargetCache:
             self.targets
         )))
 
-    def add_target(self, position: list, classification: str = 'box') -> None:
+    def add_target(self, position: list, classification: str = 'box', min_distance_from_wall: float = 0.08) -> None:
         """Add a new detected object to the handler
 
         Args:
             position ([float, float]): Objects co-ordinates, East-North, m
             classification (string): The kind of object this is
                 (Word 'kind' used to avoid confusion with programming type)
+            min_distance_from_wall (float): Minimum distance between the target and the wall, if less than the minimum.
+                the target will be discarded
         """
 
         # Validation on classification string
@@ -202,7 +204,7 @@ class TargetCache:
             raise Exception(f"{classification} is an invalid classification for a detected object\n"
                             f"Valid: {', '.join(valid_classifications)}")
 
-        if any(map(lambda x: abs(x) > 1.1, position)):
+        if any(map(lambda x: abs(x) > 1.2 - min_distance_from_wall, position)):  # target too close to the wall
             classification = 'discard'
 
         for t in self.targets:  # check if the same target already exist in cache
@@ -270,23 +272,24 @@ class TargetCache:
 
         return popped
 
-    def check_target_path_blocked(self, curr_target: Target, curr_position: list,
+    def check_target_path_blocked(self, curr_target_position: list, curr_position: list,
                                   other_bot_pos: Union[list, None] = None,
                                   other_bot_vertices: Union[list, None] = None) -> bool:
         """Check if other targets or the other robot is in the path to currently selected target
 
         Args:
-            curr_target (Target): The target chosen
+            curr_target_position (list): The target chosen
             curr_position (list): Current position of the centre of the robot
             other_bot_pos (list, None): Current position of the other robot, optional
             other_bot_vertices (list, None): Current positions of vertices of the other robot, optional
+
 
         Returns:
             bool: Whether the path is blocked
         """
         check_in_path = partial(
             point_in_rectangle,
-            get_path_rectangle(np.asarray(curr_target.position), np.asarray(curr_position))
+            get_path_rectangle(np.asarray(curr_target_position), np.asarray(curr_position))
         )
 
         return any(map(
@@ -295,7 +298,8 @@ class TargetCache:
                 attrgetter('position'),
                 filter(
                     # TODO this can be potentially changed to only checking blocks of the wrong colour
-                    lambda t: t != curr_target and t.classification in ['box', 'red_box', 'green_box'],
+                    lambda t: not t.is_near(curr_target_position, 0.01) and t.classification in ['box', 'red_box',
+                                                                                                 'green_box'],
                     self.targets
                 )
             )
