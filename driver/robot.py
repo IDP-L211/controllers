@@ -24,7 +24,7 @@ from modules.mapping import Map
 from modules.pid import PID, DataRecorder
 from modules.targeting import TargetingHandler, Target, TargetCache
 
-DEBUG_ACTIONS = True
+DEBUG_ACTIONS = False
 DEBUG_COLLISIONS = False
 DEBUG_COLLECT = False
 DEBUG_TARGETS = False
