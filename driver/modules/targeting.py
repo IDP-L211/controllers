@@ -4,7 +4,6 @@
 """Class file for detected objects handler"""
 
 from typing import Union, Callable
-from itertools import starmap, chain
 from collections import defaultdict
 from functools import partial
 from operator import attrgetter
@@ -128,8 +127,8 @@ class Target:
         return 1
 
     @staticmethod
-    def check_near(p1: list, p2: list, threshold: float) -> bool:
-        return all(starmap(lambda rp, p: abs(rp - p) < threshold, zip(p1, p2)))
+    def check_near(p1: Union[list, np.ndarray], p2: Union[list, np.ndarray], threshold: float) -> bool:
+        return np.allclose(np.asarray(p1), np.asarray(p2), atol=threshold)
 
     def is_near(self, position: list, threshold: float = 0.1) -> bool:
         """Check if the target is close to the specified position
