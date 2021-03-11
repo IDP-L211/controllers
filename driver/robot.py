@@ -553,7 +553,8 @@ class IDPRobot(Robot):
                 self.brake()
                 return True
 
-        distance_from_block_to_stop = 0.15
+        distance_from_block_for_colour_detect = 0.14
+        distance_from_block_for_collect = 0.15
         max_angle_to_block = 0.1
         rotate_angle = -tau / 2.5
         gate_time = 0.5
@@ -563,7 +564,7 @@ class IDPRobot(Robot):
         # Ifs not elifs means we don't waste timesteps if the state changes
 
         if self.collect_state == 0:  # driving to target
-            if self.distance_from_bot(self.target.position) - distance_from_block_to_stop >= 0:
+            if self.distance_from_bot(self.target.position) - distance_from_block_for_colour_detect >= 0:
                 self.drive_to_position(self.target.position, passive_collision_avoidance=False)
             else:
                 self.collect_state = 1
@@ -609,17 +610,25 @@ class IDPRobot(Robot):
                 self.target = None
                 return True
 
-        if self.collect_state == 4:  # correct colour
-            self.gate.open()
-            if self.time - self.stored_time >= gate_time:
+        if self.collect_state == 4:  # Get to collect distance from block
+            distance_to_move = self.distance_from_bot(self.target.position) - distance_from_block_for_collect
+            if abs(distance_to_move) >= self.target_distance_threshold / 4:
+                reverse = distance_to_move < 0
+                self.drive_to_position(self.get_bot_front(distance_to_move), reverse=reverse)
+            else:
                 self.collect_state = 5
 
-        if self.collect_state == 5:  # collecting target
-            if self.rotate(rotate_angle, max_rotation_rate=collect_rotation_rate):
-                self.stored_time = self.time
+        if self.collect_state == 5:  # correct colour
+            self.gate.open()
+            if self.time - self.stored_time >= gate_time:
                 self.collect_state = 6
 
-        if self.collect_state == 6:  # target collected
+        if self.collect_state == 6:  # collecting target
+            if self.rotate(rotate_angle, max_rotation_rate=collect_rotation_rate):
+                self.stored_time = self.time
+                self.collect_state = 7
+
+        if self.collect_state == 7:  # target collected
             self.gate.close()
             if self.time - self.stored_time >= gate_time:
                 self.target_cache.remove_target(self.target)
