@@ -24,7 +24,10 @@ from modules.mapping import Map
 from modules.pid import PID, DataRecorder
 from modules.targeting import TargetingHandler, Target, TargetCache
 
-DEBUG = False
+DEBUG_ACTIONS = True
+DEBUG_COLLISIONS = False
+DEBUG_COLLECT = False
+DEBUG_TARGETS = False
 tau = np.pi * 2
 
 
@@ -441,7 +444,7 @@ class IDPRobot(Robot):
 
         # Passive collision avoidance - turn away towards center if path is block
         if passive_collision_avoidance and (blockage_pos_d := self.get_imminent_collision()) is not None:
-            print_if_debug(f'robot gonna collide {blockage_pos_d}', debug_flag=DEBUG)
+            print_if_debug(f'Robot going to collide {blockage_pos_d}', debug_flag=DEBUG_COLLISIONS)
             if self.distance_from_bot(target_pos) > 0.2:  # prevent stuck in rotation
                 collision_avoidance_direction = -np.sign(self.angle_from_bot_from_position(blockage_pos_d[0]))
 
@@ -562,6 +565,7 @@ class IDPRobot(Robot):
             if curr_best_target := self.get_best_target():
                 self.target = curr_best_target  # update target to the best available at this time
             else:  # no other target can be selected either, return to scan
+                print_if_debug(f"{self.color}, collect: No target can be selected", debug_flag=DEBUG_COLLECT)
                 self.brake()
                 return True
 
@@ -579,6 +583,7 @@ class IDPRobot(Robot):
             if self.distance_from_bot(self.target.position) - distance_from_block_for_colour_detect >= 0:
                 self.drive_to_position(self.target.position, passive_collision_avoidance=False)
             else:
+                print_if_debug(f"{self.color}, collect: At target, rotating", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.ROTATE_TO_FACE_TARGET
 
         if self.collect_state == IDPRobotState.ROTATE_TO_FACE_TARGET:
@@ -587,10 +592,12 @@ class IDPRobot(Robot):
                 self.rotate(angle_to_block)
             else:
                 self.stored_time = self.time
+                print_if_debug(f"{self.color}, collect: Facing target, stopping", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.FACING_TARGET
 
         if self.collect_state == IDPRobotState.FACING_TARGET:
             if self.brake():
+                print_if_debug(f"{self.color}, collect: Stopped, detecting color", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.DETECTING_COLOUR
 
         if self.collect_state == IDPRobotState.DETECTING_COLOUR:
@@ -599,16 +606,21 @@ class IDPRobot(Robot):
             if color in ["red", "green"]:
                 self.target.classification = f"{color}_box"
                 if color == self.color:
+                    print_if_debug(f"{self.color}, collect: Color match, moving to collect distance",
+                                   debug_flag=DEBUG_COLLECT)
                     self.collect_state = IDPRobotState.GET_TO_COLLECT_DISTANCE_FROM_BLOCK
                 else:
                     self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
                     # should be collected by the other robot, send info to it
                     self.radio.send_message({'confirmed': (list(self.target.position), color)})
                     self.target = None
+                    print_if_debug(f"{self.color}, collect: Color opposite, reversing", debug_flag=DEBUG_COLLECT)
                     return True
             elif (other_bot_collected := self.radio.get_other_bot_collected()) and len(other_bot_collected) == 4 \
                     and self.target.classification == f'{self.color}_box':
-                self.collect_state = IDPRobotState.GET_TO_COLLECT_DISTANCE_FROM_BLOCK    # other robot has collected all four targets, this must be ours
+                print_if_debug(f"{self.color}, collect: Must be ours, moving to collect distance",
+                               debug_flag=DEBUG_COLLECT)
+                self.collect_state = IDPRobotState.GET_TO_COLLECT_DISTANCE_FROM_BLOCK   # other robot has collected all four targets, this must be ours
             else:  # not able to detect the colour, probably because the position is not accurate
                 self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
                 self.action_queue.insert(2, "scan")  # rescan to check if there is actually a target there
@@ -616,9 +628,13 @@ class IDPRobot(Robot):
                 if self.collect_num_tries > 1:  # this block is probably flipped over
                     self.target.classification = 'flipped'
                     self.collect_num_tries = 0  # reset the counter
+                    print_if_debug(f"{self.color}, collect: Color unknown, I think this is flipped",
+                                   debug_flag=DEBUG_COLLECT)
                 else:
                     self.target_cache.remove_target(self.target)
                     self.collect_num_tries += 1
+                    print_if_debug(f"{self.color}, collect: Color unknown, I'll try again later",
+                                   debug_flag=DEBUG_COLLECT)
                 self.target = None
                 return True
 
@@ -628,16 +644,20 @@ class IDPRobot(Robot):
                 reverse = distance_to_move < 0
                 self.drive_to_position(self.get_bot_front(distance_to_move), reverse=reverse)
             else:
+                print_if_debug(f"{self.color}, collect: In position for collect, opening gate",
+                               debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.CORRECT_COLOUR
 
         if self.collect_state == IDPRobotState.CORRECT_COLOUR:
             self.gate.open()
             if self.time - self.stored_time >= gate_time:
+                print_if_debug(f"{self.color}, collect: Gate open, rotating", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.COLLECTING_TARGET
 
         if self.collect_state == IDPRobotState.COLLECTING_TARGET:
             if self.rotate(rotate_angle, max_rotation_rate=collect_rotation_rate):
                 self.stored_time = self.time
+                print_if_debug(f"{self.color}, collect: Collected, closing gate", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.TARGET_COLLECTED
 
         if self.collect_state == IDPRobotState.TARGET_COLLECTED:
@@ -646,6 +666,7 @@ class IDPRobot(Robot):
                 self.target_cache.collected.append(self.target)
                 self.target_cache.remove_target(self.target)
                 self.target = None
+                print_if_debug(f"{self.color}, collect: Gate closed, moving on", debug_flag=DEBUG_COLLECT)
                 return True
 
         return False
@@ -675,7 +696,7 @@ class IDPRobot(Robot):
                 for target_pos in self.targeting_handler.get_targets(self.position):
                     self.target_cache.add_target(target_pos)
 
-                print_if_debug(self.target_cache.targets, debug_flag=DEBUG)
+                print_if_debug(f"{self.color}, targets: {self.target_cache.targets}", debug_flag=DEBUG_TARGETS)
 
                 if self.get_best_target() is None:
                     self.targeting_handler.next_scan_position = self.targeting_handler.get_fallback_scan_position(
@@ -733,17 +754,17 @@ class IDPRobot(Robot):
         # If we completed this action we should remove it from our list
         if completed:
             self.reset_action_variables()
-            print_if_debug(f"\nCompleted action: {self.action_queue[0]}", debug_flag=DEBUG)
+            print_if_debug(f"\n{self.color}, actions:\nCompleted action {self.action_queue[0]}", debug_flag=DEBUG_ACTIONS)
             del self.action_queue[0]
-            print_if_debug(f"Remaining actions:", debug_flag=DEBUG)
+            print_if_debug(f"Remaining actions:", debug_flag=DEBUG_ACTIONS)
 
             # Check if action list is now empty
             if len(self.action_queue) == 0:
-                print_if_debug("None", debug_flag=DEBUG)
+                print_if_debug("None", debug_flag=DEBUG_ACTIONS)
                 self.motors.velocities = np.zeros(2)
                 return True
 
-            print_if_debug('\n'.join(str(x) for x in self.action_queue), debug_flag=DEBUG)
+            print_if_debug('\n'.join(str(x) for x in self.action_queue), debug_flag=DEBUG_ACTIONS)
 
         return False
 
