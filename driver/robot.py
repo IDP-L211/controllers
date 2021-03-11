@@ -633,19 +633,15 @@ class IDPRobot(Robot):
 
             if abs(self.get_sensor_distance_to_wall() - distance) > bound * 1.5 \
                     and abs(self.infrared.max_range - distance) > bound:
-                self.targeting_handler.positions.append(
-                    self.get_bot_front(distance + 0.0125)  # add a bit to get the centre of the block
-                )
-                # self.targeting_handler.bounds.append(bound)
+                pos = self.get_bot_front(distance + 0.0125)  # add a bit to get the centre of the block
+                other_bot_pos = self.radio.get_other_bot_position()
+                if other_bot_pos is None or not Target.check_near(pos, other_bot_pos, 0.3):  # not the other robot
+                    self.targeting_handler.positions.append(pos)
+                    # self.targeting_handler.bounds.append(bound)
 
             if complete:
                 for target_pos in self.targeting_handler.get_targets(self.position):
-                    # check if target is the other robot
-                    if (other_bot_pos := self.radio.get_other_bot_position()) \
-                            and Target.check_near(target_pos, other_bot_pos, 0.4):
-                        self.target_cache.add_target(target_pos, classification='robot')
-                    else:
-                        self.target_cache.add_target(target_pos)
+                    self.target_cache.add_target(target_pos)
 
                 print_if_debug(self.target_cache.targets, debug_flag=DEBUG)
 
