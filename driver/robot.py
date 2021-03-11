@@ -448,7 +448,7 @@ class IDPRobot(Robot):
             if self.distance_from_bot(target_pos) > 0.2:  # prevent stuck in rotation
                 collision_avoidance_direction = -np.sign(self.angle_from_bot_from_position(blockage_pos_d[0]))
 
-                target_relative_to_bot = np.array([0.2, collision_avoidance_direction * min(1 / blockage_pos_d[1], 15)])
+                target_relative_to_bot = np.array([0.2 * collision_avoidance_direction, min(1 / blockage_pos_d[1], 15)])
                 target_pos = self.coordtransform_bot_cartesian_to_world(target_relative_to_bot)
 
         distance = self.distance_from_bot(target_pos)
@@ -664,8 +664,8 @@ class IDPRobot(Robot):
         if self.collect_state == IDPRobotState.TARGET_COLLECTED:
             self.gate.close()
             if self.time - self.stored_time >= gate_time:
-                self.target_cache.remove_target(self.target)
                 self.target_cache.collected.append(self.target)
+                self.target_cache.remove_target(self.target)
                 self.target = None
                 print_if_debug(f"{self.color}, collect: Gate closed, moving on", debug_flag=DEBUG_COLLECT)
                 return True
