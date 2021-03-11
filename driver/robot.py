@@ -106,6 +106,7 @@ class IDPRobot(Robot):
 
         # State for some composite actions
         self.collect_state = 0
+        self.collect_num_tries = 0
         self.stored_time = 0
 
         # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
@@ -160,7 +161,8 @@ class IDPRobot(Robot):
         self.target_cache.remove_collected_by_other(self.radio.get_other_bot_collected())
 
         # add target confirmed by the other robot
-        if confirmed_pos_color := self.radio.get_message().get('confirmed'):
+        if (confirmed_pos_color := self.radio.get_message().get('confirmed')) \
+                and confirmed_pos_color in ['red', 'green']:
             self.target_cache.add_target(confirmed_pos_color[0], f'{confirmed_pos_color[1]}_box')
 
         # update the map
@@ -552,7 +554,7 @@ class IDPRobot(Robot):
 
         distance_from_block_to_stop = 0.15
         max_angle_to_block = 0.1
-        rotate_angle = -tau / 3
+        rotate_angle = -tau / 2.5
         gate_time = 0.5
         reverse_distance = 0.2
         collect_rotation_rate = 3.0
@@ -590,11 +592,19 @@ class IDPRobot(Robot):
                     self.radio.send_message({'confirmed': (list(self.target.position), color)})
                     self.target = None
                     return True
+            elif (other_bot_collected := self.radio.get_other_bot_collected()) and len(other_bot_collected) == 4 \
+                    and self.target.classification == f'{self.color}_box':
+                self.collect_state = 4  # other robot has collected all four targets, this must be ours
             else:  # not able to detect the colour, probably because the position is not accurate
                 self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
                 self.action_queue.insert(2, "scan")  # rescan to check if there is actually a target there
                 # pop the current target off for now, the new scan will give better position
-                self.target_cache.remove_target(self.target)
+                if self.collect_num_tries > 1:  # this block is probably flipped over
+                    self.target.classification = 'flipped'
+                    self.collect_num_tries = 0  # reset the counter
+                else:
+                    self.target_cache.remove_target(self.target)
+                    self.collect_num_tries += 1
                 self.target = None
                 return True
 
@@ -775,7 +785,10 @@ class IDPRobot(Robot):
                 chain(
                     map(
                         attrgetter('position'),
-                        filter(lambda t: t.classification in ['box', 'green_box', 'red_box'], self.target_cache.targets)
+                        filter(
+                            lambda t: t.classification in ['box', 'green_box', 'red_box', 'flipped'],
+                            self.target_cache.targets
+                        )
                     ),
                     self.radio.get_other_bot_vertices()
                 )
