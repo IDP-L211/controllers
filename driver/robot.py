@@ -442,6 +442,15 @@ class IDPRobot(Robot):
         max_forward_speed = self.default_max_allowed_speed["f"] if max_forward_speed is None else max_forward_speed
         max_forward_drive = max_forward_speed / self.max_possible_speed["f"]
 
+        # Passive collision avoidance - turn away towards center if path is block
+        if passive_collision_avoidance and (blockage_pos_d := self.get_imminent_collision()) is not None:
+            print_if_debug(f'robot gonna collide {blockage_pos_d}', debug_flag=DEBUG)
+            if self.distance_from_bot(target_pos) > 0.2:  # prevent stuck in rotation
+                collision_avoidance_direction = -np.sign(self.angle_from_bot_from_position(blockage_pos_d[0]))
+
+                target_relative_to_bot = np.array([0.2, collision_avoidance_direction * min(1 / blockage_pos_d[1], 15)])
+                target_pos = self.coordtransform_bot_cartesian_to_world(target_relative_to_bot)
+
         distance = self.distance_from_bot(target_pos)
         angle = self.angle_from_bot_from_position(target_pos)
 
@@ -457,14 +466,6 @@ class IDPRobot(Robot):
                                                      forward_speed_pid=self.pid_f_velocity), max_forward_drive)
 
         r_speed = self.pid_angle.step(angle)
-
-        # Passive collision avoidance - turn away towards center if path is block
-        if passive_collision_avoidance and (blockage_pos_d := self.get_imminent_collision()) is not None:
-            print_if_debug(f'robot gonna collide {blockage_pos_d}', debug_flag=DEBUG_COLLISIONS)
-            if self.distance_from_bot(target_pos) > 0.2:  # prevent stuck in rotation
-                collision_avoidance_direction = -np.sign(self.angle_from_bot_from_position(blockage_pos_d[0]))
-                r_speed *= 0.5
-                r_speed += forward_speed * 0.75 * min(1 / blockage_pos_d[1], 15) * collision_avoidance_direction
 
         rotation_speed = sorted([r_speed, np.sign(r_speed) * max_rotation_drive], key=lambda x: abs(x))[0]
 
