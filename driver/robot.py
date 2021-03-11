@@ -522,7 +522,6 @@ class IDPRobot(Robot):
 
         if self.collect_state == 0:  # Approach wide if at edge
             new_target_pos = [0.8 * np.sign(x) if abs(x) > 0.9 else x for x in target.position]
-            print(new_target_pos, target.position)
             if any(x != y for x, y in zip(new_target_pos, target.position)):
                 at_approach = self.drive_to_position(new_target_pos)
                 if at_approach:
