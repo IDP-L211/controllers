@@ -444,7 +444,7 @@ class IDPRobot(Robot):
 
         # Passive collision avoidance - turn away towards center if path is block
         if passive_collision_avoidance and (blockage_pos_d := self.get_imminent_collision()) is not None:
-            print_if_debug(f'robot gonna collide {blockage_pos_d}', debug_flag=DEBUG)
+            print_if_debug(f'Robot going to collide {blockage_pos_d}', debug_flag=DEBUG_COLLISIONS)
             if self.distance_from_bot(target_pos) > 0.2:  # prevent stuck in rotation
                 collision_avoidance_direction = -np.sign(self.angle_from_bot_from_position(blockage_pos_d[0]))
 
