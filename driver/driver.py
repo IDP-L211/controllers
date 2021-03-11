@@ -27,4 +27,7 @@ while robot.step(robot.timestep) != -1:
         if robot.get_best_target():
             robot.do("collect")
         else:
+            other_bot_collected = robot.radio.get_other_bot_collected()
+            if other_bot_collected is not None and len(other_bot_collected) == 4:
+                robot.target_cache.update_flipped(robot.color)
             robot.do("scan")

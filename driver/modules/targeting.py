@@ -159,10 +159,6 @@ class TargetCache:
         self.targets = []
         self.collected = []
 
-    def clear_targets(self):
-        """Removes all detections but leaves id counter alone"""
-        self.targets = []
-
     @property
     def num_targets(self) -> int:
         """How many objects we currently have stored"""
@@ -179,11 +175,25 @@ class TargetCache:
             self.targets
         )))
 
+    def clear_targets(self) -> None:
+        """Removes all detections but leaves id counter alone"""
+        self.targets = []
+
     def get_valid_target_num(self, color: str) -> int:
         return len(list(filter(
             lambda t: t.classification in ['box', f'{color}_box'],
             self.targets
         )))
+
+    def reset_discarded(self) -> None:
+        for t in self.targets:
+            if t.classification == 'discard':
+                t.classification = 'box'
+
+    def update_flipped(self, color: str) -> None:
+        for t in self.targets:
+            if t.classification == 'flipped':
+                t.classification = f'{color}_box'
 
     def add_target(self, position: list, classification: str = 'box', min_distance_from_wall: float = 0.08) -> None:
         """Add a new detected object to the handler
@@ -211,7 +221,7 @@ class TargetCache:
                 if t.classification == 'robot' and classification != 'robot':  # updates if it was classified as robot
                     # unlikely the other robot is at the same position again, probably false classification last time
                     t.classification = classification
-                elif classification in ['red_box', 'green_box', 'discard']:
+                elif classification in ['red_box', 'green_box', 'discard', 'flipped']:
                     # this is when the other robot sends in the confirmed colour and position
                     t.classification = classification
                 t.position = TargetingHandler.get_centroid([t.position, position])  # more accurate position
@@ -297,8 +307,8 @@ class TargetCache:
                 attrgetter('position'),
                 filter(
                     # TODO this can be potentially changed to only checking blocks of the wrong colour
-                    lambda t: not t.is_near(curr_target_position, 0.01) and t.classification in ['box', 'red_box',
-                                                                                                 'green_box'],
+                    lambda t: not t.is_near(curr_target_position, 0.01) \
+                              and t.classification in ['box', 'red_box', 'green_box', 'flipped'],
                     self.targets
                 )
             )
