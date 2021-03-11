@@ -520,31 +520,41 @@ class IDPRobot(Robot):
 
         # Ifs not elifs means we don't waste timesteps if the state changes
 
-        if self.collect_state == 0:
-            if self.distance_from_bot(target.position) - distance_from_block_to_stop >= 0:
-                self.drive_to_position(target.position)
+        if self.collect_state == 0:  # Approach wide if at edge
+            new_target_pos = [0.8 * np.sign(x) if abs(x) > 0.9 else x for x in target.position]
+            print(new_target_pos, target.position)
+            if any(x != y for x, y in zip(new_target_pos, target.position)):
+                at_approach = self.drive_to_position(new_target_pos)
+                if at_approach:
+                    self.collect_state = 1
             else:
                 self.collect_state = 1
 
         if self.collect_state == 1:
+            if self.distance_from_bot(target.position) - distance_from_block_to_stop >= 0:
+                self.drive_to_position(target.position)
+            else:
+                self.collect_state = 2
+
+        if self.collect_state == 2:
             angle_to_block = self.angle_from_bot_from_position(target.position)
             if abs(angle_to_block) > max_angle_to_block:
                 self.rotate(angle_to_block)
             else:
                 self.stored_time = self.time
-                self.collect_state = 2
-
-        if self.collect_state == 2:
-            if self.brake():
                 self.collect_state = 3
 
         if self.collect_state == 3:
+            if self.brake():
+                self.collect_state = 4
+
+        if self.collect_state == 4:
             color = self.color_detector.get_color()
             print(f"Block colour: {color}")
             if color in ["red", "green"]:
                 target.classification = f"{color}_box"
                 if color == self.color:
-                    self.collect_state = 4
+                    self.collect_state = 5
                 else:
                     self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
                     # should be collected by the other robot, send info to it
@@ -557,17 +567,17 @@ class IDPRobot(Robot):
                 self.target_cache.remove_target(target)
                 return True
 
-        if self.collect_state == 4:
+        if self.collect_state == 5:
             self.gate.open()
             if self.time - self.stored_time >= gate_time:
-                self.collect_state = 5
-
-        if self.collect_state == 5:
-            if self.rotate(rotate_angle, max_rotation_rate=collect_rotation_rate):
-                self.stored_time = self.time
                 self.collect_state = 6
 
         if self.collect_state == 6:
+            if self.rotate(rotate_angle, max_rotation_rate=collect_rotation_rate):
+                self.stored_time = self.time
+                self.collect_state = 7
+
+        if self.collect_state == 7:
             self.gate.close()
             if self.time - self.stored_time >= gate_time:
                 self.target_cache.remove_target(target)
