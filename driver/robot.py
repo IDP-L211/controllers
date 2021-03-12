@@ -663,8 +663,8 @@ class IDPRobot(Robot):
         if self.collect_state == IDPRobotState.TARGET_COLLECTED:
             self.gate.close()
             if self.time - self.stored_time >= gate_time:
-                self.target_cache.collected.append(self.target)
                 self.target_cache.remove_target(self.target)
+                self.target_cache.collected.append(self.target)
                 self.target = None
                 print_if_debug(f"{self.color}, collect: Gate closed, moving on", debug_flag=DEBUG_COLLECT)
                 return True
