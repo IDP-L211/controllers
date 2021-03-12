@@ -103,6 +103,7 @@ class IDPRobot(Robot):
         # State for some composite actions
         self.collect_state = 0
         self.stored_time = 0
+        self.collect_far_target_position_cache = None
 
         # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
         hold_time = 0.5  # s
@@ -521,13 +522,18 @@ class IDPRobot(Robot):
         # Ifs not elifs means we don't waste timesteps if the state changes
 
         if self.collect_state == 0:  # Approach wide if at edge
-            new_target_pos = [0.8 * np.sign(x) if abs(x) > 0.9 else x for x in target.position]
-            if any(x != y for x, y in zip(new_target_pos, target.position)):
-                at_approach = self.drive_to_position(new_target_pos)
-                if at_approach:
+            if self.collect_far_target_position_cache is None:
+                new_target_pos = [0.8 * np.sign(x) if abs(x) > 0.9 else x for x in target.position]
+                if any(x != y for x, y in zip(new_target_pos, target.position)):
+                    self.collect_far_target_position_cache = target.position
+                    target.position = new_target_pos
+                else:
                     self.collect_state = 1
             else:
-                self.collect_state = 1
+                if self.drive_to_position(target.position):
+                    target.position = self.collect_far_target_position_cache
+                    self.collect_far_target_position_cache = None
+
 
         if self.collect_state == 1:
             if self.distance_from_bot(target.position) - distance_from_block_to_stop >= 0:
