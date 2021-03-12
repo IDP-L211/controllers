@@ -460,7 +460,7 @@ class IDPRobot(Robot):
 
         # Passive collision avoidance - turn away towards center if path is block
         if passive_collision_avoidance and (blockage_pos_d := self.get_imminent_collision()) is not None:
-            print_if_debug(f'robot gonna collide {blockage_pos_d}', debug_flag=DEBUG)
+            print_if_debug(f'robot gonna collide {blockage_pos_d}', debug_flag=DEBUG_COLLISIONS)
             if self.distance_from_bot(target_pos) > 0.2:  # prevent stuck in rotation
                 collision_avoidance_direction = -np.sign(self.angle_from_bot_from_position(blockage_pos_d[0]))
                 r_speed *= 0.5
@@ -619,7 +619,8 @@ class IDPRobot(Robot):
                     and self.target.classification == f'{self.color}_box':
                 print_if_debug(f"{self.color}, collect: Must be ours, moving to collect distance",
                                debug_flag=DEBUG_COLLECT)
-                self.collect_state = IDPRobotState.GET_TO_COLLECT_DISTANCE_FROM_BLOCK   # other robot has collected all four targets, this must be ours
+                # other robot has collected all four targets, this must be ours
+                self.collect_state = IDPRobotState.GET_TO_COLLECT_DISTANCE_FROM_BLOCK
             else:  # not able to detect the colour, probably because the position is not accurate
                 self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
                 self.action_queue.insert(2, "scan")  # rescan to check if there is actually a target there
@@ -753,7 +754,8 @@ class IDPRobot(Robot):
         # If we completed this action we should remove it from our list
         if completed:
             self.reset_action_variables()
-            print_if_debug(f"\n{self.color}, actions:\nCompleted action {self.action_queue[0]}", debug_flag=DEBUG_ACTIONS)
+            print_if_debug(f"\n{self.color}, actions:\nCompleted action {self.action_queue[0]}",
+                           debug_flag=DEBUG_ACTIONS)
             del self.action_queue[0]
             print_if_debug(f"Remaining actions:", debug_flag=DEBUG_ACTIONS)
 
