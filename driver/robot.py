@@ -124,6 +124,7 @@ class IDPRobot(Robot):
         self.collect_state = IDPRobotState.DRIVING_TO_TARGET
         self.collect_num_tries = 0
         self.stored_time = 0
+        self.collect_target_pos_cache = None
 
         # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
         hold_time = 0.5  # s
@@ -577,14 +578,18 @@ class IDPRobot(Robot):
         rotate_angle = -tau / 2.5
         gate_time = 0.5
         reverse_distance = 0.2
-        collect_rotation_rate = 3.0
+        collect_rotation_rate = 2.0
 
         # Ifs not elifs means we don't waste timesteps if the state changes
 
         if self.collect_state == IDPRobotState.DRIVING_TO_TARGET:  # driving to target
-            if self.distance_from_bot(self.target.position) - distance_from_block_for_colour_detect >= 0:
-                self.drive_to_position(self.target.position, passive_collision_avoidance=False)
-            else:
+            if self.collect_target_pos_cache is None:
+                self.collect_target_pos_cache = self.target.position
+            self.target.position = self.coordtransform_bot_polar_to_world(self.distance_from_bot(self.collect_target_pos_cache) - distance_from_block_for_colour_detect,
+                                                                          self.angle_from_bot_from_position(self.collect_target_pos_cache))
+            if self.drive_to_position(self.target.position, passive_collision_avoidance=False):
+                self.target.position = self.collect_target_pos_cache
+                self.collect_target_pos_cache = None
                 print_if_debug(f"{self.color}, collect: At target, rotating", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.ROTATE_TO_FACE_TARGET
 
@@ -642,11 +647,13 @@ class IDPRobot(Robot):
                 return True
 
         if self.collect_state == IDPRobotState.GET_TO_COLLECT_DISTANCE_FROM_BLOCK:
-            distance_to_move = self.distance_from_bot(self.target.position) - distance_from_block_for_collect
-            if abs(distance_to_move) >= self.target_distance_threshold / 4:
-                reverse = distance_to_move < 0
-                self.drive_to_position(self.get_bot_front(distance_to_move), reverse=reverse)
-            else:
+            if self.collect_target_pos_cache is None:
+                self.collect_target_pos_cache = self.target.position
+            self.target.position = self.coordtransform_bot_polar_to_world(self.distance_from_bot(self.collect_target_pos_cache) - distance_from_block_for_collect,
+                                                                          self.angle_from_bot_from_position(self.collect_target_pos_cache))
+            if self.drive_to_position(self.target.position, passive_collision_avoidance=False):
+                self.target.position = self.collect_target_pos_cache
+                self.collect_target_pos_cache = None
                 print_if_debug(f"{self.color}, collect: In position for collect, opening gate",
                                debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.CORRECT_COLOUR
@@ -797,7 +804,7 @@ class IDPRobot(Robot):
         ))
 
     def get_best_target(self) -> Union[Target, None]:
-        """Decide on a new target block for robot, which is the cloest valid target on the way to which
+        """Decide on a new target block for robot, which is the closest valid target on the way to which
         there won't involve any collision
 
         Returns:
