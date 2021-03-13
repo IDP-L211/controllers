@@ -47,9 +47,10 @@ class IDPRobot(Robot):
         super().__init__()
 
         # Motion properties, derived experimentally, speeds are when drive = 1
-        self.max_possible_speed = {"f": 1.0, "r": 11.2}  # THESE MUST BE ACCURATE, else things get  w e i r d
-        self.default_max_allowed_speed = {"f": 1.0, "r": 5.0}
-        self.max_acc = {"f": 5.0, "r": 40.0}
+        self.max_possible_speed = {"f": 0.4, "r": 4.44}  # THESE MUST BE ACCURATE, else things get  w e i r d
+        self.default_max_allowed_speed = {"f": 0.4, "r": 4.44}
+        self.max_acc = {"f": 1.47, "r": 12.0}
+        MotionCS.max_f_speed = self.default_max_allowed_speed["f"]
         # These are tunable if the robot is slipping or gripping more than expected
 
         # note the sensors are assumed to be at the centre of the robot, and the robot is assumed symmetrical
@@ -125,11 +126,13 @@ class IDPRobot(Robot):
         self.stuck_steps = 0
 
         # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers due to noise in acceleration
-        self.pid_f_velocity = PID(0.1, 0, 0, self.timestep_actual, quantity_name="Forward Velocity",
+        self.pid_f_velocity = PID(1, 0, 0, self.timestep_actual, quantity_name="Forward Velocity",
                                   timer_func=self.getTime)
-        self.pid_distance = PID(2, 0, 0, self.timestep_actual, quantity_name="Distance", timer_func=self.getTime)
-        self.pid_angle = PID(2.5, 0.0, 0.10, self.timestep_actual, derivative_weight_decay_half_life=0.05,
-                             quantity_name="Angle", timer_func=self.getTime)
+        self.pid_distance = PID(5, 0, 0, self.timestep_actual, quantity_name="Distance", timer_func=self.getTime)
+        self.pid_angle = PID(2, 10.0, 0.18, self.timestep_actual, derivative_weight_decay_half_life=0.025,
+                             quantity_name="Angle", timer_func=self.getTime, integral_delay_time=1,
+                             integral_wind_up_speed=0.5, integral_active_error_band=tau/4,
+                             integral_delay_windup_when_in_bounds=True)
 
         motor_graph_styles = {"distance": 'k-', "angle": 'r-', "forward_speed": 'k--', "rotation_speed": 'r--',
                               "linear_speed": "k:", "angular_velocity": "r:", "left_motor": 'b-', "right_motor": 'y-'}
