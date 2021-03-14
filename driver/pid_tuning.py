@@ -12,7 +12,7 @@ def manual(robot):
 
     # Actions for our robot
     action_queue = [
-        ("move", [-0.5, -0.4])
+        ("rotate", tau)
     ]
 
     robot.action_queue = action_queue
