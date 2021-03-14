@@ -24,8 +24,8 @@ from modules.pid import PID, DataRecorder
 from modules.targeting import TargetingHandler, Target, TargetCache
 
 DEBUG_ACTIONS = False
-DEBUG_COLLISIONS = False
-DEBUG_COLLECT = False
+DEBUG_COLLISIONS = True
+DEBUG_COLLECT = True
 DEBUG_TARGETS = False
 DEBUG = False
 tau = np.pi * 2
@@ -461,6 +461,17 @@ class IDPRobot(Robot):
             else:
                 self.stuck_in_drive_to_pos_time += self.timestep_actual
 
+        # Passive collision avoidance - turn away towards center if path is block, applied here to not affect forward speed
+        if passive_collision_avoidance and (blockage_pos_d := self.get_imminent_collision()) is not None:
+            # print_if_debug(f'Robot going to collide with object at {blockage_pos_d}', debug_flag=DEBUG_COLLISIONS)
+            min_approach_dist = 0.1
+            start_avoidance_dist = 1.0
+            angle_to_avoid_blockage = self.angle_from_bot_from_position(blockage_pos_d[0]) + (np.sign(angle) * tau/3)
+            angle_fraction = max(min((start_avoidance_dist - blockage_pos_d[1]) / (start_avoidance_dist - min_approach_dist), 1), 0)
+            print(angle, angle_to_avoid_blockage, angle_fraction)
+            angle = (angle_fraction * angle_to_avoid_blockage) + ((1 - angle_fraction) * angle)
+            print(angle)
+
         # If we're reversing we change the angle so it mimics the bot facing the opposite way
         # When we apply the wheel velocities we negative them and voila we tricked the bot into reversing
         angle = (np.sign(angle) * (tau / 2)) - angle if reverse else angle
@@ -468,14 +479,6 @@ class IDPRobot(Robot):
         forward_speed = min(MotionCS.linear_dual_pid(distance=distance, distance_pid=self.pid_distance, angle=angle,
                                                      forward_speed=self.linear_speed,
                                                      forward_speed_pid=self.pid_f_velocity), max_forward_drive)
-
-        # Passive collision avoidance - turn away towards center if path is block, applied here to not affect forward speed
-        if passive_collision_avoidance and (blockage_pos_d := self.get_imminent_collision()) is not None:
-            print_if_debug(f'Robot going to collide with object at {blockage_pos_d}', debug_flag=DEBUG_COLLISIONS)
-            if self.distance_from_bot(target_pos) > 0.2:  # prevent stuck in rotation
-                collision_avoidance_direction = -np.sign(self.angle_from_bot_from_position(blockage_pos_d[0]))
-                angle *= 0.5
-                angle += distance * 3 * min(1 / blockage_pos_d[1], 15) * collision_avoidance_direction
 
         r_speed = self.pid_angle.step(angle)
         rotation_speed = sorted([r_speed, np.sign(r_speed) * max_rotation_drive], key=lambda x: abs(x))[0]
