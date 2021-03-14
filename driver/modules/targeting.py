@@ -25,6 +25,8 @@ class TargetingHandler:
         self.relocating = False
         self.next_scan_position = []
 
+        self.last_fallback_scan_quadrant = None
+
     @property
     def num_scans(self) -> int:
         return len(self.scan_positions)
@@ -116,13 +118,21 @@ class TargetingHandler:
 
     def get_fallback_scan_position2(self, bot_position: list):
         # One position in each quadrant, indexed for xy cartesian coords, optimised to avoid bots at home when pathing
-        scan_positions = [[[-0.9, -0.6], [-0.9, 0.6]],
-                          [[0.9, -0.6], [0.9, 0.6]]]
+        scan_positions = [[[-0.7, -0.6], [-0.7, 0.6]],
+                          [[0.7, -0.6], [0.7, 0.6]]]
         bot_quadrant = [int(0.5 + (0.5 * np.sign(bot_position[0]))),
                         int(0.5 + (0.5 * np.sign(bot_position[1])))]
 
-        # Want to scan in next quadrant clockwise from bot position
-        scan_quadrant = [bot_quadrant[1], 0 if bot_quadrant[0] == 1 else 1]
+        def rotate_quadrant_clockwise(pos):
+            return [pos[1], 0 if pos[0] == 1 else 1]
+
+        scan_quadrant = rotate_quadrant_clockwise(bot_quadrant)
+
+        # Check we haven't already just tried to scan this quadrant
+        if scan_quadrant == self.last_fallback_scan_quadrant:
+            scan_quadrant = rotate_quadrant_clockwise(scan_quadrant)
+
+        self.last_fallback_scan_quadrant = scan_quadrant
         return scan_positions[scan_quadrant[0]][scan_quadrant[1]]
 
 
