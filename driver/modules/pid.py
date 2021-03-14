@@ -173,8 +173,11 @@ class PID:
 {f" d_weight_decay_half_life={self.d_weight_decay_half_life} " if self.d_weight_decay_half_life is not None else ""}"""
 
         if not args:
-            plot_args = ["output", "error"] + (["p"] * bool(self.k_p)) + (["cumulative_error", "i"] * bool(self.k_i))\
-                + (["error_change", "d"] * bool(self.k_d))  # Now this is pod-racing
+            if self.custom_function is None:
+                plot_args = ["output", "error"] + (["p"] * bool(self.k_p)) + (["cumulative_error", "i"] * bool(self.k_i))\
+                    + (["error_change", "d"] * bool(self.k_d))  # Now this is pod-racing
+            else:
+                plot_args = ["output", "error", "cumulative_error", "error_change"]
         else:
             plot_args = args
 

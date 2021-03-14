@@ -17,7 +17,7 @@ from devices.motors import IDPMotorController, IDPGate
 from devices.radio import IDPRadio
 
 from modules.motion import MotionCS
-from modules.utils import print_if_debug, ensure_list_or_tuple
+from modules.utils import print_if_debug, ensure_list_or_tuple, fire_and_forget
 from modules.geometry import rotate_vector, get_rectangle_sides, get_min_distance_point_rectangle, \
     get_min_distance_rectangles, point_in_rectangle
 from modules.mapping import Map
@@ -144,7 +144,7 @@ class IDPRobot(Robot):
         self.pid_f_velocity = PID(1, 0, 0, self.timestep_actual, quantity_name="Forward Velocity",
                                   timer_func=self.getTime)
         self.pid_distance = PID(5, 0, 0, self.timestep_actual, quantity_name="Distance", timer_func=self.getTime)
-        self.pid_angle = PID(2, 10.0, 0.18, self.timestep_actual, derivative_weight_decay_half_life=0.025,
+        self.pid_angle = PID(5, 10.0, 1.1, self.timestep_actual, derivative_weight_decay_half_life=0.025,
                              quantity_name="Angle", timer_func=self.getTime, integral_delay_time=1,
                              integral_wind_up_speed=0.5, integral_active_error_band=tau/4,
                              integral_delay_windup_when_in_bounds=True)
@@ -410,6 +410,12 @@ class IDPRobot(Robot):
     def plot_motion_history(self):
         self.motion_history.plot("time", title="Robot motor graph")
 
+    def plot_all_graphs(self):
+        fire_and_forget(self.plot_motion_history)
+        fire_and_forget(self.pid_f_velocity.plot_history)
+        fire_and_forget(self.pid_distance.plot_history)
+        fire_and_forget(self.pid_angle.plot_history)
+
     def update_motion_history(self, **kwargs):
         self.motion_history.update(left_motor=self.motors.velocities[0], right_motor=self.motors.velocities[1],
                                    **kwargs)
@@ -588,6 +594,8 @@ class IDPRobot(Robot):
                 self.brake()
                 return True
 
+        # PLEASE NOTE! Since the distance accuracy is 0.02, the bot will stop ~0.02 distance from its goal
+        # If the goal is within 0.02 it won't move at all as it's 'already there'
         distance_from_block_for_colour_detect = 0.12
         distance_from_block_for_collect = 0.15
         max_angle_to_block = 0.1
