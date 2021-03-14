@@ -616,7 +616,7 @@ class IDPRobot(Robot):
 
         # PLEASE NOTE! Since the distance accuracy is 0.02, the bot will stop ~0.02 distance from its goal
         # If the goal is within 0.02 it won't move at all as it's 'already there'
-        distance_from_block_for_colour_detect = 0.12
+        distance_from_block_for_colour_detect = 0.16
         distance_from_block_for_collect = distance_from_block_for_colour_detect
         max_angle_to_block = 0.12
         rotate_angle = -tau / 2.5
