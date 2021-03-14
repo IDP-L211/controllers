@@ -130,7 +130,7 @@ class IDPRobot(Robot):
 
         # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
         self.hold_time = 1.0  # s
-        self.default_target_distance_threshold = 0.001
+        self.default_target_distance_threshold = 0.05
         self.target_bearing_threshold = tau / 360
 
         # For rotations
