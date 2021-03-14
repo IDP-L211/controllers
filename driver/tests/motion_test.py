@@ -23,3 +23,5 @@ def main(robot):
     # Main loop, perform simulation steps until Webots is stopping the controller
     while robot.step(timestep) != -1:
         robot.execute_next_action()
+
+    robot.plot_all_graphs()
