@@ -24,8 +24,8 @@ from modules.pid import PID, DataRecorder
 from modules.targeting import TargetingHandler, Target, TargetCache
 
 DEBUG_ACTIONS = False
-DEBUG_COLLISIONS = True
-DEBUG_COLLECT = True
+DEBUG_COLLISIONS = False
+DEBUG_COLLECT = False
 DEBUG_TARGETS = False
 DEBUG = False
 DEBUG_SCAN = True
@@ -117,7 +117,7 @@ class IDPRobot(Robot):
 
         # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
         self.hold_time = 1.0  # s
-        self.default_target_distance_threshold = 0.05
+        self.default_target_distance_threshold = 0.001
         self.target_bearing_threshold = tau / 360
 
         # For rotations
@@ -425,6 +425,7 @@ class IDPRobot(Robot):
         self.last_action_value = None
         self.collect_state = 0
         self.stored_time = 0
+        self.stuck_in_drive_to_pos_time = 0
 
     def drive_to_position(self, target_pos: Union[list, np.ndarray], max_forward_speed=None, max_rotation_rate=None,
                           reverse=False, avoid_other_bot=True, accuracy_threshold=None) -> bool:
@@ -455,41 +456,49 @@ class IDPRobot(Robot):
         if distance <= accuracy_threshold and self.linear_speed <= accuracy_threshold / self.hold_time:
             return True
 
-        # In-case we get stuck at wall or TODO stuck in a death spin (check ang velocity vs distance maybe)
+        # In-case we get stuck at wall
         if self.linear_speed <= accuracy_threshold / self.hold_time:
             if self.stuck_in_drive_to_pos_time >= 1.5:
                 self.stuck_in_drive_to_pos_time = 0
+                print_if_debug(f"{self.color}, stuck: Not moved in 1.5s, stopping move", debug_flag=DEBUG_STUCK)
                 return True
             else:
                 self.stuck_in_drive_to_pos_time += self.timestep_actual
+                
+        # In-case we get stuck in a spin
+        self.angle_rotated += self.angular_velocity * self.timestep_actual
+        if abs(self.angle_rotated) >= tau * 2:
+            print_if_debug(f"{self.color}, stuck: Done 2 full rotations, stopping move", debug_flag=DEBUG_STUCK)
+            return True
 
         # If close to the other bot, turn to avoid it
         if avoid_other_bot:
             other_bot_pos = self.radio.get_other_bot_position()
+            if other_bot_pos is not None:
 
-            # Some parameters
-            min_approach_dist = 0.4
-            start_avoidance_dist = 0.7
+                # Some parameters
+                min_approach_dist = 0.4
+                start_avoidance_dist = 0.7
 
-            # Calculate the angle we would need to turn to (i.e. have the PID minimise) to avoid the other bot
-            angle_to_other_bot = self.angle_from_bot_from_position(other_bot_pos)
-            angle_from_other_bot_to_our_target = angle - angle_to_other_bot
-            distance_to_other_bot = self.distance_from_bot(other_bot_pos)
-            angle_to_avoid_other_bot = angle_to_other_bot + (np.sign(angle_from_other_bot_to_our_target) * tau/4)
+                # Calculate the angle we would need to turn to (i.e. have the PID minimise) to avoid the other bot
+                angle_to_other_bot = self.angle_from_bot_from_position(other_bot_pos)
+                angle_from_other_bot_to_our_target = angle - angle_to_other_bot
+                distance_to_other_bot = self.distance_from_bot(other_bot_pos)
+                angle_to_avoid_other_bot = angle_to_other_bot + (np.sign(angle_from_other_bot_to_our_target) * tau/4)
 
-            # Check our target position is not on the other bot, if we are just get close as possible and then
-            # return True (Is this best idea?)
-            distance_from_target_to_other_bot = np.hypot(other_bot_pos[0] - target_pos[0],
-                                                         other_bot_pos[1] - target_pos[1])
-            if distance_from_target_to_other_bot < min_approach_dist and\
-                    distance_to_other_bot < min_approach_dist + self.default_target_distance_threshold:
-                print_if_debug(f"{self.color}, collision: Other bot is where we want to go and we are close, stopping here",
-                               debug_flag=DEBUG_COLLISIONS)
-                return True
+                # Check our target position is not on the other bot, if we are just get close as possible and then
+                # return True (Is this best idea?)
+                distance_from_target_to_other_bot = np.hypot(other_bot_pos[0] - target_pos[0],
+                                                             other_bot_pos[1] - target_pos[1])
+                if distance_from_target_to_other_bot < min_approach_dist and\
+                        distance_to_other_bot < min_approach_dist + self.default_target_distance_threshold:
+                    print_if_debug(f"{self.color}, collision: Other bot is where we want to go and we are close, stopping here",
+                                   debug_flag=DEBUG_COLLISIONS)
+                    return True
 
-            # Mix this with our current target angle and reassign our angle for the PID
-            angle_fraction = max(min((start_avoidance_dist - distance_to_other_bot) / (start_avoidance_dist - min_approach_dist), 1), 0)
-            angle = (angle_fraction * angle_to_avoid_other_bot) + ((1 - angle_fraction) * angle)
+                # Mix this with our current target angle and reassign our angle for the PID
+                angle_fraction = max(min((start_avoidance_dist - distance_to_other_bot) / (start_avoidance_dist - min_approach_dist), 1), 0)
+                angle = (angle_fraction * angle_to_avoid_other_bot) + ((1 - angle_fraction) * angle)
 
         # If we're reversing we change the angle so it mimics the bot facing the opposite way
         # When we apply the wheel velocities we negative them and voila we tricked the bot into reversing
