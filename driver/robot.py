@@ -32,13 +32,14 @@ tau = np.pi * 2
 
 
 class IDPRobotState(Enum):
-    DRIVING_TO_TARGET                   = 0
-    ROTATE_TO_FACE_TARGET               = 1
-    DETECTING_COLOUR                    = 2
-    GET_TO_COLLECT_DISTANCE_FROM_BLOCK  = 3
-    CORRECT_COLOUR                      = 4
-    COLLECTING_TARGET                   = 5
-    TARGET_COLLECTED                    = 6
+    APPROACHING_TARGET_FROM_CENTER      = 0
+    DRIVING_TO_TARGET                   = 1
+    ROTATE_TO_FACE_TARGET               = 2
+    DETECTING_COLOUR                    = 3
+    GET_TO_COLLECT_DISTANCE_FROM_BLOCK  = 4
+    CORRECT_COLOUR                      = 5
+    COLLECTING_TARGET                   = 6
+    TARGET_COLLECTED                    = 7
 
 
 class IDPRobot(Robot):
@@ -429,7 +430,7 @@ class IDPRobot(Robot):
         self.rotating = False
         self.last_action_type = None
         self.last_action_value = None
-        self.collect_state = IDPRobotState.DRIVING_TO_TARGET
+        self.collect_state = IDPRobotState.APPROACHING_TARGET_FROM_CENTER
         self.stored_time = 0
 
     def drive_to_position(self, target_pos: Union[list, np.ndarray], max_forward_speed=None, max_rotation_rate=None,
@@ -580,7 +581,8 @@ class IDPRobot(Robot):
         if any((
                 not self.target,  # no target selected
                 all((
-                        self.collect_state == IDPRobotState.DRIVING_TO_TARGET,  # on the way to target
+                        self.collect_state in [IDPRobotState.DRIVING_TO_TARGET,
+                                               IDPRobotState.APPROACHING_TARGET_FROM_CENTER],  # on the way to target
                         not self.check_target_valid(self.target),  # collision if continue to target
                         other_bot_pos := self.radio.get_other_bot_position(),  # have position data of the other robot
                         abs(self.angle_from_bot_from_position(other_bot_pos)) < np.pi / 2
@@ -605,6 +607,19 @@ class IDPRobot(Robot):
         collect_rotation_rate = 2.0
 
         # Ifs not elifs means we don't waste timesteps if the state changes
+
+        if self.collect_state == IDPRobotState.APPROACHING_TARGET_FROM_CENTER:  # Approach wide if at edge
+            new_target_pos = [0.8 * np.sign(x) if abs(x) > 0.9 else x for x in self.target.position]
+            if self.collect_target_pos_cache is None:
+                if any(x != y for x, y in zip(new_target_pos, self.target.position)):
+                    self.collect_target_pos_cache = self.target.position
+                    self.target.position = new_target_pos
+                else:
+                    self.collect_state = IDPRobotState.DRIVING_TO_TARGET
+            else:
+                if self.drive_to_position(self.target.position):
+                    self.target.position = self.collect_target_pos_cache
+                    self.collect_target_pos_cache = None
 
         if self.collect_state == IDPRobotState.DRIVING_TO_TARGET:  # driving to target
             if self.move_to_block_with_offset(distance_from_block_for_colour_detect):
