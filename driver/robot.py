@@ -129,7 +129,13 @@ class IDPRobot(Robot):
         self.pid_f_velocity = PID(1, 0, 0, self.timestep_actual, quantity_name="Forward Velocity",
                                   timer_func=self.getTime)
         self.pid_distance = PID(5, 0, 0, self.timestep_actual, quantity_name="Distance", timer_func=self.getTime)
-        self.pid_angle = PID(5, 10.0, 1.1, self.timestep_actual, derivative_weight_decay_half_life=0.025,
+
+        def non_lin_controller1(error, cumulative_error, error_change):
+            def log_w_sign(x, inner_coefficient):
+                return np.log((inner_coefficient * abs(x)) + 1) * np.sign(x)
+            return (0.5 * log_w_sign(error, 10)) + (0.0 * cumulative_error) + (0.05 * error_change)
+
+        self.pid_angle = PID(custom_function=non_lin_controller1, time_step=self.timestep_actual, derivative_weight_decay_half_life=0.025,
                              quantity_name="Angle", timer_func=self.getTime, integral_delay_time=1,
                              integral_wind_up_speed=0.5, integral_active_error_band=tau/4,
                              integral_delay_windup_when_in_bounds=True)
