@@ -6,7 +6,7 @@
 from robot import IDPRobot
 from modules.utils import print_if_debug
 
-DEBUG_OBJECTIVE = False
+DEBUG_OBJECTIVE = True
 
 robot = IDPRobot()
 complete = False
