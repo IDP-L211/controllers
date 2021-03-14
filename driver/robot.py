@@ -145,7 +145,13 @@ class IDPRobot(Robot):
         self.pid_f_velocity = PID(1, 0, 0, self.timestep_actual, quantity_name="Forward Velocity",
                                   timer_func=self.getTime)
         self.pid_distance = PID(5, 0, 0, self.timestep_actual, quantity_name="Distance", timer_func=self.getTime)
-        self.pid_angle = PID(5, 10.0, 1.1, self.timestep_actual, derivative_weight_decay_half_life=0.025,
+
+        def non_lin_controller1(error, cumulative_error, error_change):
+            def log_w_sign(x, inner_coefficient):
+                return np.log((inner_coefficient * abs(x)) + 1) * np.sign(x)
+            return (0.5 * log_w_sign(error, 10)) + (0.0 * cumulative_error) + (0.05 * error_change)
+
+        self.pid_angle = PID(custom_function=non_lin_controller1, time_step=self.timestep_actual, derivative_weight_decay_half_life=0.025,
                              quantity_name="Angle", timer_func=self.getTime, integral_delay_time=1,
                              integral_wind_up_speed=0.5, integral_active_error_band=tau/4,
                              integral_delay_windup_when_in_bounds=True)
@@ -598,8 +604,8 @@ class IDPRobot(Robot):
         # PLEASE NOTE! Since the distance accuracy is 0.02, the bot will stop ~0.02 distance from its goal
         # If the goal is within 0.02 it won't move at all as it's 'already there'
         distance_from_block_for_colour_detect = 0.12
-        distance_from_block_for_collect = 0.15
-        max_angle_to_block = 0.1
+        distance_from_block_for_collect = distance_from_block_for_colour_detect
+        max_angle_to_block = 0.12
         rotate_angle = -tau / 2.5
         gate_time = 0.5
         reverse_distance = 0.2
@@ -608,17 +614,20 @@ class IDPRobot(Robot):
         # Ifs not elifs means we don't waste timesteps if the state changes
 
         if self.collect_state == IDPRobotState.APPROACHING_TARGET_FROM_CENTER:  # Approach wide if at edge
-            new_target_pos = [0.8 * np.sign(x) if abs(x) > 0.9 else x for x in self.target.position]
+            new_target_pos = [0.75 * np.sign(x) if abs(x) > 1.0 else x for x in self.target.position]
             if self.collect_target_pos_cache is None:
                 if any(x != y for x, y in zip(new_target_pos, self.target.position)):
                     self.collect_target_pos_cache = self.target.position
                     self.target.position = new_target_pos
+                    print_if_debug(f"{self.color}, collect: Block is near edge, driving nearby", debug_flag=DEBUG_COLLECT)
                 else:
                     self.collect_state = IDPRobotState.DRIVING_TO_TARGET
             else:
                 if self.drive_to_position(self.target.position, passive_collision_avoidance=False):
                     self.target.position = self.collect_target_pos_cache
                     self.collect_target_pos_cache = None
+                    print_if_debug(f"{self.color}, collect: At approach, driving to target", debug_flag=DEBUG_COLLECT)
+                    self.collect_state = IDPRobotState.DRIVING_TO_TARGET
 
         if self.collect_state == IDPRobotState.DRIVING_TO_TARGET:  # driving to target
             if self.move_to_block_with_offset(distance_from_block_for_colour_detect):
