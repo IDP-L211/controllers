@@ -125,7 +125,7 @@ class IDPRobot(Robot):
         self.rotating = False
 
         # For getting stuck
-        self.stuck_steps = 0
+        self.stuck_in_drive_to_pos_time = 0
 
         # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers due to noise in acceleration
         self.pid_f_velocity = PID(1, 0, 0, self.timestep_actual, quantity_name="Forward Velocity",
@@ -453,6 +453,13 @@ class IDPRobot(Robot):
 
         if distance <= accuracy_threshold and self.linear_speed <= accuracy_threshold / self.hold_time:
             return True
+        
+        if self.linear_speed <= accuracy_threshold / self.hold_time:
+            if self.stuck_in_drive_to_pos_time >= 1.5:
+                self.stuck_in_drive_to_pos_time = 0
+                return True
+            else:
+                self.stuck_in_drive_to_pos_time += self.timestep_actual
 
         # If we're reversing we change the angle so it mimics the bot facing the opposite way
         # When we apply the wheel velocities we negative them and voila we tricked the bot into reversing
@@ -464,7 +471,7 @@ class IDPRobot(Robot):
 
         # Passive collision avoidance - turn away towards center if path is block, applied here to not affect forward speed
         if passive_collision_avoidance and (blockage_pos_d := self.get_imminent_collision()) is not None:
-            print_if_debug(f'robot gonna collide {blockage_pos_d}', debug_flag=DEBUG_COLLISIONS)
+            print_if_debug(f'Robot going to collide with object at {blockage_pos_d}', debug_flag=DEBUG_COLLISIONS)
             if self.distance_from_bot(target_pos) > 0.2:  # prevent stuck in rotation
                 collision_avoidance_direction = -np.sign(self.angle_from_bot_from_position(blockage_pos_d[0]))
                 angle *= 0.5
