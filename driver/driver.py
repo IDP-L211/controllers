@@ -27,8 +27,8 @@ while robot.step(robot.timestep) != -1:
     # If we have no action
     if robot.execute_next_action():
         # If we have a target go to it, else scan
-        if robot.get_best_target():
-            print_if_debug(f"{robot.color}, objective: Collecting block at {robot.target.position}",
+        if target := robot.get_best_target():
+            print_if_debug(f"{robot.color}, objective: Collecting block at {target.position}",
                            debug_flag=DEBUG_OBJECTIVE)
             robot.do("collect")
         else:
