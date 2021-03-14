@@ -14,6 +14,9 @@ complete = False
 # Main loop, perform simulation steps until Webots is stopping the controller
 while robot.step(robot.timestep) != -1:
 
+    if robot.color == "green":
+        continue
+
     # Check if we are finished
     if robot.target_cache.num_collected >= 4 or robot.targeting_handler.num_scans >= 10:
         if robot.distance_from_bot(robot.home) <= 0.1:
