@@ -466,14 +466,6 @@ class IDPRobot(Robot):
         if distance <= accuracy_threshold and self.linear_speed <= accuracy_threshold / self.hold_time:
             return True
 
-        # Passive collision avoidance - turn away towards center if path is block
-        if passive_collision_avoidance and (blockage_pos_d := self.get_imminent_collision()) is not None:
-            print_if_debug(f'robot gonna collide {blockage_pos_d}', debug_flag=DEBUG_COLLISIONS)
-            if self.distance_from_bot(target_pos) > 0.2:  # prevent stuck in rotation
-                collision_avoidance_direction = -np.sign(self.angle_from_bot_from_position(blockage_pos_d[0]))
-                angle *= 0.5
-                angle += distance * 3 * min(1 / blockage_pos_d[1], 15) * collision_avoidance_direction
-
         # If we're reversing we change the angle so it mimics the bot facing the opposite way
         # When we apply the wheel velocities we negative them and voila we tricked the bot into reversing
         angle = (np.sign(angle) * (tau / 2)) - angle if reverse else angle
@@ -481,6 +473,14 @@ class IDPRobot(Robot):
         forward_speed = min(MotionCS.linear_dual_pid(distance=distance, distance_pid=self.pid_distance, angle=angle,
                                                      forward_speed=self.linear_speed,
                                                      forward_speed_pid=self.pid_f_velocity), max_forward_drive)
+
+        # Passive collision avoidance - turn away towards center if path is block, applied here to not affect forward speed
+        if passive_collision_avoidance and (blockage_pos_d := self.get_imminent_collision()) is not None:
+            print_if_debug(f'robot gonna collide {blockage_pos_d}', debug_flag=DEBUG_COLLISIONS)
+            if self.distance_from_bot(target_pos) > 0.2:  # prevent stuck in rotation
+                collision_avoidance_direction = -np.sign(self.angle_from_bot_from_position(blockage_pos_d[0]))
+                angle *= 0.5
+                angle += distance * 3 * min(1 / blockage_pos_d[1], 15) * collision_avoidance_direction
 
         r_speed = self.pid_angle.step(angle)
         rotation_speed = sorted([r_speed, np.sign(r_speed) * max_rotation_drive], key=lambda x: abs(x))[0]
