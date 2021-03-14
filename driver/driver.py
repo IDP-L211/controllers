@@ -6,16 +6,13 @@
 from robot import IDPRobot
 from modules.utils import print_if_debug
 
-DEBUG_OBJECTIVE = True
+DEBUG_OBJECTIVE = False
 
 robot = IDPRobot()
 complete = False
 
 # Main loop, perform simulation steps until Webots is stopping the controller
 while robot.step(robot.timestep) != -1:
-
-    if robot.color == "green":
-        continue
 
     # Check if we are finished
     if robot.target_cache.num_collected >= 4 or robot.targeting_handler.num_scans >= 10:
