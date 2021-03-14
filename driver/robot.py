@@ -475,7 +475,7 @@ class IDPRobot(Robot):
             else:
                 self.stuck_in_drive_to_pos_time += self.timestep_actual
 
-        # If close to the other bot, turn to avoid it
+        # If close to the other bot, turn to avoid it. TODO Generalise this to include blocks
         if avoid_other_bot:
             other_bot_pos = self.radio.get_other_bot_position()
 
