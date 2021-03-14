@@ -477,7 +477,7 @@ class IDPRobot(Robot):
         if passive_collision_avoidance and (blockage_pos_d := self.get_imminent_collision()) is not None:
             # print_if_debug(f'Robot going to collide with object at {blockage_pos_d}', debug_flag=DEBUG_COLLISIONS)
             min_approach_dist = 0.1
-            start_avoidance_dist = 1.0
+            start_avoidance_dist = 0.5
             angle_to_avoid_blockage = self.angle_from_bot_from_position(blockage_pos_d[0]) + (np.sign(angle) * tau/3)
             angle_fraction = max(min((start_avoidance_dist - blockage_pos_d[1]) / (start_avoidance_dist - min_approach_dist), 1), 0)
             print(angle, angle_to_avoid_blockage, angle_fraction)
@@ -752,8 +752,8 @@ class IDPRobot(Robot):
                 print_if_debug(f"{self.color}, targets: {self.target_cache.targets}", debug_flag=DEBUG_TARGETS)
 
                 if self.get_best_target() is None:
-                    self.targeting_handler.next_scan_position = self.targeting_handler.get_fallback_scan_position(
-                        self.infrared.max_range)
+                    self.targeting_handler.next_scan_position = self.targeting_handler.get_fallback_scan_position2(
+                        self.position)
                     self.targeting_handler.relocating = True
 
         else:

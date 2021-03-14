@@ -114,6 +114,18 @@ class TargetingHandler:
 
         return sorted([a, b], key=lambda p: np.linalg.norm(scan_centroid - p))[1]
 
+    def get_fallback_scan_position2(self, bot_position: list):
+        # One position in each quadrant, indexed for xy cartesian coords, optimised to avoid bots at home when pathing
+        scan_positions = [[[-0.9, -0.6], [-0.9, 0.6]],
+                          [[0.9, -0.6], [0.9, 0.6]]]
+        bot_quadrant = [int(0.5 + (0.5 * np.sign(bot_position[0]))),
+                        int(0.5 + (0.5 * np.sign(bot_position[1])))]
+
+        # Want to scan in next quadrant clockwise from bot position
+        scan_quadrant = [bot_quadrant[1], 0 if bot_quadrant[0] == 1 else 1]
+        return scan_positions[scan_quadrant[0]][scan_quadrant[1]]
+
+
 
 class Target:
     """Class representing the target"""
