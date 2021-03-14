@@ -26,7 +26,7 @@ from modules.targeting import TargetingHandler, Target, TargetCache
 
 DEBUG_ACTIONS = False
 DEBUG_COLLISIONS = False
-DEBUG_COLLECT = False
+DEBUG_COLLECT = True
 DEBUG_TARGETS = False
 tau = np.pi * 2
 
@@ -34,12 +34,11 @@ tau = np.pi * 2
 class IDPRobotState(Enum):
     DRIVING_TO_TARGET                   = 0
     ROTATE_TO_FACE_TARGET               = 1
-    FACING_TARGET                       = 2
-    DETECTING_COLOUR                    = 3
-    GET_TO_COLLECT_DISTANCE_FROM_BLOCK  = 4
-    CORRECT_COLOUR                      = 5
-    COLLECTING_TARGET                   = 6
-    TARGET_COLLECTED                    = 7
+    DETECTING_COLOUR                    = 2
+    GET_TO_COLLECT_DISTANCE_FROM_BLOCK  = 3
+    CORRECT_COLOUR                      = 4
+    COLLECTING_TARGET                   = 5
+    TARGET_COLLECTED                    = 6
 
 
 class IDPRobot(Robot):
@@ -489,6 +488,23 @@ class IDPRobot(Robot):
         """
         return self.drive_to_position(target_pos, reverse=True, passive_collision_avoidance=False)
 
+    def move_to_block_with_offset(self, offset):
+        # First check we haven't already cached the target true position
+        if self.collect_target_pos_cache is None:
+            self.collect_target_pos_cache = self.target.position
+
+        # Set the target position to where we actually want to go
+        self.target.position = self.coordtransform_bot_polar_to_world(
+            self.distance_from_bot(self.collect_target_pos_cache) - offset,
+            self.angle_from_bot_from_position(self.collect_target_pos_cache))
+
+        # If we completed motion restore target position to true position and empty cache
+        if complete := self.drive_to_position(self.target.position, passive_collision_avoidance=False):
+            self.target.position = self.collect_target_pos_cache
+            self.collect_target_pos_cache = None
+        return complete
+
+
     def rotate(self, angle: float, max_rotation_rate=None) -> bool:
         """Rotate the bot a fixed angle at a fixed rate of rotation
 
@@ -572,7 +588,7 @@ class IDPRobot(Robot):
                 self.brake()
                 return True
 
-        distance_from_block_for_colour_detect = 0.14
+        distance_from_block_for_colour_detect = 0.12
         distance_from_block_for_collect = 0.15
         max_angle_to_block = 0.1
         rotate_angle = -tau / 2.5
@@ -583,13 +599,7 @@ class IDPRobot(Robot):
         # Ifs not elifs means we don't waste timesteps if the state changes
 
         if self.collect_state == IDPRobotState.DRIVING_TO_TARGET:  # driving to target
-            if self.collect_target_pos_cache is None:
-                self.collect_target_pos_cache = self.target.position
-            self.target.position = self.coordtransform_bot_polar_to_world(self.distance_from_bot(self.collect_target_pos_cache) - distance_from_block_for_colour_detect,
-                                                                          self.angle_from_bot_from_position(self.collect_target_pos_cache))
-            if self.drive_to_position(self.target.position, passive_collision_avoidance=False):
-                self.target.position = self.collect_target_pos_cache
-                self.collect_target_pos_cache = None
+            if self.move_to_block_with_offset(distance_from_block_for_colour_detect):
                 print_if_debug(f"{self.color}, collect: At target, rotating", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.ROTATE_TO_FACE_TARGET
 
@@ -599,12 +609,7 @@ class IDPRobot(Robot):
                 self.rotate(angle_to_block)
             else:
                 self.stored_time = self.time
-                print_if_debug(f"{self.color}, collect: Facing target, stopping", debug_flag=DEBUG_COLLECT)
-                self.collect_state = IDPRobotState.FACING_TARGET
-
-        if self.collect_state == IDPRobotState.FACING_TARGET:
-            if self.brake():
-                print_if_debug(f"{self.color}, collect: Stopped, detecting color", debug_flag=DEBUG_COLLECT)
+                print_if_debug(f"{self.color}, collect: Facing target, detecting color", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.DETECTING_COLOUR
 
         if self.collect_state == IDPRobotState.DETECTING_COLOUR:
@@ -647,13 +652,7 @@ class IDPRobot(Robot):
                 return True
 
         if self.collect_state == IDPRobotState.GET_TO_COLLECT_DISTANCE_FROM_BLOCK:
-            if self.collect_target_pos_cache is None:
-                self.collect_target_pos_cache = self.target.position
-            self.target.position = self.coordtransform_bot_polar_to_world(self.distance_from_bot(self.collect_target_pos_cache) - distance_from_block_for_collect,
-                                                                          self.angle_from_bot_from_position(self.collect_target_pos_cache))
-            if self.drive_to_position(self.target.position, passive_collision_avoidance=False):
-                self.target.position = self.collect_target_pos_cache
-                self.collect_target_pos_cache = None
+            if self.move_to_block_with_offset(distance_from_block_for_collect):
                 print_if_debug(f"{self.color}, collect: In position for collect, opening gate",
                                debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.CORRECT_COLOUR
