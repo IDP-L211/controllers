@@ -353,26 +353,23 @@
 <dd></dd></dl>
 
 <dl class="py method">
+<dt id="robot.IDPRobot.check_target_valid">
+<code class="sig-name descname"><span class="pre">check_target_valid</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">modules.targeting.Target</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">bool</span><a class="headerlink" href="#robot.IDPRobot.check_target_valid" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
 <dt id="robot.IDPRobot.collect_block">
-<code class="sig-name descname"><span class="pre">collect_block</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">modules.targeting.Target</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#robot.IDPRobot.collect_block" title="Permalink to this definition">¶</a></dt>
-<dd><p>Collect block at position.</p>
+<code class="sig-name descname"><span class="pre">collect_block</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; <span class="pre">bool</span><a class="headerlink" href="#robot.IDPRobot.collect_block" title="Permalink to this definition">¶</a></dt>
+<dd><p>Collect block at the best position possible</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>target</strong> (<em>Target</em>) – The target object</p>
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>If the collect action is completed</p>
 </dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>If we are at our target</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>bool</p>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>bool</p>
 </dd>
 </dl>
 </dd></dl>
-
-<dl class="py method">
-<dt id="robot.IDPRobot.collision_avoidance">
-<code class="sig-name descname"><span class="pre">collision_avoidance</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#robot.IDPRobot.collision_avoidance" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
 
 <dl class="py method">
 <dt id="robot.IDPRobot.coordtransform_bot_cartesian_to_world">
@@ -437,7 +434,7 @@ to the absolute position vector of that point in the world frame</p>
 
 <dl class="py method">
 <dt id="robot.IDPRobot.drive_to_position">
-<code class="sig-name descname"><span class="pre">drive_to_position</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_pos</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">list</span><span class="p"><span class="pre">,</span> </span><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_forward_speed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_rotation_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reverse</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">bool</span><a class="headerlink" href="#robot.IDPRobot.drive_to_position" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname"><span class="pre">drive_to_position</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_pos</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">list</span><span class="p"><span class="pre">,</span> </span><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_forward_speed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_rotation_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reverse</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">passive_collision_avoidance</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">bool</span><a class="headerlink" href="#robot.IDPRobot.drive_to_position" title="Permalink to this definition">¶</a></dt>
 <dd><p>Go to a position</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -446,6 +443,7 @@ to the absolute position vector of that point in the world frame</p>
 <li><p><strong>max_forward_speed</strong> (<em>float</em>) – Maximum speed to travel at m/s</p></li>
 <li><p><strong>max_rotation_rate</strong> (<em>float</em>) – Maximum rate to rotate at, rad/s</p></li>
 <li><p><strong>reverse</strong> (<em>bool</em>) – Whether to reverse there</p></li>
+<li><p><strong>passive_collision_avoidance</strong> (<em>bool</em>) – Whether to employ ultrasonic collision avoidance</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
@@ -493,6 +491,24 @@ Execute_action was only ever supposed to be about motion</p>
 </dd></dl>
 
 <dl class="py method">
+<dt id="robot.IDPRobot.filter_targets">
+<code class="sig-name descname"><span class="pre">filter_targets</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">targets</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">list</span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">list</span><a class="headerlink" href="#robot.IDPRobot.filter_targets" title="Permalink to this definition">¶</a></dt>
+<dd><p>Filter a given list of targets, returns targets the robot can drive to without hitting other targets or
+the other robot on the way.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>targets</strong> (<em>[</em><em>Target</em><em>]</em>) – List of targets</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Filtered list of targets</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>[Target]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt id="robot.IDPRobot.getDevice">
 <code class="sig-name descname"><span class="pre">getDevice</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#robot.IDPRobot.getDevice" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -506,12 +522,8 @@ Execute_action was only ever supposed to be about motion</p>
 <dl class="py method">
 <dt id="robot.IDPRobot.get_best_target">
 <code class="sig-name descname"><span class="pre">get_best_target</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">modules.targeting.Target</span><span class="p"><span class="pre">]</span></span><a class="headerlink" href="#robot.IDPRobot.get_best_target" title="Permalink to this definition">¶</a></dt>
-<dd><p>Decide on a new target block for robot</p>
-<dl class="simple">
-<dt>If targeting is not just get closest block there could be more logic here, potentially calls to a script in</dt><dd><p>strategies folder that applied more complex algorithms and could even return a list of ordered targets</p>
-</dd>
-</dl>
-<p>For now we just choose the closest block of correct colour or unknown colour</p>
+<dd><p>Decide on a new target block for robot, which is the cloest valid target on the way to which
+there won’t involve any collision</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns</dt>
 <dd class="field-odd"><p>Targets co-ordinates, East-North, m</p>
@@ -555,6 +567,11 @@ Execute_action was only ever supposed to be about motion</p>
 </dd></dl>
 
 <dl class="py method">
+<dt id="robot.IDPRobot.get_imminent_collision">
+<code class="sig-name descname"><span class="pre">get_imminent_collision</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; <span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">]</span></span><a class="headerlink" href="#robot.IDPRobot.get_imminent_collision" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
 <dt id="robot.IDPRobot.get_min_distance_bot_to_bot">
 <code class="sig-name descname"><span class="pre">get_min_distance_bot_to_bot</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">other_bot_vertices</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">list</span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">float</span><a class="headerlink" href="#robot.IDPRobot.get_min_distance_bot_to_bot" title="Permalink to this definition">¶</a></dt>
 <dd><p>Get the minimum distances between two robots</p>
@@ -567,6 +584,23 @@ Execute_action was only ever supposed to be about motion</p>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p>The minimum distance between the two robots</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="robot.IDPRobot.get_min_distance_point_to_bot">
+<code class="sig-name descname"><span class="pre">get_min_distance_point_to_bot</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">position</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">list</span><span class="p"><span class="pre">,</span> </span><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">float</span><a class="headerlink" href="#robot.IDPRobot.get_min_distance_point_to_bot" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the minimum distance between a point and the bounding box of the robot</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>position</strong> (<em>list</em><em>, </em><em>np.ndarray</em>) – The coordinate of the point</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>The minimum distance</p>
 </dd>
 <dt class="field-odd">Return type</dt>
 <dd class="field-odd"><p>float</p>
