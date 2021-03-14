@@ -23,6 +23,10 @@ from modules.mapping import Map
 from modules.pid import PID, DataRecorder
 from modules.targeting import TargetingHandler, Target, TargetCache
 
+DEBUG_ACTIONS = False
+DEBUG_COLLISIONS = False
+DEBUG_COLLECT = False
+DEBUG_TARGETS = False
 DEBUG = False
 tau = np.pi * 2
 
@@ -35,7 +39,7 @@ class IDPRobot(Robot):
         gps (IDPGPS): The GPS
         motors (IDPMotorController): The two motors
         target_bearing_threshold (float): Threshold determining whether the target bearing is reached
-        target_distance_threshold (float): Threshold determining whether the target coordinate is reached
+        default_target_distance_threshold (float): Threshold determining whether the target coordinate is reached
         timestep (float): Time step of the current world
         ultrasonic_left (IDPDistanceSensor): The ultrasonic sensor on the left
         ultrasonic_right (IDPDistanceSensor): The ultrasonic sensor on the right
@@ -111,11 +115,9 @@ class IDPRobot(Robot):
         self.stored_time = 0
 
         # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
-        hold_time = 0.5  # s
-        self.target_distance_threshold = 0.02
-        self.linear_speed_threshold = self.target_distance_threshold / hold_time
+        self.hold_time = 1.0  # s
+        self.default_target_distance_threshold = 0.05
         self.target_bearing_threshold = tau / 360
-        self.angular_speed_threshold = self.target_bearing_threshold / hold_time
 
         # For rotations
         self.rotation_angle = 0
@@ -424,7 +426,7 @@ class IDPRobot(Robot):
         self.stored_time = 0
 
     def drive_to_position(self, target_pos: Union[list, np.ndarray], max_forward_speed=None, max_rotation_rate=None,
-                          reverse=False, passive_collision_avoidance=True) -> bool:
+                          reverse=False, passive_collision_avoidance=True, accuracy_threshold=None) -> bool:
         """Go to a position
 
         Args:
@@ -433,9 +435,13 @@ class IDPRobot(Robot):
             max_rotation_rate (float): Maximum rate to rotate at, rad/s
             reverse (bool): Whether to reverse there
             passive_collision_avoidance (bool): Whether to employ ultrasonic collision avoidance
+            accuracy_threshold (float): Threshold determining whether the target coordinate is reached
         Returns:
             bool: If we are at our target
         """
+        accuracy_threshold = self.default_target_distance_threshold\
+            if accuracy_threshold is None else accuracy_threshold
+
         max_rotation_rate = self.default_max_allowed_speed["r"] if max_rotation_rate is None else max_rotation_rate
         max_rotation_drive = max_rotation_rate / self.max_possible_speed["r"]
 
@@ -445,7 +451,7 @@ class IDPRobot(Robot):
         distance = self.distance_from_bot(target_pos)
         angle = self.angle_from_bot_from_position(target_pos)
 
-        if distance <= self.target_distance_threshold and self.linear_speed <= self.linear_speed_threshold:
+        if distance <= accuracy_threshold and self.linear_speed <= accuracy_threshold / self.hold_time:
             return True
 
         # Passive collision avoidance - turn away towards center if path is block
@@ -504,7 +510,7 @@ class IDPRobot(Robot):
         # Check if we're done
         angle_difference = self.rotation_angle - self.angle_rotated
         if abs(angle_difference) <= self.target_bearing_threshold and \
-                abs(self.angular_velocity) <= self.angular_speed_threshold:
+                abs(self.angular_velocity) <= self.target_bearing_threshold / self.hold_time:
             self.rotation_angle = 0
             self.angle_rotated = 0
             self.rotating = False
@@ -531,8 +537,8 @@ class IDPRobot(Robot):
         self.motors.velocities = np.zeros(2)
         self.update_motion_history(time=self.time, linear_speed=self.linear_speed,
                                    angular_velocity=self.angular_velocity)
-        return abs(self.linear_speed) <= self.linear_speed_threshold \
-               and abs(self.angular_velocity) <= self.angular_speed_threshold
+        return abs(self.linear_speed) <= self.default_target_distance_threshold / self.hold_time \
+            and abs(self.angular_velocity) <= self.target_bearing_threshold / self.hold_time
 
     def hold(self, time=None):
         # Store when we want hold to end, we do this instead of storing current time because current time might be 0
