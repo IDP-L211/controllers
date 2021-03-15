@@ -18,6 +18,7 @@ from tests.sensor_bounds_ultrasonic_test import main as sensor_bounds_ultrasonic
 from pid_tuning import manual as pid_tuning
 from tests.manual_test import main as manual_test
 from tests.color_test import main as color_test
+from tests.collision_avoidance import main as collision_avoidance_test
 
 if __name__ == '__main__':
     robot = IDPRobot()
@@ -34,3 +35,4 @@ if __name__ == '__main__':
     # pid_tuning(robot)
     # manual_test(robot)
     # color_test(robot)
+    collision_avoidance_test(robot)
