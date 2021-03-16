@@ -152,9 +152,9 @@ class IDPRobot(Robot):
                 return np.log((inner_coefficient * abs(x)) + 1) * np.sign(x)
             return (0.5 * log_w_sign(error, 10)) + (0.0 * cumulative_error) + (0.05 * error_change)
 
-        self.pid_angle = PID(custom_function=non_lin_controller1, time_step=self.timestep_actual, derivative_weight_decay_half_life=0.025,
-                             quantity_name="Angle", timer_func=self.getTime, integral_delay_time=1,
-                             integral_wind_up_speed=0.5, integral_active_error_band=tau/4,
+        self.pid_angle = PID(custom_function=non_lin_controller1, time_step=self.timestep_actual,
+                             derivative_weight_decay_half_life=0.025, quantity_name="Angle", timer_func=self.getTime,
+                             integral_delay_time=1, integral_wind_up_speed=0.5, integral_active_error_band=tau/4,
                              integral_delay_windup_when_in_bounds=True)
 
         motor_graph_styles = {"distance": 'k-', "angle": 'r-', "forward_speed": 'k--', "rotation_speed": 'r--',
@@ -255,7 +255,7 @@ class IDPRobot(Robot):
         rad = np.arctan2(north[0], north[2])  # [-pi, pi]
         return rad + tau if rad < 0 else rad
 
-    def distance_from_bot(self, position) -> float:
+    def distance_from_bot(self, position: Union[list, np.ndarray]) -> float:
         """The Euclidean distance between the bot and a position
 
         Args:
@@ -287,7 +287,7 @@ class IDPRobot(Robot):
 
         return angle
 
-    def angle_from_bot_from_position(self, position: list) -> float:
+    def angle_from_bot_from_position(self, position: Union[list, np.ndarray]) -> float:
         """The clockwise angle from the direction our bot is facing to the position in radians
 
         Args:
@@ -441,6 +441,109 @@ class IDPRobot(Robot):
         self.stored_time = 0
         self.stuck_in_drive_to_pos_time = 0
 
+    def passive_collision_avoidance(self, target_pos, angle):
+        # Build up a list of obstructions to avoid which includes their type
+        other_bot_pos = self.radio.get_other_bot_position()
+        known_block_positions = [np.array(getattr(target, 'position')) for target in self.target_cache.targets]
+        obstructions = [{'type': 'block', 'position': pos} for pos in known_block_positions]\
+            + ([{'type': 'bot', 'position': np.array(other_bot_pos)}] if other_bot_pos is not None else [])
+
+        # Some tunable parameters
+        min_approach_dist = {'block': 0.2, 'bot': 0.45}
+        avoidance_bandwidth = 0.2
+
+        # Here we consider if two obstructions are close enough to constitute treatment as one large obstructions
+        # and if so, we dynamically generate a new center and approaches for it
+        new_obstructions = 0
+        print_if_debug("\n", debug_flag=DEBUG_OBSTRUCTIONS)
+        for o in obstructions:
+            print_if_debug(o, debug_flag=DEBUG_OBSTRUCTIONS)
+
+        def combine_obstructions(obstruction_list):
+            nonlocal new_obstructions
+            combined_obstructions = []
+            new_list = []
+
+            for i, x in enumerate(obstruction_list):
+                if i not in combined_obstructions:
+                    for j, y in enumerate(obstruction_list):
+                        if i != j and j not in combined_obstructions:
+
+                            dist = np.linalg.norm(x['position'] - y['position'])
+                            min_approaches = [min_approach_dist[x['type']], min_approach_dist[y['type']]]
+
+                            if dist < min_approaches[0] + min_approaches[1]:
+
+                                # Find bounding circle
+                                dir_vec = (x['position'] - y['position']) / dist
+                                center = (x['position'] + y['position'] - ((min_approaches[1] - min_approaches[0]) * dir_vec)) / 2
+                                radius = (min_approaches[0] + min_approaches[1] + dist) / 2
+
+                                # In event one of our old circles was inside the other
+                                if radius < min_approaches[0]:
+                                    radius = min_approaches[0]
+                                    center = x['position']
+                                if radius < min_approaches[1]:
+                                    radius = min_approaches[1]
+                                    center = y['position']
+
+                                # Add to new list
+                                new_type = f'custom{new_obstructions}'
+                                new_obstructions += 1
+                                new_list.append({'type': new_type, 'position': center})
+                                min_approach_dist[new_type] = radius
+                                combined_obstructions.extend([i, j])
+                                break
+                    else:
+                        new_list.append(x)
+
+            if new_list != obstruction_list:
+                return combine_obstructions(new_list)
+            else:
+                return new_list
+
+        obstructions = combine_obstructions(obstructions)
+
+        print_if_debug("", debug_flag=DEBUG_OBSTRUCTIONS)
+        for o in obstructions:
+            print_if_debug(o, min_approach_dist[o['type']], debug_flag=DEBUG_OBSTRUCTIONS)
+
+
+        # Iterate through and build up a list of avoidance angles and angle fractions
+        angles_and_fractions = []
+        for obstruction in obstructions:
+
+            # Check the obstruction is not at our target position, if we are just get as close as possible
+            distance_to_obstruction = self.distance_from_bot(obstruction['position'])
+            distance_from_target_to_obstruction = np.linalg.norm(obstruction['position'] - target_pos)
+            if distance_from_target_to_obstruction < min_approach_dist[obstruction['type']] and\
+                    distance_to_obstruction < min_approach_dist[obstruction['type']]\
+                    + self.default_target_distance_threshold:
+                print_if_debug(f"{self.color}, collision: Obstruction is where we want to go and we are close,\
+                    stopping here", debug_flag=DEBUG_COLLISIONS)
+                return None
+
+            # Calculate the angle we would need to turn to (i.e. have the PID minimise) to avoid the obstruction
+            angle_to_obstruction = self.angle_from_bot_from_position(obstruction['position'])
+            angle_to_avoid_obstruction = angle_to_obstruction + (np.sign(angle - angle_to_obstruction) * tau/4)
+
+            # Calculate the angle fraction for this angle
+            angle_fraction = ((min_approach_dist[obstruction['type']] + avoidance_bandwidth) - distance_to_obstruction) / avoidance_bandwidth
+            angle_fraction = min(max(angle_fraction, 0), 2)
+            angles_and_fractions.append([angle_to_avoid_obstruction, angle_fraction])
+
+        # Normalise so our sum of the fractions is equal to the current highest value
+        fraction_total = sum(x[1] for x in angles_and_fractions)
+        if fraction_total != 0:
+            max_fraction = max(x[1] for x in angles_and_fractions)
+            angles_and_fractions = [[x[0], x[1] * max_fraction / fraction_total] for x in angles_and_fractions]
+
+            # Determine our final angle to turn to, to hopefully avoid obstructions whilst reaching our target
+            angle = sum([x[0] * x[1] for x in angles_and_fractions])\
+                + ((1 - sum(x[1] for x in angles_and_fractions)) * angle)
+
+        return angle
+
     def drive_to_position(self, target_pos: Union[list, np.ndarray], max_forward_speed=None, max_rotation_rate=None,
                           reverse=False, passive_collision_avoidance=True, accuracy_threshold=None) -> bool:
         """Go to a position
@@ -487,112 +590,16 @@ class IDPRobot(Robot):
         if distance <= 4 * accuracy_threshold:
             self.angle_rotated += self.angular_velocity * self.timestep_actual
             if abs(self.angle_rotated) >= tau * 1.5:
-                print_if_debug(f"{self.color}, stuck: Done 1.5 full rotations near target, stopping move", debug_flag=DEBUG_STUCK)
+                print_if_debug(f"{self.color}, stuck: Done 1.5 full rotations near target, stopping move",
+                               debug_flag=DEBUG_STUCK)
                 self.angle_rotated = 0
                 return True
 
         # If close to the other bot, turn to avoid it.
         if passive_collision_avoidance:
-
-            # Build up a list of obstructions to avoid which includes their type
-            other_bot_pos = self.radio.get_other_bot_position()
-            known_block_positions = [np.array(getattr(target, 'position')) for target in self.target_cache.targets]
-            obstructions = [{'type': 'block', 'position': pos} for pos in known_block_positions]\
-                + ([{'type': 'bot', 'position': np.array(other_bot_pos)}] if other_bot_pos is not None else [])
-
-            # Some tunable parameters
-            min_approach_dist = {'block': 0.2, 'bot': 0.4}
-            avoidance_bandwidth = 0.2
-
-            # Here we consider if two obstructions are close enough to constitute treatment as one large obstructions
-            # and if so, we dynamically generate a new center and approaches for it
-            new_obstructions = 0
-            print_if_debug("\n", debug_flag=DEBUG_OBSTRUCTIONS)
-            for o in obstructions:
-                print_if_debug(o, debug_flag=DEBUG_OBSTRUCTIONS)
-
-            def combine_obstructions(obstruction_list):
-                nonlocal new_obstructions
-                combined_obstructions = []
-                new_list = []
-
-                for i, x in enumerate(obstruction_list):
-                    if i not in combined_obstructions:
-                        for j, y in enumerate(obstruction_list):
-                            if i != j and j not in combined_obstructions:
-
-                                dist = np.linalg.norm(x['position'] - y['position'])
-                                min_approaches = [min_approach_dist[x['type']], min_approach_dist[y['type']]]
-
-                                if dist < min_approaches[0] + min_approaches[1]:
-
-                                    # Find bounding circle
-                                    dir_vec = (x['position'] - y['position']) / dist
-                                    center = (x['position'] + y['position'] - ((min_approaches[1] - min_approaches[0]) * dir_vec)) / 2
-                                    radius = (min_approaches[0] + min_approaches[1] + dist) / 2
-
-                                    # In event one of our old circles was inside the other
-                                    if radius < min_approaches[0]:
-                                        radius = min_approaches[0]
-                                        center = x['position']
-                                    if radius < min_approaches[1]:
-                                        radius = min_approaches[1]
-                                        center = y['position']
-
-                                    # Add to new list
-                                    new_type = f'custom{new_obstructions}'
-                                    new_obstructions += 1
-                                    new_list.append({'type': new_type, 'position': center})
-                                    min_approach_dist[new_type] = radius
-                                    combined_obstructions.extend([i, j])
-                                    break
-                        else:
-                            new_list.append(x)
-
-                if new_list != obstruction_list:
-                    return combine_obstructions(new_list)
-                else:
-                    return new_list
-
-            obstructions = combine_obstructions(obstructions)
-
-            print_if_debug("", debug_flag=DEBUG_OBSTRUCTIONS)
-            for o in obstructions:
-                print_if_debug(o, min_approach_dist[o['type']], debug_flag=DEBUG_OBSTRUCTIONS)
-
-
-            # Iterate through and build up a list of avoidance angles and angle fractions
-            angles_and_fractions = []
-            for obstruction in obstructions:
-
-                # Check the obstruction is not at our target position, if we are just get as close as possible
-                distance_to_obstruction = self.distance_from_bot(obstruction['position'])
-                distance_from_target_to_obstruction = np.linalg.norm(obstruction['position'] - target_pos)
-                if distance_from_target_to_obstruction < min_approach_dist[obstruction['type']] and\
-                        distance_to_obstruction < min_approach_dist[obstruction['type']]\
-                        + self.default_target_distance_threshold:
-                    print_if_debug(f"{self.color}, collision: Obstruction is where we want to go and we are close,\
-                        stopping here", debug_flag=DEBUG_COLLISIONS)
-                    return True
-
-                # Calculate the angle we would need to turn to (i.e. have the PID minimise) to avoid the obstruction
-                angle_to_obstruction = self.angle_from_bot_from_position(obstruction['position'])
-                angle_to_avoid_obstruction = angle_to_obstruction + (np.sign(angle - angle_to_obstruction) * tau/4)
-
-                # Calculate the angle fraction for this angle
-                angle_fraction = ((min_approach_dist[obstruction['type']] + avoidance_bandwidth) - distance_to_obstruction) / avoidance_bandwidth
-                angle_fraction = min(max(angle_fraction, 0), 2)
-                angles_and_fractions.append([angle_to_avoid_obstruction, angle_fraction])
-
-            # Normalise so our sum of the fractions is equal to the current highest value
-            fraction_total = sum(x[1] for x in angles_and_fractions)
-            if fraction_total != 0:
-                max_fraction = max(x[1] for x in angles_and_fractions)
-                angles_and_fractions = [[x[0], x[1] * max_fraction / fraction_total] for x in angles_and_fractions]
-
-                # Determine our final angle to turn to, to hopefully avoid obstructions whilst reaching our target
-                angle = sum([x[0] * x[1] for x in angles_and_fractions])\
-                    + ((1 - sum(x[1] for x in angles_and_fractions)) * angle)
+            angle = self.passive_collision_avoidance(target_pos, angle)
+            if angle is None:  # target_pos is blocked by an obstruction and we are as close as possible
+                return True
 
         # If we're reversing we change the angle so it mimics the bot facing the opposite way
         # When we apply the wheel velocities we negative them and voila we tricked the bot into reversing
@@ -638,7 +645,6 @@ class IDPRobot(Robot):
             self.target.position = self.collect_target_pos_cache
             self.collect_target_pos_cache = None
         return complete
-
 
     def rotate(self, angle: float, max_rotation_rate=None) -> bool:
         """Rotate the bot a fixed angle at a fixed rate of rotation
