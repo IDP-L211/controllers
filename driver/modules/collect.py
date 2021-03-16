@@ -41,6 +41,23 @@ class CollectHandler:
     def reset_collect_state(self):
         self.collect_state = CollectStates.APPROACHING_TARGET_FROM_CENTER
 
+    def move_to_block_with_offset(self, offset):
+        # First check we haven't already cached the target true position
+        if self.robot.collect_handler.collect_target_pos_cache is None:
+            self.robot.collect_handler.collect_target_pos_cache = self.robot.target.position
+
+        # Set the target position to where we actually want to go
+        self.robot.target.position = self.robot.coordtransform_bot_polar_to_world(
+            self.robot.distance_from_bot(self.collect_target_pos_cache) - offset,
+            self.robot.angle_from_bot_from_position(self.collect_target_pos_cache))
+
+        # If we completed motion restore target position to true position and empty cache
+        if complete := self.robot.drive_to_position(self.robot.target.position, passive_collision_avoidance=False,
+                                                    accuracy_threshold=0.02):
+            self.robot.target.position = self.collect_target_pos_cache
+            self.collect_target_pos_cache = None
+        return complete
+
     def collect(self):
         """Collect block at the best position possible
 
@@ -86,7 +103,7 @@ class CollectHandler:
                     self.collect_state = CollectStates.DRIVING_TO_TARGET
 
         if self.collect_state == CollectStates.DRIVING_TO_TARGET:  # driving to target
-            if self.robot.move_to_block_with_offset(self.distance_from_block_for_colour_detect):
+            if self.move_to_block_with_offset(self.distance_from_block_for_colour_detect):
                 print_if_debug(f"{self.robot.color}, collect: At target, rotating", debug_flag=self.debug_flag)
                 self.collect_state = CollectStates.ROTATE_TO_FACE_TARGET
 
@@ -142,7 +159,7 @@ class CollectHandler:
                 return True
 
         if self.collect_state == CollectStates.GET_TO_COLLECT_DISTANCE_FROM_BLOCK:
-            if self.robot.move_to_block_with_offset(self.distance_from_block_for_collect):
+            if self.move_to_block_with_offset(self.distance_from_block_for_collect):
                 print_if_debug(f"{self.robot.color}, collect: In position for collect, opening gate",
                                debug_flag=self.debug_flag)
                 self.collect_state = CollectStates.CORRECT_COLOUR

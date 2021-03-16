@@ -619,23 +619,6 @@ class IDPRobot(Robot):
         """
         return self.drive_to_position(target_pos, reverse=True, passive_collision_avoidance=False)
 
-    def move_to_block_with_offset(self, offset):
-        # First check we haven't already cached the target true position
-        if self.collect_handler.collect_target_pos_cache is None:
-            self.collect_handler.collect_target_pos_cache = self.target.position
-
-        # Set the target position to where we actually want to go
-        self.target.position = self.coordtransform_bot_polar_to_world(
-            self.distance_from_bot(self.collect_handler.collect_target_pos_cache) - offset,
-            self.angle_from_bot_from_position(self.collect_handler.collect_target_pos_cache))
-
-        # If we completed motion restore target position to true position and empty cache
-        if complete := self.drive_to_position(self.target.position, passive_collision_avoidance=False,
-                                              accuracy_threshold=0.02):
-            self.target.position = self.collect_handler.collect_target_pos_cache
-            self.collect_handler.collect_target_pos_cache = None
-        return complete
-
     def rotate(self, angle: float, max_rotation_rate=None) -> bool:
         """Rotate the bot a fixed angle at a fixed rate of rotation
 
