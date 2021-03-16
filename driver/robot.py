@@ -26,7 +26,7 @@ from modules.targeting import TargetingHandler, Target, TargetCache
 
 DEBUG_ACTIONS = False
 DEBUG_COLLISIONS = False
-DEBUG_COLLECT = False
+DEBUG_COLLECT = True
 DEBUG_TARGETS = False
 DEBUG_SCAN = False
 DEBUG_STUCK = False
@@ -124,11 +124,11 @@ class IDPRobot(Robot):
         self.last_action_value = None
 
         # State for some composite actions
-        self.collect_state = IDPRobotState.DRIVING_TO_TARGET
+        self.collect_state = IDPRobotState.APPROACHING_TARGET_FROM_CENTER
         self.collect_num_tries = 0
         self.stored_time = 0
         self.collect_target_pos_cache = None
-        self.collect_color_reading = None
+        self.collect_color_readings = []
 
         # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
         self.hold_time = 1.0  # s
@@ -151,7 +151,7 @@ class IDPRobot(Robot):
         def non_lin_controller1(error, cumulative_error, error_change):
             def log_w_sign(x, inner_coefficient):
                 return np.log((inner_coefficient * abs(x)) + 1) * np.sign(x)
-            return (0.5 * log_w_sign(error, 10)) + (0.0 * cumulative_error) + (0.05 * error_change)
+            return (0.5 * log_w_sign(error, 10)) + (0.0 * cumulative_error) + (0.15 * error_change)
 
         self.pid_angle = PID(custom_function=non_lin_controller1, time_step=self.timestep_actual,
                              derivative_weight_decay_half_life=0.025, quantity_name="Angle", timer_func=self.getTime,
@@ -775,24 +775,40 @@ class IDPRobot(Robot):
                 self.collect_state = IDPRobotState.DETECTING_COLOUR
 
         if self.collect_state == IDPRobotState.DETECTING_COLOUR:
+            # Log current detection
             detection = self.color_detector.get_color()
-            if detection in ["red", "green"] or self.collect_color_reading not in ["red", "green"]:
-                self.collect_color_reading = detection
+            if detection in ["red", "green"]:
+                self.collect_color_readings.append(detection)
+
+            # Done with move
             if self.move_to_block_with_offset(colour_detect_distance_end):
-                print(f"Block colour: {self.collect_color_reading}")
-                if self.collect_color_reading in ["red", "green"]:
-                    self.target.classification = f"{self.collect_color_reading}_box"
-                    if self.collect_color_reading == self.color:
+
+                # Get the most common color occurrence
+                red_count = self.collect_color_readings.count("red")
+                green_count = self.collect_color_readings.count("green")
+                self.collect_color_readings = []
+                print(red_count, green_count, self.collect_color_readings)
+                if (red_count != 0 or green_count != 0) and red_count != green_count:
+                    if red_count > green_count:
+                        color = "red"
+                    else:
+                        color = "green"
+                    print(f"Block colour: {color}")
+                    self.target.classification = f"{color}_box"
+
+                    if color == self.color:
                         print_if_debug(f"{self.color}, collect: Color match, collecting",
                                        debug_flag=DEBUG_COLLECT)
                         self.collect_state = IDPRobotState.CORRECT_COLOUR
                     else:
                         self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
                         # should be collected by the other robot, send info to it
-                        self.radio.send_message({'confirmed': (list(self.target.position), self.collect_color_reading)})
+                        self.radio.send_message({'confirmed': (list(self.target.position), color)})
                         self.target = None
                         print_if_debug(f"{self.color}, collect: Color opposite, reversing", debug_flag=DEBUG_COLLECT)
                         return True
+
+                # We don't know what color it is
                 elif (other_bot_collected := self.radio.get_other_bot_collected()) and len(other_bot_collected) == 4 \
                         and self.target.classification == f'{self.color}_box':
                     print_if_debug(f"{self.color}, collect: Must be ours, collecting",
