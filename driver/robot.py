@@ -438,7 +438,7 @@ class IDPRobot(Robot):
                        + ([{'type': 'bot', 'position': np.array(other_bot_pos)}] if other_bot_pos is not None else [])
 
         # Some tunable parameters
-        min_approach_dist = {'block': 0.2, 'bot': 0.45}
+        min_approach_dist = {'block': 0.2, 'bot': 0.4}
         avoidance_bandwidth = 0.2
 
         # Here we consider if two obstructions are close enough to constitute treatment as one large obstructions
@@ -780,13 +780,15 @@ class IDPRobot(Robot):
         return False
 
     def check_target_valid(self, target: Union[Target, None]) -> bool:
-        return target.classification in ['box',
-                                         f'{self.color}_box'] and not self.target_cache.check_target_path_blocked(
-            target.position,
-            self.position,
-            self.radio.get_other_bot_position(),
-            self.radio.get_other_bot_vertices()
-        ) if target else False
+        return all((
+            target.classification in ['box', f'{self.color}_box'],
+            not self.target_cache.check_target_path_blocked(
+                target.position,
+                self.position,
+                self.radio.get_other_bot_position(),
+                self.radio.get_other_bot_vertices()
+            )
+        )) if target else False
 
     def filter_targets(self, targets: list) -> list:
         """Filter a given list of targets, returns targets the robot can drive to without hitting other targets or

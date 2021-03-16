@@ -12,10 +12,9 @@ class CollectStates(Enum):
     DRIVING_TO_TARGET = 1
     ROTATE_TO_FACE_TARGET = 2
     DETECTING_COLOUR = 3
-    GET_TO_COLLECT_DISTANCE_FROM_BLOCK = 4
-    CORRECT_COLOUR = 5
-    COLLECTING_TARGET = 6
-    TARGET_COLLECTED = 7
+    CORRECT_COLOUR = 4
+    COLLECTING_TARGET = 5
+    TARGET_COLLECTED = 6
 
 
 class CollectHandler:
@@ -24,8 +23,8 @@ class CollectHandler:
 
         # PLEASE NOTE! Since the distance accuracy is 0.02, the bot will stop ~0.02 distance from its goal
         # If the goal is within 0.02 it won't move at all as it's 'already there'
-        self.distance_from_block_for_colour_detect = 0.16
-        self.distance_from_block_for_collect = self.distance_from_block_for_colour_detect
+        self.colour_detect_distance_start = 0.16
+        self.colour_detect_distance_end = 0.14
         self.max_angle_to_block = 0.12
         self.rotate_angle = -tau / 2.5
         self.gate_time = 0.5
@@ -37,6 +36,7 @@ class CollectHandler:
         self.collect_state = CollectStates.APPROACHING_TARGET_FROM_CENTER
         self.collect_num_tries = 0
         self.collect_target_pos_cache = None
+        self.collect_color_reading = None
 
     def reset_collect_state(self):
         self.collect_state = CollectStates.APPROACHING_TARGET_FROM_CENTER
@@ -103,7 +103,7 @@ class CollectHandler:
                     self.collect_state = CollectStates.DRIVING_TO_TARGET
 
         if self.collect_state == CollectStates.DRIVING_TO_TARGET:  # driving to target
-            if self.move_to_block_with_offset(self.distance_from_block_for_colour_detect):
+            if self.move_to_block_with_offset(self.colour_detect_distance_start):
                 print_if_debug(f"{self.robot.color}, collect: At target, rotating", debug_flag=self.debug_flag)
                 self.collect_state = CollectStates.ROTATE_TO_FACE_TARGET
 
@@ -118,51 +118,51 @@ class CollectHandler:
                 self.collect_state = CollectStates.DETECTING_COLOUR
 
         if self.collect_state == CollectStates.DETECTING_COLOUR:
-            color = self.robot.color_detector.get_color()
-            print(f"Block colour: {color}")
-            if color in ["red", "green"]:
-                self.robot.target.classification = f"{color}_box"
-                if color == self.robot.color:
-                    print_if_debug(f"{self.robot.color}, collect: Color match, moving to collect distance",
+            detection = self.robot.color_detector.get_color()
+            if detection in ["red", "green"] or self.collect_color_reading not in ["red", "green"]:
+                self.collect_color_reading = detection
+            if self.move_to_block_with_offset(self.colour_detect_distance_end):
+                print(f"Block colour: {self.collect_color_reading}s")
+                if self.collect_color_reading in ["red", "green"]:
+                    self.robot.target.classification = f"{self.collect_color_reading}_box"
+                    if self.collect_color_reading == self.robot.color:
+                        print_if_debug(f"{self.robot.color}, collect: Color match, collecting",
+                                       debug_flag=self.debug_flag)
+                        self.collect_state = CollectStates.CORRECT_COLOUR
+                    else:
+                        self.robot.action_queue.insert(1, (
+                            "reverse", list(self.robot.get_bot_front(-self.reverse_distance))))
+                        # should be collected by the other robot, send info to it
+                        self.robot.radio.send_message(
+                            {'confirmed': (list(self.robot.target.position), self.collect_color_reading)})
+                        self.robot.target = None
+                        print_if_debug(f"{self.robot.color}, collect: Color opposite, reversing",
+                                       debug_flag=self.debug_flag)
+                        return True
+                elif (other_bot_collected := self.robot.radio.get_other_bot_collected()) and len(
+                        other_bot_collected) == 4 \
+                        and self.robot.target.classification == f'{self.robot.color}_box':
+                    print_if_debug(f"{self.robot.color}, collect: Must be ours, collecting",
                                    debug_flag=self.debug_flag)
-                    self.collect_state = CollectStates.GET_TO_COLLECT_DISTANCE_FROM_BLOCK
-                else:
+                    # other robot has collected all four targets, this must be ours
+                    self.collect_state = CollectStates.CORRECT_COLOUR
+                else:  # not able to detect the colour, probably because the position is not accurate
                     self.robot.action_queue.insert(1,
                                                    ("reverse", list(self.robot.get_bot_front(-self.reverse_distance))))
-                    # should be collected by the other robot, send info to it
-                    self.robot.radio.send_message({'confirmed': (list(self.robot.target.position), color)})
+                    self.robot.action_queue.insert(2, "scan")  # rescan to check if there is actually a target there
+                    # pop the current target off for now, the new scan will give better position
+                    if self.collect_num_tries > 1:  # this block is probably flipped over
+                        self.robot.target.classification = 'flipped'
+                        self.collect_num_tries = 0  # reset the counter
+                        print_if_debug(f"{self.robot.color}, collect: Color unknown, I think this is flipped",
+                                       debug_flag=self.debug_flag)
+                    else:
+                        self.robot.target_cache.remove_target(self.robot.target)
+                        self.collect_num_tries += 1
+                        print_if_debug(f"{self.robot.color}, collect: Color unknown, I'll try again later",
+                                       debug_flag=self.debug_flag)
                     self.robot.target = None
-                    print_if_debug(f"{self.robot.color}, collect: Color opposite, reversing",
-                                   debug_flag=self.debug_flag)
                     return True
-            elif (other_bot_collected := self.robot.radio.get_other_bot_collected()) and len(other_bot_collected) == 4 \
-                    and self.robot.target.classification == f'{self.robot.color}_box':
-                print_if_debug(f"{self.robot.color}, collect: Must be ours, moving to collect distance",
-                               debug_flag=self.debug_flag)
-                # other robot has collected all four targets, this must be ours
-                self.collect_state = CollectStates.GET_TO_COLLECT_DISTANCE_FROM_BLOCK
-            else:  # not able to detect the colour, probably because the position is not accurate
-                self.robot.action_queue.insert(1, ("reverse", list(self.robot.get_bot_front(-self.reverse_distance))))
-                self.robot.action_queue.insert(2, "scan")  # rescan to check if there is actually a target there
-                # pop the current target off for now, the new scan will give better position
-                if self.collect_num_tries > 1:  # this block is probably flipped over
-                    self.robot.target.classification = 'flipped'
-                    self.collect_num_tries = 0  # reset the counter
-                    print_if_debug(f"{self.robot.color}, collect: Color unknown, I think this is flipped",
-                                   debug_flag=self.debug_flag)
-                else:
-                    self.robot.target_cache.remove_target(self.robot.target)
-                    self.collect_num_tries += 1
-                    print_if_debug(f"{self.robot.color}, collect: Color unknown, I'll try again later",
-                                   debug_flag=self.debug_flag)
-                self.robot.target = None
-                return True
-
-        if self.collect_state == CollectStates.GET_TO_COLLECT_DISTANCE_FROM_BLOCK:
-            if self.move_to_block_with_offset(self.distance_from_block_for_collect):
-                print_if_debug(f"{self.robot.color}, collect: In position for collect, opening gate",
-                               debug_flag=self.debug_flag)
-                self.collect_state = CollectStates.CORRECT_COLOUR
 
         if self.collect_state == CollectStates.CORRECT_COLOUR:
             self.robot.gate.open()
