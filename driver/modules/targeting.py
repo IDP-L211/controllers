@@ -136,7 +136,6 @@ class TargetingHandler:
         return scan_positions[scan_quadrant[0]][scan_quadrant[1]]
 
 
-
 class Target:
     """Class representing the target"""
 
