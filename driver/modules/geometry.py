@@ -87,6 +87,9 @@ def get_path_rectangle(target_position: np.ndarray, curr_position: np.ndarray) -
     bottomleft = topleft - diff_unit * (diff_norm - 0.075)
     bottomright = topright - diff_unit * (diff_norm - 0.075)
 
+    topleft += 0.1 * diff_unit
+    topright += 0.1 * diff_unit
+
     return [topleft, topright, bottomright, bottomleft]
 
 
