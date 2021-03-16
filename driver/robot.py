@@ -128,6 +128,7 @@ class IDPRobot(Robot):
         self.collect_num_tries = 0
         self.stored_time = 0
         self.collect_target_pos_cache = None
+        self.collect_color_reading = None
 
         # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
         self.hold_time = 1.0  # s
@@ -449,7 +450,7 @@ class IDPRobot(Robot):
             + ([{'type': 'bot', 'position': np.array(other_bot_pos)}] if other_bot_pos is not None else [])
 
         # Some tunable parameters
-        min_approach_dist = {'block': 0.2, 'bot': 0.45}
+        min_approach_dist = {'block': 0.2, 'bot': 0.4}
         avoidance_bandwidth = 0.2
 
         # Here we consider if two obstructions are close enough to constitute treatment as one large obstructions
@@ -732,8 +733,8 @@ class IDPRobot(Robot):
 
         # PLEASE NOTE! Since the distance accuracy is 0.02, the bot will stop ~0.02 distance from its goal
         # If the goal is within 0.02 it won't move at all as it's 'already there'
-        distance_from_block_for_colour_detect = 0.16
-        distance_from_block_for_collect = distance_from_block_for_colour_detect
+        colour_detect_distance_start = 0.16
+        colour_detect_distance_end = 0.14
         max_angle_to_block = 0.12
         rotate_angle = -tau / 2.5
         gate_time = 0.5
@@ -760,7 +761,7 @@ class IDPRobot(Robot):
                     self.collect_state = IDPRobotState.DRIVING_TO_TARGET
 
         if self.collect_state == IDPRobotState.DRIVING_TO_TARGET:  # driving to target
-            if self.move_to_block_with_offset(distance_from_block_for_colour_detect):
+            if self.move_to_block_with_offset(colour_detect_distance_start):
                 print_if_debug(f"{self.color}, collect: At target, rotating", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.ROTATE_TO_FACE_TARGET
 
@@ -774,49 +775,46 @@ class IDPRobot(Robot):
                 self.collect_state = IDPRobotState.DETECTING_COLOUR
 
         if self.collect_state == IDPRobotState.DETECTING_COLOUR:
-            color = self.color_detector.get_color()
-            print(f"Block colour: {color}")
-            if color in ["red", "green"]:
-                self.target.classification = f"{color}_box"
-                if color == self.color:
-                    print_if_debug(f"{self.color}, collect: Color match, moving to collect distance",
+            detection = self.color_detector.get_color()
+            if detection in ["red", "green"] or self.collect_color_reading not in ["red", "green"]:
+                self.collect_color_reading = detection
+            if self.move_to_block_with_offset(colour_detect_distance_end):
+                print(f"Block colour: {self.collect_color_reading}")
+                if self.collect_color_reading in ["red", "green"]:
+                    self.target.classification = f"{self.collect_color_reading}_box"
+                    if self.collect_color_reading == self.color:
+                        print_if_debug(f"{self.color}, collect: Color match, collecting",
+                                       debug_flag=DEBUG_COLLECT)
+                        self.collect_state = IDPRobotState.CORRECT_COLOUR
+                    else:
+                        self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
+                        # should be collected by the other robot, send info to it
+                        self.radio.send_message({'confirmed': (list(self.target.position), self.collect_color_reading)})
+                        self.target = None
+                        print_if_debug(f"{self.color}, collect: Color opposite, reversing", debug_flag=DEBUG_COLLECT)
+                        return True
+                elif (other_bot_collected := self.radio.get_other_bot_collected()) and len(other_bot_collected) == 4 \
+                        and self.target.classification == f'{self.color}_box':
+                    print_if_debug(f"{self.color}, collect: Must be ours, collecting",
                                    debug_flag=DEBUG_COLLECT)
-                    self.collect_state = IDPRobotState.GET_TO_COLLECT_DISTANCE_FROM_BLOCK
-                else:
+                    # other robot has collected all four targets, this must be ours
+                    self.collect_state = IDPRobotState.CORRECT_COLOUR
+                else:  # not able to detect the colour, probably because the position is not accurate
                     self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
-                    # should be collected by the other robot, send info to it
-                    self.radio.send_message({'confirmed': (list(self.target.position), color)})
+                    self.action_queue.insert(2, "scan")  # rescan to check if there is actually a target there
+                    # pop the current target off for now, the new scan will give better position
+                    if self.collect_num_tries > 1:  # this block is probably flipped over
+                        self.target.classification = 'flipped'
+                        self.collect_num_tries = 0  # reset the counter
+                        print_if_debug(f"{self.color}, collect: Color unknown, I think this is flipped",
+                                       debug_flag=DEBUG_COLLECT)
+                    else:
+                        self.target_cache.remove_target(self.target)
+                        self.collect_num_tries += 1
+                        print_if_debug(f"{self.color}, collect: Color unknown, I'll try again later",
+                                       debug_flag=DEBUG_COLLECT)
                     self.target = None
-                    print_if_debug(f"{self.color}, collect: Color opposite, reversing", debug_flag=DEBUG_COLLECT)
                     return True
-            elif (other_bot_collected := self.radio.get_other_bot_collected()) and len(other_bot_collected) == 4 \
-                    and self.target.classification == f'{self.color}_box':
-                print_if_debug(f"{self.color}, collect: Must be ours, moving to collect distance",
-                               debug_flag=DEBUG_COLLECT)
-                # other robot has collected all four targets, this must be ours
-                self.collect_state = IDPRobotState.GET_TO_COLLECT_DISTANCE_FROM_BLOCK
-            else:  # not able to detect the colour, probably because the position is not accurate
-                self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
-                self.action_queue.insert(2, "scan")  # rescan to check if there is actually a target there
-                # pop the current target off for now, the new scan will give better position
-                if self.collect_num_tries > 1:  # this block is probably flipped over
-                    self.target.classification = 'flipped'
-                    self.collect_num_tries = 0  # reset the counter
-                    print_if_debug(f"{self.color}, collect: Color unknown, I think this is flipped",
-                                   debug_flag=DEBUG_COLLECT)
-                else:
-                    self.target_cache.remove_target(self.target)
-                    self.collect_num_tries += 1
-                    print_if_debug(f"{self.color}, collect: Color unknown, I'll try again later",
-                                   debug_flag=DEBUG_COLLECT)
-                self.target = None
-                return True
-
-        if self.collect_state == IDPRobotState.GET_TO_COLLECT_DISTANCE_FROM_BLOCK:
-            if self.move_to_block_with_offset(distance_from_block_for_collect):
-                print_if_debug(f"{self.color}, collect: In position for collect, opening gate",
-                               debug_flag=DEBUG_COLLECT)
-                self.collect_state = IDPRobotState.CORRECT_COLOUR
 
         if self.collect_state == IDPRobotState.CORRECT_COLOUR:
             self.gate.open()
@@ -942,13 +940,15 @@ class IDPRobot(Robot):
         return False
 
     def check_target_valid(self, target: Union[Target, None]) -> bool:
-        return target.classification in ['box',
-                                         f'{self.color}_box'] and not self.target_cache.check_target_path_blocked(
-            target.position,
-            self.position,
-            self.radio.get_other_bot_position(),
-            self.radio.get_other_bot_vertices()
-        ) if target else False
+        return all((
+            target.classification in ['box', f'{self.color}_box'],
+            not self.target_cache.check_target_path_blocked(
+                target.position,
+                self.position,
+                self.radio.get_other_bot_position(),
+                self.radio.get_other_bot_vertices()
+            )
+        )) if target else False
 
     def filter_targets(self, targets: list) -> list:
         """Filter a given list of targets, returns targets the robot can drive to without hitting other targets or
