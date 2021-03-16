@@ -35,14 +35,15 @@ tau = np.pi * 2
 
 
 class IDPRobotState(Enum):
-    APPROACHING_TARGET_FROM_CENTER      = 0
-    DRIVING_TO_TARGET                   = 1
-    ROTATING_TO_FACE_TARGET             = 2
-    DETECTING_COLOUR                    = 3
-    BRAKING                             = 4
-    GATE_OPENING                        = 5
-    ROTATING_TO_COLLECT                 = 6
-    GATE_CLOSING                        = 7
+    START_COLLECT                       = 0
+    APPROACHING_TARGET_FROM_CENTER      = 1
+    DRIVING_TO_TARGET                   = 2
+    ROTATING_TO_FACE_TARGET             = 3
+    DETECTING_COLOUR                    = 4
+    BRAKING                             = 5
+    GATE_OPENING                        = 6
+    ROTATING_TO_COLLECT                 = 7
+    GATE_CLOSING                        = 8
 
 
 class IDPRobot(Robot):
@@ -124,11 +125,11 @@ class IDPRobot(Robot):
         self.last_action_value = None
 
         # State for some composite actions
-        self.collect_state = IDPRobotState.APPROACHING_TARGET_FROM_CENTER
+        self.collect_state = IDPRobotState.START_COLLECT
         self.collect_num_tries = 0
         self.stored_time = 0
-        self.collect_target_pos_cache = None
         self.collect_color_readings = []
+        self.collect_far_approach_pos = None
 
         # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
         self.hold_time = 1.0  # s
@@ -142,6 +143,7 @@ class IDPRobot(Robot):
 
         # For getting stuck
         self.stuck_in_drive_to_pos_time = 0
+        self.angle_rotated_in_drive_to_position = 0
 
         # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers due to noise in acceleration
         self.pid_f_velocity = PID(1, 0, 0, self.timestep_actual, quantity_name="Forward Velocity",
@@ -438,10 +440,10 @@ class IDPRobot(Robot):
         self.rotating = False
         self.last_action_type = None
         self.last_action_value = None
-        self.collect_state = IDPRobotState.APPROACHING_TARGET_FROM_CENTER
+        self.collect_state = IDPRobotState.START_COLLECT
         self.stored_time = 0
         self.stuck_in_drive_to_pos_time = 0
-        self.collect_target_pos_cache = None
+        self.angle_rotated_in_drive_to_position = 0
 
     def passive_collision_avoidance(self, target_pos, angle):
         # Build up a list of obstructions to avoid which includes their type
@@ -575,7 +577,7 @@ class IDPRobot(Robot):
         angle = self.angle_from_bot_from_position(target_pos)
 
         if distance <= accuracy_threshold and self.linear_speed <= accuracy_threshold / self.hold_time:
-            self.angle_rotated = 0
+            self.angle_rotated_in_drive_to_position = 0
             return True
 
         # In-case we get stuck at wall
@@ -583,18 +585,18 @@ class IDPRobot(Robot):
             if self.stuck_in_drive_to_pos_time >= 1.5:
                 self.stuck_in_drive_to_pos_time = 0
                 print_if_debug(f"{self.color}, stuck: Not moved in 1.5s, stopping move", debug_flag=DEBUG_STUCK)
-                self.angle_rotated = 0
+                self.angle_rotated_in_drive_to_position = 0
                 return True
             else:
                 self.stuck_in_drive_to_pos_time += self.timestep_actual
                 
         # In-case we get stuck in a spin
         if distance <= 4 * accuracy_threshold:
-            self.angle_rotated += self.angular_velocity * self.timestep_actual
-            if abs(self.angle_rotated) >= tau * 1.5:
+            self.angle_rotated_in_drive_to_position += self.angular_velocity * self.timestep_actual
+            if abs(self.angle_rotated_in_drive_to_position) >= tau * 1.5:
                 print_if_debug(f"{self.color}, stuck: Done 1.5 full rotations near target, stopping move",
                                debug_flag=DEBUG_STUCK)
-                self.angle_rotated = 0
+                self.angle_rotated_in_drive_to_position = 0
                 return True
 
         # If close to the other bot, turn to avoid it.
@@ -727,22 +729,22 @@ class IDPRobot(Robot):
 
         # Ifs not elifs means we don't waste timesteps if the state changes
 
-        if self.collect_state == IDPRobotState.APPROACHING_TARGET_FROM_CENTER:  # Approach wide if at edge
-            new_target_pos = [0.75 * np.sign(x) if abs(x) > 1.0 else x for x in self.target.position]
-            if self.collect_target_pos_cache is None:
-                if any(x != y for x, y in zip(new_target_pos, self.target.position)):
-                    self.collect_target_pos_cache = self.target.position
-                    self.target.position = new_target_pos
-                    print_if_debug(f"{self.color}, collect: Block is near edge, driving nearby",
-                                   debug_flag=DEBUG_COLLECT)
-                else:
-                    self.collect_state = IDPRobotState.DRIVING_TO_TARGET
+        if self.collect_state == IDPRobotState.START_COLLECT:
+            # Check if we need to approach or can got straight to driving towards it
+            self.collect_far_approach_pos = [0.75 * np.sign(x) if abs(x) > 1.0 else x for x in self.target.position]
+            if any(x != y for x, y in zip(self.collect_far_approach_pos, self.target.position)):
+                print_if_debug(f"{self.color}, collect: Block is near edge, driving nearby",
+                               debug_flag=DEBUG_COLLECT)
+                self.collect_state = IDPRobotState.APPROACHING_TARGET_FROM_CENTER
             else:
-                if self.drive_to_position(self.target.position, passive_collision_avoidance=False):
-                    self.target.position = self.collect_target_pos_cache
-                    self.collect_target_pos_cache = None
-                    print_if_debug(f"{self.color}, collect: At approach, driving to target", debug_flag=DEBUG_COLLECT)
-                    self.collect_state = IDPRobotState.DRIVING_TO_TARGET
+                self.collect_far_approach_pos = None
+                self.collect_state = IDPRobotState.DRIVING_TO_TARGET
+
+        if self.collect_state == IDPRobotState.APPROACHING_TARGET_FROM_CENTER:  # Approach wide if at edge
+            if self.drive_to_position(self.collect_far_approach_pos):  # Use passive collision avoidance
+                self.collect_far_approach_pos = None
+                print_if_debug(f"{self.color}, collect: At approach, driving to target", debug_flag=DEBUG_COLLECT)
+                self.collect_state = IDPRobotState.DRIVING_TO_TARGET
 
         if self.collect_state == IDPRobotState.DRIVING_TO_TARGET:  # driving to target
             if self.drive_to_position(self.target.position, passive_collision_avoidance=False) \
@@ -875,8 +877,8 @@ class IDPRobot(Robot):
                     self.targeting_handler.next_scan_position = self.targeting_handler.get_fallback_scan_position(
                         self.infrared.max_range)
                     self.targeting_handler.relocating = True
-                    print_if_debug(f"{self.color}, scan: No targets found, relocating to\
-                        {self.targeting_handler.next_scan_position}", debug_flag=DEBUG_SCAN)
+                    print_if_debug(f"{self.color}, scan: No targets found, relocating to \
+{self.targeting_handler.next_scan_position}", debug_flag=DEBUG_SCAN)
 
         else:
             complete = self.drive_to_position(self.targeting_handler.next_scan_position)
