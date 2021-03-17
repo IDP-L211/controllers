@@ -28,9 +28,8 @@ DEBUG_COLLISIONS = False
 DEBUG_COLLECT = False
 DEBUG_TARGETS = False
 DEBUG = False
-DEBUG_SCAN = True
 DEBUG_SCAN = False
-DEBUG_STUCK = False
+DEBUG_STUCK = True
 DEBUG_OBSTRUCTIONS = False
 tau = np.pi * 2
 
@@ -468,6 +467,8 @@ class IDPRobot(Robot):
                 self.stuck_in_drive_to_pos_time = 0
                 print_if_debug(f"{self.color}, stuck: Not moved in 1.5s, stopping move", debug_flag=DEBUG_STUCK)
                 self.angle_rotated = 0
+                self.target.classification = 'discard'
+                self.target = None
                 return True
             else:
                 self.stuck_in_drive_to_pos_time += self.timestep_actual
@@ -548,7 +549,6 @@ class IDPRobot(Robot):
             print_if_debug("", debug_flag=DEBUG_OBSTRUCTIONS)
             for o in obstructions:
                 print_if_debug(o, min_approach_dist[o['type']], debug_flag=DEBUG_OBSTRUCTIONS)
-
 
             # Iterate through and build up a list of avoidance angles and angle fractions
             angles_and_fractions = []
@@ -693,7 +693,7 @@ class IDPRobot(Robot):
                 self.brake()
                 return True
 
-        distance_from_block_to_stop = 0.15
+        distance_from_block_to_stop = 0.22
         max_angle_to_block = 0.1
         rotate_angle = -tau / 2.5
         gate_time = 0.5
