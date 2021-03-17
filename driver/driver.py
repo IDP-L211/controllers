@@ -9,6 +9,7 @@ from modules.utils import print_if_debug
 DEBUG_OBJECTIVE = True
 
 robot = IDPRobot()
+robot.DEBUG_OBJECTIVE = DEBUG_OBJECTIVE
 complete = False
 
 # Main loop, perform simulation steps until Webots is stopping the controller
