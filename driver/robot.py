@@ -157,7 +157,7 @@ class IDPRobot(Robot):
         def non_lin_controller1(error, cumulative_error, error_change):
             def log_w_sign(x, inner_coefficient):
                 return np.log((inner_coefficient * abs(x)) + 1) * np.sign(x)
-            return (0.5 * log_w_sign(error, 10)) + (0.0 * cumulative_error) + (0.15 * error_change)
+            return (0.5 * log_w_sign(error, 10)) + (0.0 * cumulative_error) + (0.2 * error_change)
 
         self.pid_angle = PID(custom_function=non_lin_controller1, time_step=self.timestep_actual,
                              derivative_weight_decay_half_life=0.025, quantity_name="Angle", timer_func=self.getTime,
@@ -459,12 +459,12 @@ class IDPRobot(Robot):
         self.stuck_in_drive_to_pos_time = 0
         self.angle_rotated_in_drive_to_position = 0
 
-    def passive_collision_avoidance(self, target_pos, angle):
+    def passive_collision_avoidance(self, target_pos, angle, avoid_current_target=False):
         # Build up a list of obstructions to avoid which includes their type
         other_bot_pos = self.radio.get_other_bot_position()
         known_block_positions = [np.array(getattr(target, 'position')) for target in self.target_cache.targets
-                                 if (self.target is None or target != self.target)]
-        obstructions = [{'type': 'block', 'position': pos} for pos in known_block_positions]\
+                                 if (self.target is None or target != self.target or (target == self.target and avoid_current_target))]
+        obstructions = [{'type': 'block', 'position': pos} for pos in known_block_positions] \
             + ([{'type': 'bot', 'position': np.array(other_bot_pos)}] if other_bot_pos is not None else [])
 
         # Some tunable parameters
@@ -567,7 +567,8 @@ stopping here", debug_flag=DEBUG_COLLISIONS)
         return angle
 
     def drive_to_position(self, target_pos: Union[list, np.ndarray], max_forward_speed=None, max_rotation_rate=None,
-                          reverse=False, passive_collision_avoidance=True, accuracy_threshold=None) -> bool:
+                          reverse=False, passive_collision_avoidance=True, avoid_current_target=False,
+                          accuracy_threshold=None) -> bool:
         """Go to a position
 
         Args:
@@ -576,6 +577,7 @@ stopping here", debug_flag=DEBUG_COLLISIONS)
             max_rotation_rate (float): Maximum rate to rotate at, rad/s
             reverse (bool): Whether to reverse there
             passive_collision_avoidance (bool): Whether to try and avoid the other bot and known blocks
+            avoid_current_target (bool): Whether to include our current target in the objects to be avoided
             accuracy_threshold (float): Threshold determining whether the target coordinate is reached
         Returns:
             bool: If we are at our target
@@ -619,7 +621,7 @@ stopping here", debug_flag=DEBUG_COLLISIONS)
 
         # If close to the other bot, turn to avoid it.
         if passive_collision_avoidance:
-            angle = self.passive_collision_avoidance(target_pos, angle)
+            angle = self.passive_collision_avoidance(target_pos, angle, avoid_current_target=avoid_current_target)
             if angle is None:  # target_pos is blocked by an obstruction and we are as close as possible
                 return True
 
@@ -773,7 +775,7 @@ stopping here", debug_flag=DEBUG_COLLISIONS)
                 self.collect_state = IDPRobotState.DRIVING_TO_TARGET
 
         if self.collect_state == IDPRobotState.APPROACHING_TARGET_FROM_CENTER:  # Approach wide if at edge
-            if self.drive_to_position(self.collect_far_approach_pos):  # Use passive collision avoidance
+            if self.drive_to_position(self.collect_far_approach_pos, avoid_current_target=True):
                 self.collect_far_approach_pos = None
                 print_if_debug(f"{self.color}, collect: At approach, turning", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.ROTATING_TO_FACE_TARGET_AFTER_APPROACH
