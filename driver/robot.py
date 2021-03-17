@@ -180,7 +180,8 @@ class IDPRobot(Robot):
             'position': self.position,
             'bearing': self.bearing,
             'vertices': list(map(list, self.get_bot_vertices())),
-            'collected': self.target_cache.prepare_collected_message()
+            'collected': self.target_cache.prepare_collected_message(),
+            'invalid_targets': self.target_cache.prepare_invalid_message()
         }
 
         # Send 'target': [x, y] if a target is selected
@@ -188,7 +189,7 @@ class IDPRobot(Robot):
             radio_message_data['target'] = list(self.target.position)
 
         # Remove targets already collected by the other robot
-        self.target_cache.remove_collected_by_other(self.radio.get_other_bot_collected())
+        self.target_cache.remove_invalid(self.radio.get_other_bot_invalid_targets())
 
         # Send our colour detected targets to the other robot
         if self.target_cache.targets:
@@ -839,6 +840,7 @@ stopping here", debug_flag=DEBUG_COLLISIONS)
                             print_if_debug(f"{self.color}, collect: Color unknown, I think this is flipped",
                                            debug_flag=DEBUG_COLLECT)
                         else:
+                            self.target_cache.disappeared.append(self.target)
                             self.target_cache.remove_target(self.target)
                             self.collect_num_tries += 1
                             print_if_debug(f"{self.color}, collect: Color unknown, I'll try again later",

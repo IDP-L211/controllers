@@ -181,6 +181,7 @@ class TargetCache:
     def __init__(self):
         self.targets = []
         self.collected = []
+        self.disappeared = []
 
     @property
     def num_targets(self) -> int:
@@ -353,8 +354,20 @@ class TargetCache:
             map(attrgetter('position'), self.collected)
         ))
 
-    def remove_collected_by_other(self, collected: Union[list, None]) -> None:
-        """Remove the targets already collected by the other robot
+    def prepare_invalid_message(self) -> list:
+        """Prepare a list of positions where blocks were collected or were not confirmed (may have moved)
+
+        This is used to prepare the message to the other robot.
+
+        Returns:
+            list: List of coordinates (as lists instead of np.ndarray)
+        """
+        message = [list(getattr(target, 'position')) for target in self.collected + self.disappeared]
+        self.disappeared = []
+        return message
+
+    def remove_invalid(self, collected: Union[list, None]) -> None:
+        """Remove the targets already collected by the other robot or were not confirmed (may have moved)
 
         Args:
             collected (list, None): List of coordinates where the blocks were collected
