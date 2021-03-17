@@ -42,8 +42,9 @@ class IDPRobotState(Enum):
     DETECTING_COLOUR                    = 4
     BRAKING                             = 5
     GATE_OPENING                        = 6
-    ROTATING_TO_COLLECT                 = 7
-    GATE_CLOSING                        = 8
+    CHECKING_ROTATE                     = 7
+    ROTATING_TO_COLLECT                 = 8
+    GATE_CLOSING                        = 9
 
 
 class IDPRobot(Robot):
@@ -728,7 +729,7 @@ class IDPRobot(Robot):
         max_angle_to_block = 0.12
 
         block_nearby_threshold = 0.3
-        normal_rotate_angle = -tau / 2.5
+        rotate_angle = -tau / 2.5
         rotate_angle_when_block_nearby = -tau / 5
 
         gate_time = 0.5
@@ -832,20 +833,26 @@ class IDPRobot(Robot):
         if self.collect_state == IDPRobotState.GATE_OPENING:
             self.gate.open()
             if self.time - self.stored_time >= gate_time:
-                print_if_debug(f"{self.color}, collect: Gate open, rotating", debug_flag=DEBUG_COLLECT)
-                self.collect_state = IDPRobotState.ROTATING_TO_COLLECT
+                print_if_debug(f"{self.color}, collect: Gate open, checking rotation", debug_flag=DEBUG_COLLECT)
+                self.collect_state = IDPRobotState.CHECKING_ROTATE
 
-        if self.collect_state == IDPRobotState.ROTATING_TO_COLLECT:
+        if self.collect_state == IDPRobotState.CHECKING_ROTATE:
             # We need to check if there are any blocks nearby our target, if there are we need to rotate less to avoid
             # mishaps. If this changes during the motion rotate will ignore that
             for block in self.target_cache.targets:
                 if block != self.target:  # Don't want to compare our current block to our current block lol
                     if self.target.is_near(block.position, threshold=block_nearby_threshold):
-                        angle = rotate_angle_when_block_nearby
+                        rotate_angle = rotate_angle_when_block_nearby
+                        self.action_queue.insert(1, ("rotate", -rotate_angle))
+                        self.action_queue.insert(2, ("reverse", list(self.get_bot_front(-reverse_distance))))
+                        print_if_debug(f"{self.color}, collect: Block nearby, rotating less and recovering",
+                                       debug_flag=DEBUG_COLLECT)
                         break
-            else:
-                angle = normal_rotate_angle
-            if self.rotate(angle, max_rotation_rate=collect_rotation_rate):
+            self.collect_state = IDPRobotState.ROTATING_TO_COLLECT
+
+
+        if self.collect_state == IDPRobotState.ROTATING_TO_COLLECT:
+            if self.rotate(rotate_angle, max_rotation_rate=collect_rotation_rate):
                 self.stored_time = self.time
                 print_if_debug(f"{self.color}, collect: Collected, closing gate", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.GATE_CLOSING
