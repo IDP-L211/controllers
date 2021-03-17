@@ -6,16 +6,13 @@ def main(robot):
 
     # Actions for our robot
     action_queue = [
-        ("rotate", 7),
-        ("move", [0.75, -0.75]),
-        ("reverse", [-0.75, -0.75]),
-        ("move", [0.75, 0.75]),
-        ("face", 3.141),
-        ("move", [-0.75, 0.75]),
-        ("move", [-0.75, -0.75]),
         ("move", [0, 0]),
-        ("face", 0.0),
-        ("rotate", -5)
+        "scan",
+        ("move", [0.9, 0.9]),
+        ("move", [0.9, -0.9]),
+        ("move", [-0.9, 0.9]),
+        ("move", [-0.9, -0.9]),
+        ("move", [0, 0])
     ]
 
     robot.action_queue = action_queue
@@ -23,5 +20,3 @@ def main(robot):
     # Main loop, perform simulation steps until Webots is stopping the controller
     while robot.step(timestep) != -1:
         robot.execute_next_action()
-
-    robot.plot_all_graphs()

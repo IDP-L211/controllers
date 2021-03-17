@@ -15,11 +15,8 @@ class MotionCS:
     To be used via robot.motors.velocities = MotionControlStrategies.some_method(*args)
     """
 
-    # Some characteristics of the robot used for motion calcs
-    max_f_speed = 1.0
-    max_r_speed = 11.2
-    f_drive_speed_ratio = 1 / max_f_speed
-    r_drive_speed_ratio = 1 / max_r_speed
+    # Overwritten in robot.py
+    max_f_speed = None
 
     @staticmethod
     def combine_and_scale(forward, rotation, angle=None):
@@ -103,8 +100,8 @@ class MotionCS:
             req_forward_speed *= attenuation_factor
 
         # Convert from actual robot velocities to drive fraction equivalent
-        required_forward_drive = MotionCS.f_drive_speed_ratio * req_forward_speed
-        forward_speed_drive_eq = None if forward_speed is None else MotionCS.f_drive_speed_ratio * forward_speed
+        required_forward_drive = req_forward_speed / MotionCS.max_f_speed
+        forward_speed_drive_eq = None if forward_speed is None else forward_speed / MotionCS.max_f_speed
 
         return MotionCS.dual_pid(prime_quantity=distance, deriv_quantity=forward_speed_drive_eq,
                                  prime_pid=distance_pid, derivative_pid=forward_speed_pid,

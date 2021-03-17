@@ -17,7 +17,7 @@ from devices.motors import IDPMotorController, IDPGate
 from devices.radio import IDPRadio
 
 from modules.motion import MotionCS
-from modules.utils import print_if_debug, ensure_list_or_tuple
+from modules.utils import print_if_debug, ensure_list_or_tuple, fire_and_forget
 from modules.geometry import rotate_vector, get_rectangle_sides, get_min_distance_point_rectangle, \
     get_min_distance_rectangles, point_in_rectangle
 from modules.mapping import Map
@@ -28,6 +28,9 @@ DEBUG_ACTIONS = False
 DEBUG_COLLISIONS = False
 DEBUG_COLLECT = False
 DEBUG_TARGETS = False
+DEBUG_SCAN = False
+DEBUG_STUCK = True
+DEBUG_OBSTRUCTIONS = False
 tau = np.pi * 2
 
 
@@ -49,8 +52,8 @@ class IDPRobot(Robot):
         compass (IDPCompass): The compass
         gps (IDPGPS): The GPS
         motors (IDPMotorController): The two motors
-        target_bearing_threshold (float): Threshold determining whether the target bearing is reached
-        target_distance_threshold (float): Threshold determining whether the target coordinate is reached
+        default_target_bearing_threshold (float): Threshold determining whether the target bearing is reached
+        default_target_distance_threshold (float): Threshold determining whether the target coordinate is reached
         timestep (float): Time step of the current world
         ultrasonic_left (IDPDistanceSensor): The ultrasonic sensor on the left
         ultrasonic_right (IDPDistanceSensor): The ultrasonic sensor on the right
@@ -62,9 +65,10 @@ class IDPRobot(Robot):
         super().__init__()
 
         # Motion properties, derived experimentally, speeds are when drive = 1
-        self.max_possible_speed = {"f": 1.0, "r": 11.2}  # THESE MUST BE ACCURATE, else things get  w e i r d
-        self.default_max_allowed_speed = {"f": 1.0, "r": 5.0}
-        self.max_acc = {"f": 5.0, "r": 40.0}
+        self.max_possible_speed = {"f": 0.4, "r": 4.44}  # THESE MUST BE ACCURATE, else things get  w e i r d
+        self.default_max_allowed_speed = {"f": 0.4, "r": 4.44}
+        self.max_acc = {"f": 1.47, "r": 12.0}
+        MotionCS.max_f_speed = self.default_max_allowed_speed["f"]
         # These are tunable if the robot is slipping or gripping more than expected
 
         # note the sensors are assumed to be at the centre of the robot, and the robot is assumed symmetrical
@@ -125,11 +129,9 @@ class IDPRobot(Robot):
         self.stored_time = 0
 
         # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
-        hold_time = 0.5  # s
-        self.target_distance_threshold = 0.02
-        self.linear_speed_threshold = self.target_distance_threshold / hold_time
-        self.target_bearing_threshold = tau / 360
-        self.angular_speed_threshold = self.target_bearing_threshold / hold_time
+        self.hold_time = 1.0  # s
+        self.default_target_distance_threshold = 0.05
+        self.default_target_bearing_threshold = tau / 360
 
         # For rotations
         self.rotation_angle = 0
@@ -137,14 +139,24 @@ class IDPRobot(Robot):
         self.rotating = False
 
         # For getting stuck
-        self.stuck_steps = 0
+        self.stuck_in_drive_to_pos_time = 0
 
         # Motion control, note: Strongly recommended to use K_d=0 for velocity controllers due to noise in acceleration
-        self.pid_f_velocity = PID(0.1, 0, 0, self.timestep_actual, quantity_name="Forward Velocity",
+        self.pid_f_velocity = PID(1, 0, 0, self.timestep_actual, quantity_name="Forward Velocity",
                                   timer_func=self.getTime)
-        self.pid_distance = PID(2, 0, 0, self.timestep_actual, quantity_name="Distance", timer_func=self.getTime)
-        self.pid_angle = PID(2.5, 0.0, 0.10, self.timestep_actual, derivative_weight_decay_half_life=0.05,
-                             quantity_name="Angle", timer_func=self.getTime)
+        self.pid_distance = PID(5, 0, 0, self.timestep_actual, quantity_name="Distance", timer_func=self.getTime)
+
+        def non_lin_controller1(error, cumulative_error, error_change):
+            def log_w_sign(x, inner_coefficient):
+                return np.log((inner_coefficient * abs(x)) + 1) * np.sign(x)
+
+            return (0.5 * log_w_sign(error, 10)) + (0.0 * cumulative_error) + (0.05 * error_change)
+
+        self.pid_angle = PID(custom_function=non_lin_controller1, time_step=self.timestep_actual,
+                             derivative_weight_decay_half_life=0.025,
+                             quantity_name="Angle", timer_func=self.getTime, integral_delay_time=1,
+                             integral_wind_up_speed=0.5, integral_active_error_band=tau / 4,
+                             integral_delay_windup_when_in_bounds=True)
 
         motor_graph_styles = {"distance": 'k-', "angle": 'r-', "forward_speed": 'k--', "rotation_speed": 'r--',
                               "linear_speed": "k:", "angular_velocity": "r:", "left_motor": 'b-', "right_motor": 'y-'}
@@ -407,6 +419,12 @@ class IDPRobot(Robot):
     def plot_motion_history(self):
         self.motion_history.plot("time", title="Robot motor graph")
 
+    def plot_all_graphs(self):
+        fire_and_forget(self.plot_motion_history)
+        fire_and_forget(self.pid_f_velocity.plot_history)
+        fire_and_forget(self.pid_distance.plot_history)
+        fire_and_forget(self.pid_angle.plot_history)
+
     def update_motion_history(self, **kwargs):
         self.motion_history.update(left_motor=self.motors.velocities[0], right_motor=self.motors.velocities[1],
                                    **kwargs)
@@ -422,9 +440,10 @@ class IDPRobot(Robot):
         self.last_action_value = None
         self.collect_state = IDPRobotState.DRIVING_TO_TARGET
         self.stored_time = 0
+        self.stuck_in_drive_to_pos_time = 0
 
     def drive_to_position(self, target_pos: Union[list, np.ndarray], max_forward_speed=None, max_rotation_rate=None,
-                          reverse=False, passive_collision_avoidance=True) -> bool:
+                          reverse=False, passive_collision_avoidance=True, accuracy_threshold=None) -> bool:
         """Go to a position
 
         Args:
@@ -432,10 +451,16 @@ class IDPRobot(Robot):
             max_forward_speed (float): Maximum speed to travel at m/s
             max_rotation_rate (float): Maximum rate to rotate at, rad/s
             reverse (bool): Whether to reverse there
-            passive_collision_avoidance (bool): Whether to employ ultrasonic collision avoidance
+            passive_collision_avoidance (bool): Whether to try and avoid the other bot and known blocks
+            accuracy_threshold (float): Threshold determining whether the target coordinate is reached
         Returns:
             bool: If we are at our target
         """
+        accuracy_threshold = self.default_target_distance_threshold \
+            if accuracy_threshold is None else accuracy_threshold
+
+        target_pos = np.asarray(target_pos)
+
         max_rotation_rate = self.default_max_allowed_speed["r"] if max_rotation_rate is None else max_rotation_rate
         max_rotation_drive = max_rotation_rate / self.max_possible_speed["r"]
 
@@ -445,8 +470,135 @@ class IDPRobot(Robot):
         distance = self.distance_from_bot(target_pos)
         angle = self.angle_from_bot_from_position(target_pos)
 
-        if distance <= self.target_distance_threshold and self.linear_speed <= self.linear_speed_threshold:
+        if distance <= accuracy_threshold and self.linear_speed <= accuracy_threshold / self.hold_time:
+            self.angle_rotated = 0
             return True
+
+        # In-case we get stuck at wall
+        if self.linear_speed <= accuracy_threshold / self.hold_time:
+            if self.stuck_in_drive_to_pos_time >= 1.5:
+                self.stuck_in_drive_to_pos_time = 0
+                print_if_debug(f"{self.color}, stuck: Not moved in 1.5s, stopping move", debug_flag=DEBUG_STUCK)
+                self.angle_rotated = 0
+                self.target.classification = 'discard'
+                self.target = None
+                return True
+            else:
+                self.stuck_in_drive_to_pos_time += self.timestep_actual
+
+        # In-case we get stuck in a spin
+        if distance <= 4 * accuracy_threshold:
+            self.angle_rotated += self.angular_velocity * self.timestep_actual
+            if abs(self.angle_rotated) >= tau * 1.5:
+                print_if_debug(f"{self.color}, stuck: Done 1.5 full rotations near target, stopping move",
+                               debug_flag=DEBUG_STUCK)
+                self.angle_rotated = 0
+                return True
+
+        # If close to the other bot, turn to avoid it.
+        if passive_collision_avoidance:
+
+            # Build up a list of obstructions to avoid which includes their type
+            other_bot_pos = self.radio.get_other_bot_position()
+            known_block_positions = [np.array(getattr(target, 'position')) for target in self.target_cache.targets]
+            obstructions = [{'type': 'block', 'position': pos} for pos in known_block_positions] \
+                           + ([{'type': 'bot',
+                                'position': np.array(other_bot_pos)}] if other_bot_pos is not None else [])
+
+            # Some tunable parameters
+            min_approach_dist = {'block': 0.2, 'bot': 0.4}
+            avoidance_bandwidth = 0.2
+
+            # Here we consider if two obstructions are close enough to constitute treatment as one large obstructions
+            # and if so, we dynamically generate a new center and approaches for it
+            new_obstructions = 0
+            print_if_debug("\n", debug_flag=DEBUG_OBSTRUCTIONS)
+            for o in obstructions:
+                print_if_debug(o, debug_flag=DEBUG_OBSTRUCTIONS)
+
+            def combine_obstructions(obstruction_list):
+                nonlocal new_obstructions
+                combined_obstructions = []
+                new_list = []
+
+                for i, x in enumerate(obstruction_list):
+                    if i not in combined_obstructions:
+                        for j, y in enumerate(obstruction_list):
+                            if i != j and j not in combined_obstructions:
+
+                                dist = np.linalg.norm(x['position'] - y['position'])
+                                min_approaches = [min_approach_dist[x['type']], min_approach_dist[y['type']]]
+
+                                if dist < min_approaches[0] + min_approaches[1]:
+
+                                    # Find bounding circle
+                                    dir_vec = (x['position'] - y['position']) / dist
+                                    center = (x['position'] + y['position'] - (
+                                                (min_approaches[1] - min_approaches[0]) * dir_vec)) / 2
+                                    radius = (min_approaches[0] + min_approaches[1] + dist) / 2
+
+                                    # In event one of our old circles was inside the other
+                                    if radius < min_approaches[0]:
+                                        radius = min_approaches[0]
+                                        center = x['position']
+                                    if radius < min_approaches[1]:
+                                        radius = min_approaches[1]
+                                        center = y['position']
+
+                                    # Add to new list
+                                    new_type = f'custom{new_obstructions}'
+                                    new_obstructions += 1
+                                    new_list.append({'type': new_type, 'position': center})
+                                    min_approach_dist[new_type] = radius
+                                    combined_obstructions.extend([i, j])
+                                    break
+                        else:
+                            new_list.append(x)
+
+                if new_list != obstruction_list:
+                    return combine_obstructions(new_list)
+                else:
+                    return new_list
+
+            obstructions = combine_obstructions(obstructions)
+
+            print_if_debug("", debug_flag=DEBUG_OBSTRUCTIONS)
+            for o in obstructions:
+                print_if_debug(o, min_approach_dist[o['type']], debug_flag=DEBUG_OBSTRUCTIONS)
+
+            # Iterate through and build up a list of avoidance angles and angle fractions
+            angles_and_fractions = []
+            for obstruction in obstructions:
+
+                # Check the obstruction is not at our target position, if we are just get as close as possible
+                distance_to_obstruction = self.distance_from_bot(obstruction['position'])
+                distance_from_target_to_obstruction = np.linalg.norm(obstruction['position'] - target_pos)
+                if distance_from_target_to_obstruction < min_approach_dist[obstruction['type']] and \
+                        distance_to_obstruction < min_approach_dist[obstruction['type']] \
+                        + self.default_target_distance_threshold:
+                    print_if_debug(f"{self.color}, collision: Obstruction is where we want to go and we are close,\
+                        stopping here", debug_flag=DEBUG_COLLISIONS)
+                    return True
+
+                # Calculate the angle we would need to turn to (i.e. have the PID minimise) to avoid the obstruction
+                angle_to_obstruction = self.angle_from_bot_from_position(obstruction['position'])
+                angle_to_avoid_obstruction = angle_to_obstruction + (np.sign(angle - angle_to_obstruction) * tau / 4)
+
+                # Calculate the angle fraction for this angle
+                angle_fraction = ((min_approach_dist[obstruction[
+                    'type']] + avoidance_bandwidth) - distance_to_obstruction) / avoidance_bandwidth
+                angle_fraction = min(max(angle_fraction, 0), 2)
+                angles_and_fractions.append([angle_to_avoid_obstruction, angle_fraction])
+
+            # Normalise so our sum of the fractions is equal to the current highest value
+            fraction_total = sum(x[1] for x in angles_and_fractions)
+            if fraction_total != 0:
+                max_fraction = max(x[1] for x in angles_and_fractions)
+                angles_and_fractions = [[x[0], x[1] * max_fraction / fraction_total] for x in angles_and_fractions]
+
+                # Determine our final angle to turn to, to hopefully avoid obstructions whilst reaching our target
+                angle = sum([x[0] * x[1] for x in angles_and_fractions]) \
+                        + ((1 - sum(x[1] for x in angles_and_fractions)) * angle)
 
         # If we're reversing we change the angle so it mimics the bot facing the opposite way
         # When we apply the wheel velocities we negative them and voila we tricked the bot into reversing
@@ -457,15 +609,6 @@ class IDPRobot(Robot):
                                                      forward_speed_pid=self.pid_f_velocity), max_forward_drive)
 
         r_speed = self.pid_angle.step(angle)
-
-        # Passive collision avoidance - turn away towards center if path is block
-        if passive_collision_avoidance and (blockage_pos_d := self.get_imminent_collision()) is not None:
-            print_if_debug(f'robot gonna collide {blockage_pos_d}', debug_flag=DEBUG_COLLISIONS)
-            if self.distance_from_bot(target_pos) > 0.2:  # prevent stuck in rotation
-                collision_avoidance_direction = -np.sign(self.angle_from_bot_from_position(blockage_pos_d[0]))
-                r_speed *= 0.5
-                r_speed += forward_speed * 0.75 * min(1 / blockage_pos_d[1], 15) * collision_avoidance_direction
-
         rotation_speed = sorted([r_speed, np.sign(r_speed) * max_rotation_drive], key=lambda x: abs(x))[0]
 
         raw_velocities = MotionCS.combine_and_scale(forward_speed, rotation_speed)
@@ -485,15 +628,19 @@ class IDPRobot(Robot):
         """
         return self.drive_to_position(target_pos, reverse=True, passive_collision_avoidance=False)
 
-    def rotate(self, angle: float, max_rotation_rate=None) -> bool:
+    def rotate(self, angle: float, max_rotation_rate=None, accuracy_threshold=None) -> bool:
         """Rotate the bot a fixed angle at a fixed rate of rotation
 
         Args:
             angle (float): Angle to rotate in radians, positive is clockwise
             max_rotation_rate (float): Maximum rate to rotate at, rad/s
+            accuracy_threshold (float): Threshold determining whether the target angle is reached
         Returns:
             bool: If we completed rotation
         """
+        accuracy_threshold = self.default_target_bearing_threshold \
+            if accuracy_threshold is None else accuracy_threshold
+
         max_rotation_rate = self.default_max_allowed_speed["r"] if max_rotation_rate is None else max_rotation_rate
         max_rotation_drive = max_rotation_rate / self.max_possible_speed["r"]
 
@@ -504,8 +651,8 @@ class IDPRobot(Robot):
 
         # Check if we're done
         angle_difference = self.rotation_angle - self.angle_rotated
-        if abs(angle_difference) <= self.target_bearing_threshold and \
-                abs(self.angular_velocity) <= self.angular_speed_threshold:
+        if abs(angle_difference) <= accuracy_threshold and \
+                abs(self.angular_velocity) <= accuracy_threshold / self.hold_time:
             self.rotation_angle = 0
             self.angle_rotated = 0
             self.rotating = False
@@ -532,8 +679,8 @@ class IDPRobot(Robot):
         self.motors.velocities = np.zeros(2)
         self.update_motion_history(time=self.time, linear_speed=self.linear_speed,
                                    angular_velocity=self.angular_velocity)
-        return abs(self.linear_speed) <= self.linear_speed_threshold \
-               and abs(self.angular_velocity) <= self.angular_speed_threshold
+        return abs(self.linear_speed) <= self.default_target_distance_threshold / self.hold_time \
+               and abs(self.angular_velocity) <= self.default_target_bearing_threshold / self.hold_time
 
     def hold(self, time=None):
         # Store when we want hold to end, we do this instead of storing current time because current time might be 0
@@ -568,8 +715,7 @@ class IDPRobot(Robot):
                 self.brake()
                 return True
 
-        distance_from_block_for_colour_detect = 0.14
-        distance_from_block_for_collect = 0.15
+        distance_from_block_to_stop = 0.22
         max_angle_to_block = 0.1
         rotate_angle = -tau / 2.5
         gate_time = 0.5
@@ -579,48 +725,37 @@ class IDPRobot(Robot):
         # Ifs not elifs means we don't waste timesteps if the state changes
 
         if self.collect_state == IDPRobotState.DRIVING_TO_TARGET:  # driving to target
-            if self.distance_from_bot(self.target.position) - distance_from_block_for_colour_detect >= 0:
+            if self.distance_from_bot(self.target.position) - distance_from_block_to_stop >= 0:
                 self.drive_to_position(self.target.position, passive_collision_avoidance=False)
             else:
-                print_if_debug(f"{self.color}, collect: At target, rotating", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.ROTATE_TO_FACE_TARGET
 
         if self.collect_state == IDPRobotState.ROTATE_TO_FACE_TARGET:
             angle_to_block = self.angle_from_bot_from_position(self.target.position)
-            if abs(angle_to_block) > max_angle_to_block:
-                self.rotate(angle_to_block)
-            else:
+            if self.rotate(angle_to_block, accuracy_threshold=max_angle_to_block):
                 self.stored_time = self.time
-                print_if_debug(f"{self.color}, collect: Facing target, stopping", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.FACING_TARGET
 
-        if self.collect_state == IDPRobotState.FACING_TARGET:
+        if self.collect_state == IDPRobotState.FACING_TARGET:  # facing target
             if self.brake():
-                print_if_debug(f"{self.color}, collect: Stopped, detecting color", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.DETECTING_COLOUR
 
-        if self.collect_state == IDPRobotState.DETECTING_COLOUR:
+        if self.collect_state == IDPRobotState.DETECTING_COLOUR:  # detecting colour
             color = self.color_detector.get_color()
             print(f"Block colour: {color}")
             if color in ["red", "green"]:
                 self.target.classification = f"{color}_box"
                 if color == self.color:
-                    print_if_debug(f"{self.color}, collect: Color match, moving to collect distance",
-                                   debug_flag=DEBUG_COLLECT)
-                    self.collect_state = IDPRobotState.GET_TO_COLLECT_DISTANCE_FROM_BLOCK
+                    self.collect_state = IDPRobotState.CORRECT_COLOUR
                 else:
                     self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
                     # should be collected by the other robot, send info to it
                     self.radio.send_message({'confirmed': (list(self.target.position), color)})
                     self.target = None
-                    print_if_debug(f"{self.color}, collect: Color opposite, reversing", debug_flag=DEBUG_COLLECT)
                     return True
             elif (other_bot_collected := self.radio.get_other_bot_collected()) and len(other_bot_collected) == 4 \
                     and self.target.classification == f'{self.color}_box':
-                print_if_debug(f"{self.color}, collect: Must be ours, moving to collect distance",
-                               debug_flag=DEBUG_COLLECT)
-                # other robot has collected all four targets, this must be ours
-                self.collect_state = IDPRobotState.GET_TO_COLLECT_DISTANCE_FROM_BLOCK
+                self.collect_state = 4  # other robot has collected all four targets, this must be ours
             else:  # not able to detect the colour, probably because the position is not accurate
                 self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
                 self.action_queue.insert(2, "scan")  # rescan to check if there is actually a target there
@@ -628,45 +763,28 @@ class IDPRobot(Robot):
                 if self.collect_num_tries > 1:  # this block is probably flipped over
                     self.target.classification = 'flipped'
                     self.collect_num_tries = 0  # reset the counter
-                    print_if_debug(f"{self.color}, collect: Color unknown, I think this is flipped",
-                                   debug_flag=DEBUG_COLLECT)
                 else:
                     self.target_cache.remove_target(self.target)
                     self.collect_num_tries += 1
-                    print_if_debug(f"{self.color}, collect: Color unknown, I'll try again later",
-                                   debug_flag=DEBUG_COLLECT)
                 self.target = None
                 return True
 
-        if self.collect_state == IDPRobotState.GET_TO_COLLECT_DISTANCE_FROM_BLOCK:
-            distance_to_move = self.distance_from_bot(self.target.position) - distance_from_block_for_collect
-            if abs(distance_to_move) >= self.target_distance_threshold / 4:
-                reverse = distance_to_move < 0
-                self.drive_to_position(self.get_bot_front(distance_to_move), reverse=reverse)
-            else:
-                print_if_debug(f"{self.color}, collect: In position for collect, opening gate",
-                               debug_flag=DEBUG_COLLECT)
-                self.collect_state = IDPRobotState.CORRECT_COLOUR
-
-        if self.collect_state == IDPRobotState.CORRECT_COLOUR:
+        if self.collect_state == IDPRobotState.CORRECT_COLOUR:  # correct colour
             self.gate.open()
             if self.time - self.stored_time >= gate_time:
-                print_if_debug(f"{self.color}, collect: Gate open, rotating", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.COLLECTING_TARGET
 
-        if self.collect_state == IDPRobotState.COLLECTING_TARGET:
+        if self.collect_state == IDPRobotState.COLLECTING_TARGET:  # collecting target
             if self.rotate(rotate_angle, max_rotation_rate=collect_rotation_rate):
                 self.stored_time = self.time
-                print_if_debug(f"{self.color}, collect: Collected, closing gate", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.TARGET_COLLECTED
 
-        if self.collect_state == IDPRobotState.TARGET_COLLECTED:
+        if self.collect_state == IDPRobotState.TARGET_COLLECTED:  # target collected
             self.gate.close()
             if self.time - self.stored_time >= gate_time:
                 self.target_cache.remove_target(self.target)
                 self.target_cache.collected.append(self.target)
                 self.target = None
-                print_if_debug(f"{self.color}, collect: Gate closed, moving on", debug_flag=DEBUG_COLLECT)
                 return True
 
         return False
@@ -702,6 +820,8 @@ class IDPRobot(Robot):
                     self.targeting_handler.next_scan_position = self.targeting_handler.get_fallback_scan_position(
                         self.infrared.max_range)
                     self.targeting_handler.relocating = True
+                    print_if_debug(f"{self.color}, scan: No targets found, relocating to\
+                        {self.targeting_handler.next_scan_position}", debug_flag=DEBUG_COLLECT)
 
         else:
             complete = self.drive_to_position(self.targeting_handler.next_scan_position)
