@@ -36,7 +36,7 @@ class IDPColorDetector:
         color = None
         if self.red_sensor.getValue() > 0.5 and self.green_sensor.getValue() < 0.5:
             color = 'red'
-        elif self.green_sensor.getValue() > 0.5:
+        elif self.green_sensor.getValue() > 0.5 and self.red_sensor.getValue() < 0.5:
             color = 'green'
 
         return color
