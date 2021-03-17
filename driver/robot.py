@@ -754,7 +754,7 @@ stopping here", debug_flag=DEBUG_COLLISIONS)
 
         block_nearby_threshold = 0.5
         rotate_angle = -tau / 2.5
-        rotate_angle_when_block_nearby = -tau / 6
+        rotate_angle_when_block_nearby = -tau / 5
 
         gate_time = 0.5
         reverse_distance = 0.2
