@@ -15,7 +15,7 @@ complete = False
 while robot.step(robot.timestep) != -1:
 
     # Check if we are finished
-    if robot.target_cache.num_collected >= 4 or robot.targeting_handler.num_scans >= 20:
+    if robot.target_cache.num_collected >= 4 or robot.targeting_handler.num_scans >= 15:
         if robot.distance_from_bot(robot.home) <= 0.1:
             robot.do("hold")
             if not complete:
