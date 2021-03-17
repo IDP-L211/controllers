@@ -209,8 +209,8 @@
 </dd></dl>
 
 <dl class="py attribute">
-<dt id="robot.IDPRobot.target_bearing_threshold">
-<code class="sig-name descname"><span class="pre">target_bearing_threshold</span></code><a class="headerlink" href="#robot.IDPRobot.target_bearing_threshold" title="Permalink to this definition">¶</a></dt>
+<dt id="robot.IDPRobot.default_target_bearing_threshold">
+<code class="sig-name descname"><span class="pre">default_target_bearing_threshold</span></code><a class="headerlink" href="#robot.IDPRobot.default_target_bearing_threshold" title="Permalink to this definition">¶</a></dt>
 <dd><p>Threshold determining whether the target bearing is reached</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type</dt>
@@ -220,8 +220,8 @@
 </dd></dl>
 
 <dl class="py attribute">
-<dt id="robot.IDPRobot.target_distance_threshold">
-<code class="sig-name descname"><span class="pre">target_distance_threshold</span></code><a class="headerlink" href="#robot.IDPRobot.target_distance_threshold" title="Permalink to this definition">¶</a></dt>
+<dt id="robot.IDPRobot.default_target_distance_threshold">
+<code class="sig-name descname"><span class="pre">default_target_distance_threshold</span></code><a class="headerlink" href="#robot.IDPRobot.default_target_distance_threshold" title="Permalink to this definition">¶</a></dt>
 <dd><p>Threshold determining whether the target coordinate is reached</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type</dt>
@@ -434,7 +434,7 @@ to the absolute position vector of that point in the world frame</p>
 
 <dl class="py method">
 <dt id="robot.IDPRobot.drive_to_position">
-<code class="sig-name descname"><span class="pre">drive_to_position</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_pos</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">list</span><span class="p"><span class="pre">,</span> </span><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_forward_speed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_rotation_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reverse</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">passive_collision_avoidance</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">bool</span><a class="headerlink" href="#robot.IDPRobot.drive_to_position" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname"><span class="pre">drive_to_position</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_pos</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">list</span><span class="p"><span class="pre">,</span> </span><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_forward_speed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_rotation_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reverse</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">passive_collision_avoidance</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">accuracy_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">bool</span><a class="headerlink" href="#robot.IDPRobot.drive_to_position" title="Permalink to this definition">¶</a></dt>
 <dd><p>Go to a position</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -443,7 +443,8 @@ to the absolute position vector of that point in the world frame</p>
 <li><p><strong>max_forward_speed</strong> (<em>float</em>) – Maximum speed to travel at m/s</p></li>
 <li><p><strong>max_rotation_rate</strong> (<em>float</em>) – Maximum rate to rotate at, rad/s</p></li>
 <li><p><strong>reverse</strong> (<em>bool</em>) – Whether to reverse there</p></li>
-<li><p><strong>passive_collision_avoidance</strong> (<em>bool</em>) – Whether to employ ultrasonic collision avoidance</p></li>
+<li><p><strong>passive_collision_avoidance</strong> (<em>bool</em>) – Whether to try and avoid the other bot and known blocks</p></li>
+<li><p><strong>accuracy_threshold</strong> (<em>float</em>) – Threshold determining whether the target coordinate is reached</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
@@ -657,6 +658,11 @@ there won’t involve any collision</p>
 </dd></dl>
 
 <dl class="py method">
+<dt id="robot.IDPRobot.plot_all_graphs">
+<code class="sig-name descname"><span class="pre">plot_all_graphs</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#robot.IDPRobot.plot_all_graphs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
 <dt id="robot.IDPRobot.plot_motion_history">
 <code class="sig-name descname"><span class="pre">plot_motion_history</span></code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#robot.IDPRobot.plot_motion_history" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -701,13 +707,14 @@ there won’t involve any collision</p>
 
 <dl class="py method">
 <dt id="robot.IDPRobot.rotate">
-<code class="sig-name descname"><span class="pre">rotate</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">angle</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_rotation_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">bool</span><a class="headerlink" href="#robot.IDPRobot.rotate" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname"><span class="pre">rotate</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">angle</span></span><span class="p"><span class="pre">:</span></span> <span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_rotation_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">accuracy_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> &#x2192; <span class="pre">bool</span><a class="headerlink" href="#robot.IDPRobot.rotate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Rotate the bot a fixed angle at a fixed rate of rotation</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>angle</strong> (<em>float</em>) – Angle to rotate in radians, positive is clockwise</p></li>
 <li><p><strong>max_rotation_rate</strong> (<em>float</em>) – Maximum rate to rotate at, rad/s</p></li>
+<li><p><strong>accuracy_threshold</strong> (<em>float</em>) – Threshold determining whether the target angle is reached</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
