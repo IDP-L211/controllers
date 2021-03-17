@@ -138,11 +138,13 @@ class IDPRobot(Robot):
         def non_lin_controller1(error, cumulative_error, error_change):
             def log_w_sign(x, inner_coefficient):
                 return np.log((inner_coefficient * abs(x)) + 1) * np.sign(x)
+
             return (0.5 * log_w_sign(error, 10)) + (0.0 * cumulative_error) + (0.05 * error_change)
 
-        self.pid_angle = PID(custom_function=non_lin_controller1, time_step=self.timestep_actual, derivative_weight_decay_half_life=0.025,
+        self.pid_angle = PID(custom_function=non_lin_controller1, time_step=self.timestep_actual,
+                             derivative_weight_decay_half_life=0.025,
                              quantity_name="Angle", timer_func=self.getTime, integral_delay_time=1,
-                             integral_wind_up_speed=0.5, integral_active_error_band=tau/4,
+                             integral_wind_up_speed=0.5, integral_active_error_band=tau / 4,
                              integral_delay_windup_when_in_bounds=True)
 
         motor_graph_styles = {"distance": 'k-', "angle": 'r-', "forward_speed": 'k--', "rotation_speed": 'r--',
@@ -472,12 +474,13 @@ class IDPRobot(Robot):
                 return True
             else:
                 self.stuck_in_drive_to_pos_time += self.timestep_actual
-                
+
         # In-case we get stuck in a spin
         if distance <= 4 * accuracy_threshold:
             self.angle_rotated += self.angular_velocity * self.timestep_actual
             if abs(self.angle_rotated) >= tau * 1.5:
-                print_if_debug(f"{self.color}, stuck: Done 1.5 full rotations near target, stopping move", debug_flag=DEBUG_STUCK)
+                print_if_debug(f"{self.color}, stuck: Done 1.5 full rotations near target, stopping move",
+                               debug_flag=DEBUG_STUCK)
                 self.angle_rotated = 0
                 return True
 
@@ -487,8 +490,9 @@ class IDPRobot(Robot):
             # Build up a list of obstructions to avoid which includes their type
             other_bot_pos = self.radio.get_other_bot_position()
             known_block_positions = [np.array(getattr(target, 'position')) for target in self.target_cache.targets]
-            obstructions = [{'type': 'block', 'position': pos} for pos in known_block_positions]\
-                + ([{'type': 'bot', 'position': np.array(other_bot_pos)}] if other_bot_pos is not None else [])
+            obstructions = [{'type': 'block', 'position': pos} for pos in known_block_positions] \
+                           + ([{'type': 'bot',
+                                'position': np.array(other_bot_pos)}] if other_bot_pos is not None else [])
 
             # Some tunable parameters
             min_approach_dist = {'block': 0.2, 'bot': 0.4}
@@ -518,7 +522,8 @@ class IDPRobot(Robot):
 
                                     # Find bounding circle
                                     dir_vec = (x['position'] - y['position']) / dist
-                                    center = (x['position'] + y['position'] - ((min_approaches[1] - min_approaches[0]) * dir_vec)) / 2
+                                    center = (x['position'] + y['position'] - (
+                                                (min_approaches[1] - min_approaches[0]) * dir_vec)) / 2
                                     radius = (min_approaches[0] + min_approaches[1] + dist) / 2
 
                                     # In event one of our old circles was inside the other
@@ -557,8 +562,8 @@ class IDPRobot(Robot):
                 # Check the obstruction is not at our target position, if we are just get as close as possible
                 distance_to_obstruction = self.distance_from_bot(obstruction['position'])
                 distance_from_target_to_obstruction = np.linalg.norm(obstruction['position'] - target_pos)
-                if distance_from_target_to_obstruction < min_approach_dist[obstruction['type']] and\
-                        distance_to_obstruction < min_approach_dist[obstruction['type']]\
+                if distance_from_target_to_obstruction < min_approach_dist[obstruction['type']] and \
+                        distance_to_obstruction < min_approach_dist[obstruction['type']] \
                         + self.default_target_distance_threshold:
                     print_if_debug(f"{self.color}, collision: Obstruction is where we want to go and we are close,\
                         stopping here", debug_flag=DEBUG_COLLISIONS)
@@ -566,10 +571,11 @@ class IDPRobot(Robot):
 
                 # Calculate the angle we would need to turn to (i.e. have the PID minimise) to avoid the obstruction
                 angle_to_obstruction = self.angle_from_bot_from_position(obstruction['position'])
-                angle_to_avoid_obstruction = angle_to_obstruction + (np.sign(angle - angle_to_obstruction) * tau/4)
+                angle_to_avoid_obstruction = angle_to_obstruction + (np.sign(angle - angle_to_obstruction) * tau / 4)
 
                 # Calculate the angle fraction for this angle
-                angle_fraction = ((min_approach_dist[obstruction['type']] + avoidance_bandwidth) - distance_to_obstruction) / avoidance_bandwidth
+                angle_fraction = ((min_approach_dist[obstruction[
+                    'type']] + avoidance_bandwidth) - distance_to_obstruction) / avoidance_bandwidth
                 angle_fraction = min(max(angle_fraction, 0), 2)
                 angles_and_fractions.append([angle_to_avoid_obstruction, angle_fraction])
 
@@ -580,8 +586,8 @@ class IDPRobot(Robot):
                 angles_and_fractions = [[x[0], x[1] * max_fraction / fraction_total] for x in angles_and_fractions]
 
                 # Determine our final angle to turn to, to hopefully avoid obstructions whilst reaching our target
-                angle = sum([x[0] * x[1] for x in angles_and_fractions])\
-                    + ((1 - sum(x[1] for x in angles_and_fractions)) * angle)
+                angle = sum([x[0] * x[1] for x in angles_and_fractions]) \
+                        + ((1 - sum(x[1] for x in angles_and_fractions)) * angle)
 
         # If we're reversing we change the angle so it mimics the bot facing the opposite way
         # When we apply the wheel velocities we negative them and voila we tricked the bot into reversing
@@ -663,7 +669,7 @@ class IDPRobot(Robot):
         self.update_motion_history(time=self.time, linear_speed=self.linear_speed,
                                    angular_velocity=self.angular_velocity)
         return abs(self.linear_speed) <= self.default_target_distance_threshold / self.hold_time \
-            and abs(self.angular_velocity) <= self.default_target_bearing_threshold / self.hold_time
+               and abs(self.angular_velocity) <= self.default_target_bearing_threshold / self.hold_time
 
     def hold(self, time=None):
         # Store when we want hold to end, we do this instead of storing current time because current time might be 0
