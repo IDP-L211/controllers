@@ -463,7 +463,7 @@ class IDPRobot(Robot):
         # Build up a list of obstructions to avoid which includes their type
         other_bot_pos = self.radio.get_other_bot_position()
         known_block_positions = [np.array(getattr(target, 'position')) for target in self.target_cache.targets
-                                 if (self.target is None or target != self.target or (target == self.target and avoid_current_target))]
+                                 if (self.target is None or target != self.target or avoid_current_target)]
         obstructions = [{'type': 'block', 'position': pos} for pos in known_block_positions] \
             + ([{'type': 'bot', 'position': np.array(other_bot_pos)}] if other_bot_pos is not None else [])
 
@@ -538,7 +538,7 @@ class IDPRobot(Robot):
             if distance_from_target_to_obstruction < min_approach_dist[obstruction['type']] and\
                     distance_to_obstruction < min_approach_dist[obstruction['type']]\
                     + self.default_target_distance_threshold:
-                print_if_debug(f"{self.color}, collision: Obstruction is where we want to go and we are close,\
+                print_if_debug(f"{self.color}, collision: Obstruction is where we want to go and we are close, \
 stopping here", debug_flag=DEBUG_COLLISIONS)
                 return None
 
@@ -553,15 +553,22 @@ stopping here", debug_flag=DEBUG_COLLISIONS)
         print_if_debug(angles_and_fractions, debug_flag=DEBUG_OBSTRUCTIONS)
         print_if_debug(angle, debug_flag=DEBUG_OBSTRUCTIONS)
 
+        angles_and_fractions = sorted(angles_and_fractions, key=lambda x: -x[1])
+        max_fraction = angles_and_fractions[0][1]
+
         # Normalise so our sum of the fractions is equal to the current highest value
         fraction_total = sum(x[1] for x in angles_and_fractions)
         if fraction_total != 0:
-            max_fraction = max(x[1] for x in angles_and_fractions)
-            angles_and_fractions = [[x[0], x[1] * max_fraction / fraction_total] for x in angles_and_fractions]
 
-            # Determine our final angle to turn to, to hopefully avoid obstructions whilst reaching our target
-            angle = sum([x[0] * x[1] for x in angles_and_fractions])\
-                + ((1 - sum(x[1] for x in angles_and_fractions)) * angle)
+            # TODO - Fix this bodge lmao
+            if max_fraction == 2 and other_bot_pos is not None and all(['bot' != o['type'] for o in obstructions]):  # Something has gone horribly wrong and we need to leave
+                angle = self.angle_from_bot_from_position(other_bot_pos) + tau/2
+            else:
+                angles_and_fractions = [[x[0], x[1] * max_fraction / fraction_total] for x in angles_and_fractions]
+
+                # Determine our final angle to turn to, to hopefully avoid obstructions whilst reaching our target
+                angle = sum([x[0] * x[1] for x in angles_and_fractions])\
+                    + ((1 - sum(x[1] for x in angles_and_fractions)) * angle)
         print_if_debug(angle, debug_flag=DEBUG_OBSTRUCTIONS)
 
         return angle
