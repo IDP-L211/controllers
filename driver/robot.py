@@ -53,7 +53,7 @@ class IDPRobot(Robot):
         compass (IDPCompass): The compass
         gps (IDPGPS): The GPS
         motors (IDPMotorController): The two motors
-        target_bearing_threshold (float): Threshold determining whether the target bearing is reached
+        default_target_bearing_threshold (float): Threshold determining whether the target bearing is reached
         default_target_distance_threshold (float): Threshold determining whether the target coordinate is reached
         timestep (float): Time step of the current world
         ultrasonic_left (IDPDistanceSensor): The ultrasonic sensor on the left
@@ -134,7 +134,7 @@ class IDPRobot(Robot):
         # Thresholds for finishing actions, speeds determined by holding that quantity for a given time period
         self.hold_time = 1.0  # s
         self.default_target_distance_threshold = 0.05
-        self.target_bearing_threshold = tau / 360
+        self.default_target_bearing_threshold = tau / 360
 
         # For rotations
         self.rotation_angle = 0
@@ -453,7 +453,7 @@ class IDPRobot(Robot):
             + ([{'type': 'bot', 'position': np.array(other_bot_pos)}] if other_bot_pos is not None else [])
 
         # Some tunable parameters
-        min_approach_dist = {'block': 0.2, 'bot': 0.4}
+        min_approach_dist = {'block': 0.2, 'bot': 0.45}
         avoidance_bandwidth = 0.2
 
         # Here we consider if two obstructions are close enough to constitute treatment as one large obstructions
@@ -562,7 +562,7 @@ class IDPRobot(Robot):
         Returns:
             bool: If we are at our target
         """
-        accuracy_threshold = self.default_target_distance_threshold\
+        accuracy_threshold = self.default_target_distance_threshold \
             if accuracy_threshold is None else accuracy_threshold
 
         target_pos = np.asarray(target_pos)
@@ -633,15 +633,19 @@ class IDPRobot(Robot):
         """
         return self.drive_to_position(target_pos, reverse=True, passive_collision_avoidance=False)
 
-    def rotate(self, angle: float, max_rotation_rate=None) -> bool:
+    def rotate(self, angle: float, max_rotation_rate=None, accuracy_threshold=None) -> bool:
         """Rotate the bot a fixed angle at a fixed rate of rotation
 
         Args:
             angle (float): Angle to rotate in radians, positive is clockwise
             max_rotation_rate (float): Maximum rate to rotate at, rad/s
+            accuracy_threshold (float): Threshold determining whether the target angle is reached
         Returns:
             bool: If we completed rotation
         """
+        accuracy_threshold = self.default_target_bearing_threshold \
+            if accuracy_threshold is None else accuracy_threshold
+
         max_rotation_rate = self.default_max_allowed_speed["r"] if max_rotation_rate is None else max_rotation_rate
         max_rotation_drive = max_rotation_rate / self.max_possible_speed["r"]
 
@@ -652,8 +656,8 @@ class IDPRobot(Robot):
 
         # Check if we're done
         angle_difference = self.rotation_angle - self.angle_rotated
-        if abs(angle_difference) <= self.target_bearing_threshold and \
-                abs(self.angular_velocity) <= self.target_bearing_threshold / self.hold_time:
+        if abs(angle_difference) <= accuracy_threshold and \
+                abs(self.angular_velocity) <= accuracy_threshold / self.hold_time:
             self.rotation_angle = 0
             self.angle_rotated = 0
             self.rotating = False
@@ -681,7 +685,7 @@ class IDPRobot(Robot):
         self.update_motion_history(time=self.time, linear_speed=self.linear_speed,
                                    angular_velocity=self.angular_velocity)
         return abs(self.linear_speed) <= self.default_target_distance_threshold / self.hold_time \
-            and abs(self.angular_velocity) <= self.target_bearing_threshold / self.hold_time
+            and abs(self.angular_velocity) <= self.default_target_bearing_threshold / self.hold_time
 
     def hold(self, time=None):
         # Store when we want hold to end, we do this instead of storing current time because current time might be 0
@@ -754,9 +758,7 @@ class IDPRobot(Robot):
 
         if self.collect_state == IDPRobotState.ROTATING_TO_FACE_TARGET:
             angle_to_block = self.angle_from_bot_from_position(self.target.position)
-            if abs(angle_to_block) > max_angle_to_block:
-                self.rotate(angle_to_block)
-            else:
+            if self.rotate(angle_to_block, accuracy_threshold=max_angle_to_block):
                 self.stored_time = self.time
                 print_if_debug(f"{self.color}, collect: Facing target, detecting color", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.DETECTING_COLOUR
