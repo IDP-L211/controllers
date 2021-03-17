@@ -726,7 +726,11 @@ class IDPRobot(Robot):
         colour_detect_distance_start = 0.25
         colour_detect_distance_end = 0.15
         max_angle_to_block = 0.12
-        rotate_angle = -tau / 2.5
+
+        block_nearby_threshold = 0.3
+        normal_rotate_angle = -tau / 2.5
+        rotate_angle_when_block_nearby = -tau / 5
+
         gate_time = 0.5
         reverse_distance = 0.2
         collect_rotation_rate = 2.0
@@ -832,7 +836,16 @@ class IDPRobot(Robot):
                 self.collect_state = IDPRobotState.ROTATING_TO_COLLECT
 
         if self.collect_state == IDPRobotState.ROTATING_TO_COLLECT:
-            if self.rotate(rotate_angle, max_rotation_rate=collect_rotation_rate):
+            # We need to check if there are any blocks nearby our target, if there are we need to rotate less to avoid
+            # mishaps. If this changes during the motion rotate will ignore that
+            for block in self.target_cache.targets:
+                if block != self.target:  # Don't want to compare our current block to our current block lol
+                    if self.target.is_near(block.position, threshold=block_nearby_threshold):
+                        angle = rotate_angle_when_block_nearby
+                        break
+            else:
+                angle = normal_rotate_angle
+            if self.rotate(angle, max_rotation_rate=collect_rotation_rate):
                 self.stored_time = self.time
                 print_if_debug(f"{self.color}, collect: Collected, closing gate", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.GATE_CLOSING
