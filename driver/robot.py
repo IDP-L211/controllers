@@ -66,6 +66,8 @@ class IDPRobot(Robot):
     def __init__(self):
         super().__init__()
 
+        self.DEBUG_OBJECTIVE = False  # Change this in driver.py not here
+
         # Motion properties, derived experimentally, speeds are when drive = 1
         self.max_possible_speed = {"f": 0.4, "r": 4.44}  # THESE MUST BE ACCURATE, else things get  w e i r d
         self.default_max_allowed_speed = {"f": 0.4, "r": 4.44}
@@ -454,7 +456,7 @@ class IDPRobot(Robot):
             + ([{'type': 'bot', 'position': np.array(other_bot_pos)}] if other_bot_pos is not None else [])
 
         # Some tunable parameters
-        min_approach_dist = {'block': 0.2, 'bot': 0.45}
+        min_approach_dist = {'block': 0.25, 'bot': 0.45}
         avoidance_bandwidth = 0.2
 
         # Here we consider if two obstructions are close enough to constitute treatment as one large obstructions
@@ -717,6 +719,10 @@ class IDPRobot(Robot):
         )):
             if curr_best_target := self.get_best_target():
                 self.target = curr_best_target  # update target to the best available at this time
+                print_if_debug(f"{self.color}, objective: Old target not best, now going to collect block at \
+{self.target.position}",
+                               debug_flag=self.DEBUG_OBJECTIVE)
+                self.collect_state = IDPRobotState.START_COLLECT
             else:  # no other target can be selected either, return to scan
                 print_if_debug(f"{self.color}, collect: No target can be selected", debug_flag=DEBUG_COLLECT)
                 self.brake()
@@ -728,7 +734,7 @@ class IDPRobot(Robot):
         colour_detect_distance_end = 0.15
         max_angle_to_block = 0.12
 
-        block_nearby_threshold = 0.3
+        block_nearby_threshold = 0.4
         rotate_angle = -tau / 2.5
         rotate_angle_when_block_nearby = -tau / 5
 
@@ -739,10 +745,9 @@ class IDPRobot(Robot):
         # Ifs not elifs means we don't waste timesteps if the state changes
 
         if self.collect_state == IDPRobotState.START_COLLECT:
-            # Check if we need to approach or can got straight to driving towards it
-            self.collect_far_approach_pos = [0.75 * np.sign(x) if abs(x) > 1.0 else x for x in self.target.position]
+            self.collect_far_approach_pos = [0.8 * np.sign(x) if abs(x) > 1.0 else x for x in self.target.position]
             if any(x != y for x, y in zip(self.collect_far_approach_pos, self.target.position)):
-                print_if_debug(f"{self.color}, collect: Block is near edge, driving nearby",
+                print_if_debug(f"{self.color}, collect: Block is near edge, driving to {self.collect_far_approach_pos}",
                                debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.APPROACHING_TARGET_FROM_CENTER
             else:
