@@ -35,16 +35,17 @@ tau = np.pi * 2
 
 
 class IDPRobotState(Enum):
-    START_COLLECT                       = 0
-    APPROACHING_TARGET_FROM_CENTER      = 1
-    DRIVING_TO_TARGET                   = 2
-    ROTATING_TO_FACE_TARGET             = 3
-    DETECTING_COLOUR                    = 4
-    BRAKING                             = 5
-    GATE_OPENING                        = 6
-    CHECKING_ROTATE                     = 7
-    ROTATING_TO_COLLECT                 = 8
-    GATE_CLOSING                        = 9
+    START_COLLECT                          = 0
+    APPROACHING_TARGET_FROM_CENTER         = 1
+    ROTATING_TO_FACE_TARGET_AFTER_APPROACH = 2
+    DRIVING_TO_TARGET                      = 3
+    ROTATING_TO_FACE_TARGET_FOR_DETECT     = 4
+    DETECTING_COLOUR                       = 5
+    BRAKING                                = 6
+    GATE_OPENING                           = 7
+    CHECKING_ROTATE                        = 8
+    ROTATING_TO_COLLECT                    = 9
+    GATE_CLOSING                           = 10
 
 
 class IDPRobot(Robot):
@@ -69,9 +70,9 @@ class IDPRobot(Robot):
         self.DEBUG_OBJECTIVE = False  # Change this in driver.py not here
 
         # Motion properties, derived experimentally, speeds are when drive = 1
-        self.max_possible_speed = {"f": 0.4, "r": 4.44}  # THESE MUST BE ACCURATE, else things get  w e i r d
-        self.default_max_allowed_speed = {"f": 0.4, "r": 4.44}
-        self.max_acc = {"f": 1.47, "r": 12.0}
+        self.max_possible_speed = {"f": 0.4, "r": 4.3}  # THESE MUST BE ACCURATE, else things get  w e i r d
+        self.default_max_allowed_speed = {"f": 0.4, "r": 3.3}
+        self.max_acc = {"f": 1.2, "r": 7.4}
         MotionCS.max_f_speed = self.default_max_allowed_speed["f"]
         # These are tunable if the robot is slipping or gripping more than expected
 
@@ -723,9 +724,11 @@ stopping here", debug_flag=DEBUG_COLLISIONS)
         if any((
                 not self.target,  # no target selected
                 all((
-                        self.collect_state in [IDPRobotState.DRIVING_TO_TARGET, IDPRobotState.START_COLLECT,
+                        self.collect_state in [IDPRobotState.START_COLLECT, IDPRobotState.DRIVING_TO_TARGET,
                                                IDPRobotState.APPROACHING_TARGET_FROM_CENTER,
-                                               IDPRobotState.DETECTING_COLOUR, IDPRobotState.ROTATING_TO_FACE_TARGET],  # on the way to target
+                                               IDPRobotState.ROTATING_TO_FACE_TARGET_AFTER_APPROACH,
+                                               IDPRobotState.ROTATING_TO_FACE_TARGET_FOR_DETECT,
+                                               IDPRobotState.DETECTING_COLOUR],  # on the way to target
                         not self.check_target_valid(self.target),  # collision if continue to target
                         other_bot_pos := self.radio.get_other_bot_position(),  # have position data of the other robot
                         abs(self.angle_from_bot_from_position(other_bot_pos)) < np.pi / 2
@@ -751,7 +754,7 @@ stopping here", debug_flag=DEBUG_COLLISIONS)
 
         block_nearby_threshold = 0.5
         rotate_angle = -tau / 2.5
-        rotate_angle_when_block_nearby = -tau / 5
+        rotate_angle_when_block_nearby = -tau / 6
 
         gate_time = 0.5
         reverse_distance = 0.2
@@ -772,19 +775,25 @@ stopping here", debug_flag=DEBUG_COLLISIONS)
         if self.collect_state == IDPRobotState.APPROACHING_TARGET_FROM_CENTER:  # Approach wide if at edge
             if self.drive_to_position(self.collect_far_approach_pos):  # Use passive collision avoidance
                 self.collect_far_approach_pos = None
-                print_if_debug(f"{self.color}, collect: At approach, driving to target", debug_flag=DEBUG_COLLECT)
+                print_if_debug(f"{self.color}, collect: At approach, turning", debug_flag=DEBUG_COLLECT)
+                self.collect_state = IDPRobotState.ROTATING_TO_FACE_TARGET_AFTER_APPROACH
+
+        if self.collect_state == IDPRobotState.ROTATING_TO_FACE_TARGET_AFTER_APPROACH:
+            angle_to_block = self.angle_from_bot_from_position(self.target.position)
+            if self.rotate(angle_to_block, accuracy_threshold=max_angle_to_block):
+                print_if_debug(f"{self.color}, collect: Facing target at approach, getting closer",
+                               debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.DRIVING_TO_TARGET
 
         if self.collect_state == IDPRobotState.DRIVING_TO_TARGET:  # driving to target
             if self.drive_to_position(self.target.position) \
                     or self.distance_from_bot(self.target.position) <= colour_detect_distance_start:
                 print_if_debug(f"{self.color}, collect: At target, rotating", debug_flag=DEBUG_COLLECT)
-                self.collect_state = IDPRobotState.ROTATING_TO_FACE_TARGET
+                self.collect_state = IDPRobotState.ROTATING_TO_FACE_TARGET_FOR_DETECT
 
-        if self.collect_state == IDPRobotState.ROTATING_TO_FACE_TARGET:
+        if self.collect_state == IDPRobotState.ROTATING_TO_FACE_TARGET_FOR_DETECT:
             angle_to_block = self.angle_from_bot_from_position(self.target.position)
             if self.rotate(angle_to_block, accuracy_threshold=max_angle_to_block):
-                self.stored_time = self.time
                 print_if_debug(f"{self.color}, collect: Facing target, detecting color", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.DETECTING_COLOUR
 
@@ -851,6 +860,7 @@ stopping here", debug_flag=DEBUG_COLLISIONS)
 
         if self.collect_state == IDPRobotState.BRAKING:
             if self.brake():
+                self.stored_time = self.time
                 self.collect_state = IDPRobotState.GATE_OPENING
 
         if self.collect_state == IDPRobotState.GATE_OPENING:
