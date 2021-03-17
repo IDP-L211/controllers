@@ -176,26 +176,35 @@ class IDPRobot(Robot):
         self.time += self.timestep_actual
         returned = super().step(timestep)
 
-        self.radio.send_message({
+        radio_message_data = {
             'position': self.position,
             'bearing': self.bearing,
             'vertices': list(map(list, self.get_bot_vertices())),
             'collected': self.target_cache.prepare_collected_message()
-        })  # also sending 'confirmed': (pos, color) if a block should be collected by the other robot
+        }
 
-        # send 'target': [x, y] if a target is selected
+        # Send 'target': [x, y] if a target is selected
         if self.target:
-            self.radio.send_message({'target': list(self.target.position)})
+            radio_message_data['target'] = list(self.target.position)
+
+        # Remove targets already collected by the other robot
+        self.target_cache.remove_collected_by_other(self.radio.get_other_bot_collected())
+
+        # Send our colour detected targets to the other robot
+        if self.target_cache.targets:
+            radio_message_data['targets_info'] = [[list(t.position), t.classification] for t in self.target_cache.targets
+                                                  if not t.sent_to_other_bot]
+            for target in self.target_cache.targets:
+                target.sent_to_other_bot = True
+
+        self.radio.send_message(radio_message_data)  # also sending 'confirmed': (pos, color) if a block should be collected by the other robot
 
         self.radio.dispatch_message()  # TODO ideally this should be send at the end of the timestep
 
-        # remove targets already collected by the other robot
-        self.target_cache.remove_collected_by_other(self.radio.get_other_bot_collected())
-
-        # add target confirmed by the other robot
-        if (confirmed_pos_color := self.radio.get_message().get('confirmed')) \
-                and confirmed_pos_color in ['red', 'green']:
-            self.target_cache.add_target(confirmed_pos_color[0], f'{confirmed_pos_color[1]}_box')
+        # Add targets the other robot has scanned
+        if other_bots_targets := self.radio.get_message().get('targets_info'):
+            for target_info in other_bots_targets:
+                self.target_cache.add_target(target_info[0], target_info[1])
 
         # update the map
         for t in self.target_cache.targets:  # plotting target markers
@@ -787,53 +796,55 @@ stopping here", debug_flag=DEBUG_COLLISIONS)
             if self.drive_to_position(self.target.position, max_forward_speed=0.1, passive_collision_avoidance=False) \
                     or self.distance_from_bot(self.target.position) <= colour_detect_distance_end:
 
-                # Get the most common color occurrence
-                red_count = self.collect_color_readings.count("red")
-                green_count = self.collect_color_readings.count("green")
-                self.collect_color_readings = []
-                if (red_count != 0 or green_count != 0) and red_count != green_count:
-                    if red_count > green_count:
-                        color = "red"
-                    else:
-                        color = "green"
-                    print(f"Block colour: {color}")
-                    self.target.classification = f"{color}_box"
+                # Other bot has already scanned it, putting this here and not earlier so bot still drives close to block
+                if self.target.classification == f'{self.color}_box':
+                    print_if_debug(f"{self.color}, collect: Apparently ours, collecting",
+                                   debug_flag=DEBUG_COLLECT)
+                    self.collect_state = IDPRobotState.BRAKING
 
-                    if color == self.color:
-                        print_if_debug(f"{self.color}, collect: Color match, collecting",
-                                       debug_flag=DEBUG_COLLECT)
-                        self.collect_state = IDPRobotState.BRAKING
+                else:
+                    # Get the most common color occurrence
+                    red_count = self.collect_color_readings.count("red")
+                    green_count = self.collect_color_readings.count("green")
+                    self.collect_color_readings = []
+                    if (red_count != 0 or green_count != 0) and red_count != green_count:
+                        if red_count > green_count:
+                            color = "red"
+                        else:
+                            color = "green"
+                        print(f"Block colour: {color}")
+                        self.target.classification = f"{color}_box"
+
+                        if color == self.color:
+                            print_if_debug(f"{self.color}, collect: Color match, collecting",
+                                           debug_flag=DEBUG_COLLECT)
+                            self.collect_state = IDPRobotState.BRAKING
+                        else:
+                            self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
+                            self.target.sent_to_other_bot = False  # Need to resend to update info
+                            self.target = None
+                            print_if_debug(f"{self.color}, collect: Color opposite, reversing",
+                                           debug_flag=DEBUG_COLLECT)
+                            return True
+
+                    # Not able to detect the colour, probably because the position is not accurate or we were going to
+                    # collide with something
                     else:
                         self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
-                        # should be collected by the other robot, send info to it
-                        self.radio.send_message({'confirmed': (list(self.target.position), color)})
+                        self.action_queue.insert(2, "scan")  # rescan to check if there is actually a target there
+                        # pop the current target off for now, the new scan will give better position
+                        if self.collect_num_tries > 1:  # this block is probably flipped over
+                            self.target.classification = 'flipped'
+                            self.collect_num_tries = 0  # reset the counter
+                            print_if_debug(f"{self.color}, collect: Color unknown, I think this is flipped",
+                                           debug_flag=DEBUG_COLLECT)
+                        else:
+                            self.target_cache.remove_target(self.target)
+                            self.collect_num_tries += 1
+                            print_if_debug(f"{self.color}, collect: Color unknown, I'll try again later",
+                                           debug_flag=DEBUG_COLLECT)
                         self.target = None
-                        print_if_debug(f"{self.color}, collect: Color opposite, reversing", debug_flag=DEBUG_COLLECT)
                         return True
-
-                # We don't know what color it is
-                elif (other_bot_collected := self.radio.get_other_bot_collected()) and len(other_bot_collected) == 4 \
-                        and self.target.classification == f'{self.color}_box':
-                    print_if_debug(f"{self.color}, collect: Must be ours, collecting",
-                                   debug_flag=DEBUG_COLLECT)
-                    # other robot has collected all four targets, this must be ours
-                    self.collect_state = IDPRobotState.BRAKING
-                else:  # not able to detect the colour, probably because the position is not accurate
-                    self.action_queue.insert(1, ("reverse", list(self.get_bot_front(-reverse_distance))))
-                    self.action_queue.insert(2, "scan")  # rescan to check if there is actually a target there
-                    # pop the current target off for now, the new scan will give better position
-                    if self.collect_num_tries > 1:  # this block is probably flipped over
-                        self.target.classification = 'flipped'
-                        self.collect_num_tries = 0  # reset the counter
-                        print_if_debug(f"{self.color}, collect: Color unknown, I think this is flipped",
-                                       debug_flag=DEBUG_COLLECT)
-                    else:
-                        self.target_cache.remove_target(self.target)
-                        self.collect_num_tries += 1
-                        print_if_debug(f"{self.color}, collect: Color unknown, I'll try again later",
-                                       debug_flag=DEBUG_COLLECT)
-                    self.target = None
-                    return True
 
         if self.collect_state == IDPRobotState.BRAKING:
             if self.brake():
