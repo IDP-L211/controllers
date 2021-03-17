@@ -143,6 +143,7 @@ class Target:
     def __init__(self, position: list, classification: str):
         self.position = position
         self.classification = classification
+        self.sent_to_other_bot = False  # To avoid spamming the other bot and overwriting things
 
     @property
     def profit(self):  # Not implemented
