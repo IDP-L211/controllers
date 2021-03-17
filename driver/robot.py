@@ -451,12 +451,13 @@ class IDPRobot(Robot):
     def passive_collision_avoidance(self, target_pos, angle):
         # Build up a list of obstructions to avoid which includes their type
         other_bot_pos = self.radio.get_other_bot_position()
-        known_block_positions = [np.array(getattr(target, 'position')) for target in self.target_cache.targets]
+        known_block_positions = [np.array(getattr(target, 'position')) for target in self.target_cache.targets
+                                 if (self.target is None or target != self.target)]
         obstructions = [{'type': 'block', 'position': pos} for pos in known_block_positions]\
             + ([{'type': 'bot', 'position': np.array(other_bot_pos)}] if other_bot_pos is not None else [])
 
         # Some tunable parameters
-        min_approach_dist = {'block': 0.25, 'bot': 0.45}
+        min_approach_dist = {'block': 0.2, 'bot': 0.45}
         avoidance_bandwidth = 0.2
 
         # Here we consider if two obstructions are close enough to constitute treatment as one large obstructions
@@ -527,7 +528,7 @@ class IDPRobot(Robot):
                     distance_to_obstruction < min_approach_dist[obstruction['type']]\
                     + self.default_target_distance_threshold:
                 print_if_debug(f"{self.color}, collision: Obstruction is where we want to go and we are close,\
-                    stopping here", debug_flag=DEBUG_COLLISIONS)
+stopping here", debug_flag=DEBUG_COLLISIONS)
                 return None
 
             # Calculate the angle we would need to turn to (i.e. have the PID minimise) to avoid the obstruction
@@ -538,6 +539,8 @@ class IDPRobot(Robot):
             angle_fraction = ((min_approach_dist[obstruction['type']] + avoidance_bandwidth) - distance_to_obstruction) / avoidance_bandwidth
             angle_fraction = min(max(angle_fraction, 0), 2)
             angles_and_fractions.append([angle_to_avoid_obstruction, angle_fraction])
+        print_if_debug(angles_and_fractions, debug_flag=DEBUG_OBSTRUCTIONS)
+        print_if_debug(angle, debug_flag=DEBUG_OBSTRUCTIONS)
 
         # Normalise so our sum of the fractions is equal to the current highest value
         fraction_total = sum(x[1] for x in angles_and_fractions)
@@ -548,6 +551,7 @@ class IDPRobot(Robot):
             # Determine our final angle to turn to, to hopefully avoid obstructions whilst reaching our target
             angle = sum([x[0] * x[1] for x in angles_and_fractions])\
                 + ((1 - sum(x[1] for x in angles_and_fractions)) * angle)
+        print_if_debug(angle, debug_flag=DEBUG_OBSTRUCTIONS)
 
         return angle
 
@@ -734,7 +738,7 @@ class IDPRobot(Robot):
         colour_detect_distance_end = 0.15
         max_angle_to_block = 0.12
 
-        block_nearby_threshold = 0.4
+        block_nearby_threshold = 0.5
         rotate_angle = -tau / 2.5
         rotate_angle_when_block_nearby = -tau / 5
 
@@ -745,7 +749,7 @@ class IDPRobot(Robot):
         # Ifs not elifs means we don't waste timesteps if the state changes
 
         if self.collect_state == IDPRobotState.START_COLLECT:
-            self.collect_far_approach_pos = [0.8 * np.sign(x) if abs(x) > 1.0 else x for x in self.target.position]
+            self.collect_far_approach_pos = [0.75 * np.sign(x) if abs(x) > 1.0 else x for x in self.target.position]
             if any(x != y for x, y in zip(self.collect_far_approach_pos, self.target.position)):
                 print_if_debug(f"{self.color}, collect: Block is near edge, driving to {self.collect_far_approach_pos}",
                                debug_flag=DEBUG_COLLECT)
@@ -761,7 +765,7 @@ class IDPRobot(Robot):
                 self.collect_state = IDPRobotState.DRIVING_TO_TARGET
 
         if self.collect_state == IDPRobotState.DRIVING_TO_TARGET:  # driving to target
-            if self.drive_to_position(self.target.position, passive_collision_avoidance=False) \
+            if self.drive_to_position(self.target.position) \
                     or self.distance_from_bot(self.target.position) <= colour_detect_distance_start:
                 print_if_debug(f"{self.color}, collect: At target, rotating", debug_flag=DEBUG_COLLECT)
                 self.collect_state = IDPRobotState.ROTATING_TO_FACE_TARGET
@@ -854,7 +858,6 @@ class IDPRobot(Robot):
                                        debug_flag=DEBUG_COLLECT)
                         break
             self.collect_state = IDPRobotState.ROTATING_TO_COLLECT
-
 
         if self.collect_state == IDPRobotState.ROTATING_TO_COLLECT:
             if self.rotate(rotate_angle, max_rotation_rate=collect_rotation_rate):
