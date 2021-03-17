@@ -203,7 +203,7 @@ class IDPRobot(Robot):
         self.radio.dispatch_message()  # TODO ideally this should be send at the end of the timestep
 
         # Add targets the other robot has scanned
-        if other_bots_targets := self.radio.get_message().get('targets_info'):
+        if other_bots_targets := self.radio.get_other_bot_targets_info():
             for target_info in other_bots_targets:
                 self.target_cache.add_target(target_info[0], target_info[1])
 
@@ -723,8 +723,9 @@ stopping here", debug_flag=DEBUG_COLLISIONS)
         if any((
                 not self.target,  # no target selected
                 all((
-                        self.collect_state in [IDPRobotState.DRIVING_TO_TARGET,
-                                               IDPRobotState.APPROACHING_TARGET_FROM_CENTER],  # on the way to target
+                        self.collect_state in [IDPRobotState.DRIVING_TO_TARGET, IDPRobotState.START_COLLECT,
+                                               IDPRobotState.APPROACHING_TARGET_FROM_CENTER,
+                                               IDPRobotState.DETECTING_COLOUR, IDPRobotState.ROTATING_TO_FACE_TARGET],  # on the way to target
                         not self.check_target_valid(self.target),  # collision if continue to target
                         other_bot_pos := self.radio.get_other_bot_position(),  # have position data of the other robot
                         abs(self.angle_from_bot_from_position(other_bot_pos)) < np.pi / 2
@@ -990,13 +991,20 @@ stopping here", debug_flag=DEBUG_COLLISIONS)
         return False
 
     def check_target_valid(self, target: Union[Target, None]) -> bool:
-        return target.classification in ['box', f'{self.color}_box'] and \
+        good_path = target.classification in ['box', f'{self.color}_box'] and \
             not self.target_cache.check_target_path_blocked(
                 target.position,
                 self.position,
                 self.radio.get_other_bot_position(),
                 self.radio.get_other_bot_vertices()
             ) if target else False
+
+        # Check we don't have the same target as other bot, arbitrarily give green priority
+        same_as_other_bot = False
+        if self.color == "red" and target is not None and self.radio.get_other_bot_target() is not None:
+            same_as_other_bot = target.is_near(self.radio.get_other_bot_target())
+
+        return good_path and not same_as_other_bot
 
     def filter_targets(self, targets: list) -> list:
         """Filter a given list of targets, returns targets the robot can drive to without hitting other targets or

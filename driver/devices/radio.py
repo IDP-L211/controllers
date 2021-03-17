@@ -105,3 +105,9 @@ class IDPRadio:
 
     def get_other_bot_invalid_targets(self) -> Union[None, list]:
         return self.get_message().get('invalid_targets')
+
+    def get_other_bot_targets_info(self) -> Union[None, list]:
+        return self.get_message().get('targets_info')
+
+    def get_other_bot_target(self) -> Union[None, list]:
+        return self.get_message().get('target')
