@@ -2,7 +2,23 @@
 
 This repository contains code for the robot controller, it should be added as a
 submodule to the [main Webots project
-repository](https://github.com/IDP-L211/idp).
+repository](https://github.com/IDP-L211/simulation).
+
+<p align="center">
+  <img alt="Overall Flowchart" src="docs/figs/overall_flow.svg" width="300">
+</p>
+
+The class diagram is shown below
+![Class Diagram](docs/figs/uml.svg)
+
+## Subroutines
+
+<p align="center">
+  <img alt="Motion" src="docs/figs/overall_flow.svg" width="250">
+  <img alt="Scanning" src="docs/figs/scan_flow.svg" width="200">
+  <img alt="Targeting" src="docs/figs/target_flow.svg" width="200">
+</p>
+
 
 ## Development
 
